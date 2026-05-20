@@ -1,0 +1,26 @@
+name: Security regression
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies (lockfile)
+        run: npm ci
+
+      - name: Security regression test
+        run: node tests/test-security-regression.mjs

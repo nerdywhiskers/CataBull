@@ -1,0 +1,63 @@
+# Personal data (created during onboarding)
+cv.md
+config/profile.yml
+modes/_profile.md
+portals.yml
+data/applications.md
+data/pipeline.md
+data/scan-history.tsv
+data/scan-schedule-state.json
+data/scan-health.json
+data/scan-health.log
+data/healthcheck-proposals.json
+data/healthcheck-*.md
+data/follow-ups.md
+data/outreach/*
+reports/*.md
+output/*
+jds/*
+!jds/.gitkeep
+interview-prep/*
+!interview-prep/.gitkeep
+.profiles/
+
+batch/logs/*
+!batch/logs/.gitkeep
+batch/batch-state.tsv
+batch/batch-input.tsv
+batch/tracker-additions/**/*.tsv
+!batch/tracker-additions/.gitkeep
+
+.env
+
+# Generated
+.resolved-prompt-*
+node_modules/
+bun.lock
+
+# OS
+.DS_Store
+*.mov
+*.mp4
+
+# Claude Code local (settings.json IS committed — shared baseline allowlist)
+.claude/settings.local.json
+.claude/memory/
+
+# Agent CLI configs / scratch outputs
+# (opencode.json IS committed — shared baseline allowlist, mirrors .claude/settings.json)
+# Stray bash-on-Windows redirect target (`> nul` writes a literal file
+# instead of /dev/null)
+nul
+
+# Zaemit AI tool config (auto-generated)
+.mcp.json
+
+# Audit tooling — venv + scratch JSON outputs (the .py and .mjs scripts
+# stay committed; the venv and last-run cache do not)
+tools/audit/.venv/
+tools/audit/__pycache__/
+tools/audit/last-results.json
+tools/audit/resolved-urls.json
+# .bak files written by apply-patches.mjs as a safety net
+templates/portals.example.yml.bak

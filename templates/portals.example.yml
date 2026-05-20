@@ -1,0 +1,3630 @@
+# Portal Scanner Configuration
+# Used by /careerbot scan to discover new offers automatically.
+#
+# Strategy (3 levels):
+#   1. Playwright → careers_url of each company (real-time, reliable)
+#   2. Greenhouse API → structured JSON (fast, Greenhouse-only)
+#   3. WebSearch with site: filters (broad discovery, may be stale)
+#
+# IMPORTANT: Each company in tracked_companies MUST have careers_url.
+#   Prefer the BRANDED company careers URL whenever available; use ATS-hosted URL only as fallback.
+#   ✅ https://careers.mastercard.com   ⚠️ https://mastercard.wd1.myworkdayjobs.com (fallback only)
+#   ✅ https://openai.com/careers       ⚠️ https://job-boards.greenhouse.io/openai (fallback only)
+#   Exception: ATS-hosted careers_url is acceptable when no branded careers page exists.
+#   Using raw ATS URLs when a branded page exists can cause false 410 errors (job ID mismatch).
+#
+# HOW TO CUSTOMIZE:
+#   1. Copy this file to portals.yml in the project root
+#   2. Edit title_filter.positive with YOUR target role keywords
+#   3. Add/remove companies in tracked_companies
+#   4. Adjust search_queries for your preferred job boards
+#   5. Set enabled: false on companies you don't care about
+
+# -- Title filter --
+# The scanner uses these keywords to decide if a title is relevant.
+# At least 1 positive must match AND 0 negatives must match (case-insensitive).
+
+default_provider: auto
+
+title_filter:
+  positive:
+    # [CUSTOMIZE] Add keywords matching YOUR target roles
+    # -- AI/ML roles --
+    - "AI"
+    - "ML"
+    - "LLM"
+    - "Agent"
+    - "Agentic"
+    - "GenAI"
+    - "Generative AI"
+    - "NLP"
+    - "LLMOps"
+    - "MLOps"
+    - "Voice AI"
+    - "Conversational AI"
+    - "Speech"
+    # -- German AI/ML keywords (DACH market) --
+    - "KI"
+    - "Künstliche Intelligenz"
+    - "KI Engineer"
+    - "KI Trainer"
+    - "Dozent"
+    - "Weiterbildung"
+    # -- Engineering roles --
+    - "Platform Engineer"
+    - "Solutions Architect"
+    - "Solutions Engineer"
+    - "Forward Deployed"
+    - "Deployed Engineer"
+    - "Customer Engineer"
+    - "Integration Engineer"
+    # -- Product roles --
+    - "Product Manager"
+    - "Technical PM"
+    # -- Automation roles --
+    - "Automation"
+    - "Hyperautomation"
+    - "Low-Code"
+    - "No-Code"
+    - "GTM Engineer"
+    - "RevOps"
+    - "Business Systems"
+    - "Internal Tools"
+    - "Transformation"
+  negative:
+    # [CUSTOMIZE] Add keywords for roles you want to exclude
+    - "Junior"
+    - "Intern"
+    - ".NET"
+    - "Java "
+    - "iOS"
+    - "Android"
+    - "PHP"
+    - "Ruby"
+    - "Embedded"
+    - "Firmware"
+    - "FPGA"
+    - "ASIC"
+    - "Blockchain"
+    - "Web3"
+    - "Crypto"
+    - "Salesforce Admin"
+    - "SAP "
+    - "Oracle EBS"
+    - "Mainframe"
+    - "COBOL"
+  seniority_boost:
+    # These prefixes add relevance but are not required
+    - "Senior"
+    - "Staff"
+    - "Principal"
+    - "Lead"
+    - "Head"
+    - "Director"
+
+# -- Search queries --
+# Each query triggers a WebSearch. Use site: to filter by portal.
+# The scanner extracts title, URL, and company from results.
+
+search_queries:
+  # -- Ashby --
+  - name: Ashby — AI PM
+    query: 'site:jobs.ashbyhq.com "AI Product Manager" OR "Senior Product Manager AI" remote'
+    enabled: true
+
+  - name: Ashby — Solutions Architect
+    query: 'site:jobs.ashbyhq.com "Solutions Architect" AI OR automation remote'
+    enabled: true
+
+  - name: Ashby — AI Engineer
+    query: 'site:jobs.ashbyhq.com "AI Engineer" OR "LLM Engineer" OR "Forward Deployed" remote'
+    enabled: true
+
+  - name: Ashby — Agentic
+    query: 'site:jobs.ashbyhq.com "Agentic" OR "AI Agent" OR "Automation Architect" remote'
+    enabled: true
+
+  # -- Greenhouse --
+  - name: Greenhouse — AI PM
+    query: 'site:boards.greenhouse.io OR site:job-boards.greenhouse.io "AI Product Manager" OR "Senior Product Manager" AI remote'
+    enabled: true
+
+  - name: Greenhouse — SA & FDE
+    query: 'site:boards.greenhouse.io OR site:job-boards.greenhouse.io "Solutions Architect" OR "Forward Deployed" AI remote'
+    enabled: true
+
+  - name: Greenhouse — AI Engineer
+    query: 'site:boards.greenhouse.io OR site:job-boards.greenhouse.io "AI Engineer" OR "LLM" OR "Agentic" remote'
+    enabled: true
+
+  # -- Workable --
+  - name: Workable — AI Roles
+    query: 'site:apply.workable.com "AI" "Product Manager" OR "Solutions Architect" OR "AI Engineer" remote'
+    enabled: true
+
+  # -- No-Code / Low-Code / Automation --
+  - name: Ashby — No-Code & Automation
+    query: 'site:jobs.ashbyhq.com "no-code" OR "low-code" OR "automation engineer" OR "n8n" OR "Make" OR "Airtable" remote senior'
+    enabled: true
+
+  - name: Greenhouse — No-Code & Automation
+    query: 'site:job-boards.greenhouse.io "no-code" OR "low-code" OR "automation engineer" OR "business systems" senior remote'
+    enabled: true
+
+  - name: GTM Engineer — All portals
+    query: '"GTM Engineer" OR "RevOps Engineer" OR "Growth Engineer" automation Airtable OR Make OR Clay remote'
+    enabled: true
+
+  # -- Voice AI & Conversational AI --
+  - name: Voice AI — FDE & SA
+    query: 'site:job-boards.greenhouse.io OR site:jobs.ashbyhq.com "Voice AI" OR "Conversational AI" OR "Speech" "Solutions" OR "Forward Deployed" OR "Customer Engineer"'
+    enabled: true
+
+  - name: Voice AI — AI Engineer
+    query: 'site:job-boards.greenhouse.io OR site:jobs.ashbyhq.com "Voice" OR "Speech" "AI Engineer" OR "Deployment" OR "Integration"'
+    enabled: true
+
+  # -- Contact Center AI --
+  - name: Contact Center AI — SA & SE
+    query: '"contact center" OR "customer service" "AI" "Solutions Architect" OR "Solutions Engineer" OR "Forward Deployed" remote'
+    enabled: true
+
+  # -- FDE specific (cross-portal) --
+  - name: FDE & Deployed Engineer — All portals
+    query: '"Forward Deployed Engineer" OR "Deployed Engineer" OR "Deployment Engineer" AI site:job-boards.greenhouse.io OR site:jobs.ashbyhq.com OR site:jobs.lever.co'
+    enabled: true
+
+  # -- Remote-friendly Europe boards --
+
+  - name: Remotive — AI/DevRel/SA/FDE
+    query: 'site:remotive.com "AI Engineer" OR "Developer Advocate" OR "Solutions Architect" OR "Forward Deployed" OR "DevRel" Europe'
+    enabled: true
+
+  - name: WeWorkRemotely — AI & DX
+    query: 'site:weworkremotely.com "AI" OR "DevRel" OR "Solutions Engineer" OR "Forward Deployed" OR "Founding Engineer"'
+    enabled: true
+
+  - name: Working Nomads — AI/DevRel/SA
+    query: 'site:workingnomads.com "AI Engineer" OR "Developer Advocate" OR "Solutions Architect" OR "Forward Deployed"'
+    enabled: true
+
+  - name: EU Remote Jobs — AI/DevRel/SA
+    query: 'site:euremotejobs.com "AI" OR "DevRel" OR "Solutions Architect" OR "Forward Deployed" OR "Founding Engineer"'
+    enabled: true
+
+  - name: RemoteOK — AI/DevRel/SA
+    query: 'site:remoteok.com "AI Engineer" OR "Developer Advocate" OR "Solutions Architect" OR "Forward Deployed" OR "Founding Engineer"'
+    enabled: true
+
+  # -- Specialized AI / Dev-Tools / FDE boards --
+
+  - name: ai-jobs.net — DevRel/SA/FDE
+    query: 'site:ai-jobs.net "Developer Advocate" OR "Solutions Architect" OR "Forward Deployed" OR "DevRel" remote Europe'
+    enabled: true
+
+  - name: ai-jobs.net — Founding/Applied AI
+    query: 'site:ai-jobs.net "Founding Engineer" OR "Applied AI Engineer" OR "Founding" remote'
+    enabled: true
+
+  - name: fwddeploy.com — Forward Deployed roles
+    query: 'site:fwddeploy.com "Forward Deployed" OR "Deployed Engineer" remote Europe OR EMEA'
+    enabled: true
+
+  - name: YC Jobs — DevRel/SA/FDE/Founding
+    query: 'site:ycombinator.com/jobs OR site:workatastartup.com "Forward Deployed" OR "Developer Advocate" OR "Founding Engineer" OR "Solutions Architect" remote'
+    enabled: true
+
+  - name: YC Jobs — Applied AI
+    query: 'site:workatastartup.com "Applied AI" OR "AI Engineer" OR "AI Agent" remote Europe'
+    enabled: true
+
+  # -- Spanish market specialized (high-value for Madrid/Barcelona-based candidates) --
+
+  - name: Manfred — Tech Senior España
+    query: 'site:getmanfred.com/en/job-offers "Solutions Architect" OR "DevRel" OR "Forward Deployed" OR "AI Engineer" OR "Founding"'
+    enabled: true
+
+  - name: Manfred — Remote AI/Senior
+    query: 'site:getmanfred.com "remote" "AI" OR "Senior" OR "Staff" OR "Lead"'
+    enabled: true
+
+  - name: Tecnoempleo — España IT
+    query: 'site:tecnoempleo.com "AI Engineer" OR "Solutions Architect" OR "DevRel" OR "Forward Deployed" OR "Founding Engineer"'
+    enabled: true
+
+  - name: Tecnoempleo — Remoto Senior
+    query: 'site:tecnoempleo.com "remoto" OR "remote" Senior "AI" OR "Architect" OR "Lead"'
+    enabled: true
+
+  - name: JobFluent — Spain startups
+    query: 'site:jobfluent.com Madrid OR Barcelona "AI" OR "Engineer" OR "Solutions" OR "DevRel"'
+    enabled: true
+
+  - name: Welcome to the Jungle — Spain tech
+    query: 'site:welcometothejungle.com Spain OR Madrid OR Barcelona "AI Engineer" OR "Solutions Architect" OR "DevRel" OR "Forward Deployed"'
+    enabled: true
+
+  # -- DevRel-specific boards --
+
+  - name: DevRelX Jobs
+    query: 'site:devrelx.com/jobs remote OR Europe OR EMEA'
+    enabled: true
+
+  - name: TrueUp — DevRel roles
+    query: 'site:trueup.io/devrel OR site:trueup.io "Developer Advocate" OR "DevRel" remote Europe'
+    enabled: true
+
+  - name: Remote Rocketship — DevRel
+    query: 'site:remoterocketship.com/jobs/developer-relations OR site:remoterocketship.com "DevRel" remote'
+    enabled: true
+
+  - name: DevRel Job board
+    query: 'site:devreljob.com remote OR Europe OR EMEA'
+    enabled: true
+
+  # -- European / global aggregators --
+
+  - name: Himalayas — Remote AI/Dev-tools
+    query: 'site:himalayas.app "AI Engineer" OR "Solutions Architect" OR "Developer Advocate" OR "Forward Deployed" OR "Founding Engineer" Europe'
+    enabled: true
+
+  - name: Jooble — España Tech Senior
+    query: 'site:jooble.org "AI Engineer" OR "Solutions Architect" OR "DevRel" Madrid OR remote España'
+    enabled: true
+
+  - name: EU Data Jobs — AI/ML Europe
+    query: 'site:eudatajobs.com "AI" OR "ML" OR "Data" "Engineer" OR "Architect" remote Europe'
+    enabled: true
+
+  - name: HN Who's Hiring — Remote AI
+    query: 'site:news.ycombinator.com OR site:hnrss.org "AI Engineer" OR "Forward Deployed" OR "DevRel" OR "Founding Engineer" remote'
+    enabled: true
+
+# -- Tracked companies --
+# Companies whose career pages are checked directly.
+# provider: auto, greenhouse, ashby, lever, workday, bamboohr, teamtailor, webfetch
+# provider_config: optional provider-specific selectors/config
+# For Greenhouse companies, add api: for a direct structured endpoint override.
+#
+# Health metadata (W4 — see docs/archive/SCAN_RELIABILITY.md):
+# The dashboard's health check writes a `health:` block to each company
+# describing the state of its careers URL. After AUTO_DISABLE_THRESHOLD
+# (3) consecutive non-OK checks, `enabled: false` and `auto_disabled: true`
+# are stamped automatically. Re-enabling the company through the UI
+# clears the flag and resets the counter.
+#
+#   health:
+#     last_check: 2026-04-30
+#     last_status: not_found
+#     last_error: "lever: HTTP 404"
+#     consecutive_failures: 3
+#     last_ok: 2026-04-15           # only set on the most recent success
+
+tracked_companies:
+
+  # -- AI Labs & LLM providers --
+
+  - name: Anthropic
+    careers_url: https://job-boards.greenhouse.io/anthropic
+    api: https://boards-api.greenhouse.io/v1/boards/anthropic/jobs
+    enabled: true
+
+  - name: OpenAI
+    careers_url: https://openai.com/careers
+    scan_method: websearch
+    scan_query: site:openai.com/careers
+    enabled: true
+
+  # -- Voice AI & Conversational AI --
+
+  - name: PolyAI
+    careers_url: https://job-boards.eu.greenhouse.io/polyai
+    api: https://boards-api.greenhouse.io/v1/boards/polyai/jobs
+    notes: "UK. Voice AI for enterprise contact centers."
+    enabled: true
+
+  - name: Parloa
+    careers_url: https://job-boards.eu.greenhouse.io/parloa
+    api: https://boards-api.greenhouse.io/v1/boards/parloa/jobs
+    notes: "Berlin EMEA. Voice AI enterprise."
+    enabled: true
+
+  - name: Intercom
+    careers_url: https://job-boards.greenhouse.io/intercom
+    api: https://boards-api.greenhouse.io/v1/boards/intercom/jobs
+    notes: "Dublin EMEA. Fin AI agent."
+    enabled: true
+
+  - name: Hume AI
+    careers_url: https://job-boards.greenhouse.io/humeai
+    api: https://boards-api.greenhouse.io/v1/boards/humeai/jobs
+    notes: "NYC. Empathic voice AI."
+    enabled: true
+
+  - name: ElevenLabs
+    careers_url: https://jobs.ashbyhq.com/elevenlabs
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/elevenlabs'
+    notes: "Voice AI TTS leader."
+    enabled: true
+
+  - name: Deepgram
+    careers_url: https://jobs.ashbyhq.com/deepgram
+    scan_method: websearch
+    scan_query: 'site:deepgram.com/careers OR "deepgram" "Solutions" OR "AI Engineer" site:jobs.ashbyhq.com'
+    notes: "STT/TTS APIs."
+    enabled: true
+
+  - name: Vapi
+    careers_url: https://jobs.ashbyhq.com/vapi
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/vapi'
+    notes: "Voice AI infrastructure."
+    enabled: true
+
+  - name: Bland AI
+    careers_url: https://jobs.ashbyhq.com/bland
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/bland'
+    notes: "Voice phone agents. $65M Series B."
+    enabled: true
+
+  # -- AI-native platforms (FDE/SA teams) --
+
+  - name: Retool
+    careers_url: https://retool.com/careers
+    scan_method: websearch
+    scan_query: 'site:retool.com/careers "Deployed" OR "AI" OR "Solutions"'
+    notes: "London. Popularized Deployed Engineer role."
+    enabled: true
+
+  - name: Airtable
+    careers_url: https://job-boards.greenhouse.io/airtable
+    api: https://boards-api.greenhouse.io/v1/boards/airtable/jobs
+    notes: "No-code + AI platform."
+    enabled: true
+
+  - name: Vercel
+    careers_url: https://job-boards.greenhouse.io/vercel
+    api: https://boards-api.greenhouse.io/v1/boards/vercel/jobs
+    notes: "AI SDK, v0.dev. Frontend AI tooling."
+    enabled: true
+
+  - name: Temporal
+    careers_url: https://job-boards.greenhouse.io/temporal
+    api: https://boards-api.greenhouse.io/v1/boards/temporal/jobs
+    notes: "Workflow orchestration."
+    enabled: true
+
+  - name: Arize AI
+    careers_url: https://job-boards.greenhouse.io/arizeai
+    api: https://boards-api.greenhouse.io/v1/boards/arizeai/jobs
+    notes: "LLMOps / AI observability."
+    enabled: true
+
+  - name: RunPod
+    careers_url: https://job-boards.greenhouse.io/runpod
+    api: https://boards-api.greenhouse.io/v1/boards/runpod/jobs
+    notes: "GPU cloud for AI."
+    enabled: true
+
+  - name: Glean
+    careers_url: https://job-boards.greenhouse.io/gleanwork
+    api: https://boards-api.greenhouse.io/v1/boards/gleanwork/jobs
+    notes: "Enterprise AI search."
+    enabled: true
+
+  # -- Contact Center AI & CX --
+
+  - name: Ada
+    careers_url: https://job-boards.greenhouse.io/ada
+    scan_method: websearch
+    scan_query: '"ada.cx" OR "ada" "AI" "Solutions" OR "Engineer" site:jobs.ashbyhq.com OR site:job-boards.greenhouse.io'
+    notes: "Toronto + remote. AI customer service."
+    enabled: true
+
+  - name: LivePerson
+    careers_url: https://liveperson.com/company/careers
+    scan_method: websearch
+    scan_query: 'site:liveperson.com/careers OR "liveperson" "Solutions" OR "AI" site:job-boards.greenhouse.io'
+    notes: "Remote EMEA. Conversational AI enterprise."
+    enabled: true
+
+  - name: Sierra
+    careers_url: https://jobs.ashbyhq.com/sierra
+    scan_method: websearch
+    scan_query: '"sierra.ai" "AI" "Forward Deployed" OR "Applied" OR "Solutions" site:jobs.ashbyhq.com'
+    notes: "Bret Taylor (ex-CEO Salesforce). AI customer agents."
+    enabled: true
+
+  - name: Decagon
+    careers_url: https://jobs.ashbyhq.com/decagon
+    scan_method: websearch
+    scan_query: '"decagon" "AI" "Forward Deployed" OR "Solutions" site:jobs.ashbyhq.com'
+    notes: "AI customer support agents."
+    enabled: true
+
+  # -- Enterprise comms & contact center --
+
+  - name: Talkdesk
+    careers_url: https://www.talkdesk.com/careers
+    scan_method: websearch
+    scan_query: 'site:talkdesk.com/careers "AI" OR "Solutions Architect" OR "AI Engineer"'
+    notes: "Lisbon. Contact center AI. EMEA friendly."
+    enabled: true
+
+  - name: Twilio
+    careers_url: https://www.twilio.com/en-us/company/jobs
+    scan_method: websearch
+    scan_query: 'site:twilio.com/company/jobs "AI" OR "Voice" "Solutions" OR "Architect"'
+    notes: "Voice/messaging infrastructure."
+    enabled: true
+
+  - name: Dialpad
+    careers_url: https://www.dialpad.com/careers
+    scan_method: websearch
+    scan_query: '"dialpad" "AI" "Solutions" OR "Engineer" site:job-boards.greenhouse.io OR site:jobs.ashbyhq.com'
+    notes: "Voice AI for business comms."
+    enabled: true
+
+  - name: Gong
+    careers_url: https://www.gong.io/careers
+    scan_method: websearch
+    scan_query: 'site:gong.io/careers "AI" OR "Solutions" OR "Architect"'
+    notes: "Revenue intelligence with voice AI."
+    enabled: true
+
+  - name: Genesys
+    careers_url: https://www.genesys.com/careers
+    scan_method: websearch
+    scan_query: 'site:genesys.com/careers "AI" "Solutions Architect" OR "AI Engineer"'
+    notes: "Contact center cloud + AI."
+    enabled: true
+
+  - name: Salesforce
+    careers_url: https://careers.salesforce.com
+    scan_method: websearch
+    scan_query: 'site:careers.salesforce.com "Forward Deployed" OR "AI Engineer" OR "Agentforce"'
+    notes: "Agentforce = AI agents platform."
+    enabled: true
+
+  # -- AI infra & LLMOps --
+
+  - name: Langfuse
+    careers_url: https://langfuse.com/careers
+    scan_method: websearch
+    scan_query: '"langfuse" careers OR jobs "engineer" OR "solutions"'
+    notes: "Berlin. LLMOps / observability."
+    enabled: true
+
+  - name: Lindy
+    careers_url: https://jobs.ashbyhq.com/lindy
+    scan_method: websearch
+    scan_query: '"lindy.ai" "AI" "Forward Deployed" OR "Solutions" site:jobs.ashbyhq.com'
+    notes: "AI agent management platform."
+    enabled: true
+
+  - name: Cognigy
+    careers_url: https://careers.cognigy.com
+    scan_method: websearch
+    scan_query: '"cognigy" careers "AI" OR "Solutions" OR "Engineer"'
+    notes: "Dusseldorf EMEA. Conversational AI enterprise."
+    enabled: true
+
+  - name: Speechmatics
+    careers_url: https://job-boards.greenhouse.io/speechmatics
+    api: https://boards-api.greenhouse.io/v1/boards/speechmatics/jobs
+    notes: "Cambridge UK. Speech recognition platform."
+    enabled: true
+
+  # -- No-Code/Low-Code & Automation --
+
+  - name: n8n
+    careers_url: https://jobs.ashbyhq.com/n8n
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/n8n'
+    notes: "Berlin + remote EU/US. Workflow automation."
+    enabled: true
+
+  - name: Zapier
+    careers_url: https://jobs.ashbyhq.com/zapier
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/zapier'
+    notes: "Remote-first. Automation platform leader."
+    enabled: true
+
+  - name: Make.com (Celonis)
+    careers_url: https://www.make.com/en/careers
+    scan_method: websearch
+    scan_query: 'site:make.com/en/careers OR "make.com" "engineer" OR "solutions" site:jobs.ashbyhq.com'
+    notes: "Celonis parent company. Automation platform."
+    enabled: true
+
+  # -- Ashby-based (Playwright direct) --
+
+  - name: Cohere
+    careers_url: https://jobs.ashbyhq.com/cohere
+    notes: "AI/LLM provider. Toronto + remote."
+    enabled: true
+
+  - name: LangChain
+    careers_url: https://jobs.ashbyhq.com/langchain
+    notes: "LangChain/LangSmith framework."
+    enabled: true
+
+  - name: Pinecone
+    careers_url: https://jobs.ashbyhq.com/pinecone
+    notes: "Vector database."
+    enabled: true
+
+  # -- Lever-based (Playwright direct) --
+
+  - name: Mistral AI
+    careers_url: https://jobs.lever.co/mistral
+    notes: "Paris. European AI lab."
+    enabled: true
+
+  - name: Weights & Biases
+    careers_url: https://jobs.lever.co/wandb
+    notes: "MLOps platform."
+    enabled: true
+
+  - name: Palantir
+    careers_url: https://jobs.lever.co/palantir
+    notes: "FDE roles. Mostly US/London."
+    enabled: true
+
+  # -- European tech (EMEA-friendly) --
+
+  - name: Factorial
+    careers_url: https://job-boards.greenhouse.io/factorial
+    scan_method: websearch
+    scan_query: 'site:jobs.greenhouse.io/factorial'
+    notes: "Barcelona. HR SaaS unicorn."
+    enabled: true
+
+  - name: Attio
+    careers_url: https://jobs.ashbyhq.com/attio
+    scan_method: websearch
+    scan_query: 'site:attio.com/careers OR site:jobs.ashbyhq.com/attio'
+    notes: "Remote EU. AI-native CRM. Series B $52M."
+    enabled: true
+
+  - name: Tinybird
+    careers_url: https://jobs.ashbyhq.com/tinybird
+    scan_method: websearch
+    scan_query: 'site:tinybird.co/careers OR site:jobs.ashbyhq.com/tinybird'
+    notes: "Remote. Real-time data platform."
+    enabled: true
+
+  - name: Clarity AI
+    careers_url: https://jobs.lever.co/clarity-ai
+    scan_method: websearch
+    scan_query: 'site:clarity.ai/careers OR site:jobs.lever.co/clarity-ai'
+    notes: "Madrid/Remote. Sustainability analytics with AI."
+    enabled: true
+
+  - name: Travelperk
+    careers_url: https://jobs.ashbyhq.com/travelperk
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/travelperk'
+    notes: "Barcelona. Business travel unicorn."
+    enabled: true
+
+  # -- DACH & European AI ecosystem --
+  # All entries below have been verified against the Greenhouse / Ashby /
+  # Lever / Workable APIs or live job boards. Greenhouse boards expose a
+  # JSON API at https://boards-api.greenhouse.io/v1/boards/{slug}/jobs which
+  # the scanner can hit directly via the api: field.
+
+  # -- DACH AI labs & frontier model providers --
+
+  - name: Aleph Alpha
+    careers_url: https://jobs.ashbyhq.com/AlephAlpha
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/AlephAlpha'
+    notes: "Heidelberg DE. Sovereign European LLM provider, enterprise & government focus."
+    enabled: true
+
+  - name: DeepL
+    careers_url: https://jobs.ashbyhq.com/DeepL
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/DeepL'
+    notes: "Cologne DE. Translation & language AI. 60+ open roles, EU/DACH heavy."
+    enabled: true
+
+  - name: Black Forest Labs
+    careers_url: https://job-boards.greenhouse.io/blackforestlabs
+    api: https://boards-api.greenhouse.io/v1/boards/blackforestlabs/jobs
+    notes: "Freiburg DE / SF. FLUX image models, ex-Stable Diffusion team."
+    enabled: true
+
+  - name: Helsing
+    careers_url: https://job-boards.greenhouse.io/helsing
+    api: https://boards-api.greenhouse.io/v1/boards/helsing/jobs
+    notes: "Munich / Berlin / London / Paris. Defence AI unicorn. 100+ roles, ML & FDE."
+    enabled: true
+
+  # -- DACH enterprise & SaaS (AI-heavy) --
+
+  - name: Celonis
+    careers_url: https://job-boards.greenhouse.io/celonis
+    api: https://boards-api.greenhouse.io/v1/boards/celonis/jobs
+    notes: "Munich / NYC. Process intelligence, Applied AI Engineer roles, Field CTOs."
+    enabled: true
+
+  - name: Contentful
+    careers_url: https://job-boards.greenhouse.io/contentful
+    api: https://boards-api.greenhouse.io/v1/boards/contentful/jobs
+    notes: "Berlin / Denver. Headless CMS, AI content workflows."
+    enabled: true
+
+  - name: GetYourGuide
+    careers_url: https://job-boards.greenhouse.io/getyourguide
+    api: https://boards-api.greenhouse.io/v1/boards/getyourguide/jobs
+    notes: "Berlin. Travel marketplace, ML & data platform roles."
+    enabled: true
+
+  - name: HelloFresh
+    careers_url: https://job-boards.greenhouse.io/hellofresh
+    api: https://boards-api.greenhouse.io/v1/boards/hellofresh/jobs
+    notes: "Berlin. Meal kit unicorn, large data/ML org."
+    enabled: true
+
+  # -- DACH fintech --
+
+  - name: N26
+    careers_url: https://job-boards.greenhouse.io/n26
+    api: https://boards-api.greenhouse.io/v1/boards/n26/jobs
+    notes: "Berlin / Barcelona. Mobile bank, ~50 roles, ML & risk."
+    enabled: true
+
+  - name: Trade Republic
+    careers_url: https://job-boards.greenhouse.io/traderepublicbank
+    api: https://boards-api.greenhouse.io/v1/boards/traderepublicbank/jobs
+    notes: "Berlin / London / Paris. Neobroker, ~50 roles, platform & data."
+    enabled: true
+
+  - name: SumUp
+    careers_url: https://job-boards.greenhouse.io/sumup
+    api: https://boards-api.greenhouse.io/v1/boards/sumup/jobs
+    notes: "Berlin / London. Payments fintech, EU + LATAM hiring."
+    enabled: true
+
+  - name: Qonto
+    careers_url: https://jobs.lever.co/qonto
+    notes: "Paris / Berlin / Barcelona / Milan. SMB neobank, MLOps for AI Product roles."
+    enabled: true
+
+  # -- DACH logistics / mobility --
+
+  - name: Forto
+    careers_url: https://jobs.lever.co/forto
+    notes: "Berlin DE. Digital freight forwarder, product & data roles, German + English."
+    enabled: true
+
+  # -- Switzerland / Austria AI --
+
+  - name: Lakera
+    careers_url: https://jobs.ashbyhq.com/lakera.ai
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/lakera.ai'
+    notes: "Zurich CH / SF. AI security & guardrails. Has Forward Deployed Engineer roles."
+    enabled: true
+
+  - name: Scandit
+    careers_url: https://job-boards.greenhouse.io/scandit
+    api: https://boards-api.greenhouse.io/v1/boards/scandit/jobs
+    notes: "Zurich CH. Computer vision / smart data capture, ML roles."
+    enabled: true
+
+  - name: Cradle
+    careers_url: https://jobs.ashbyhq.com/cradlebio
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/cradlebio'
+    notes: "Zurich CH / Amsterdam. AI-guided protein design, ML researcher roles."
+    enabled: true
+
+  # -- France AI ecosystem --
+
+  - name: Hugging Face
+    careers_url: https://apply.workable.com/huggingface/
+    scan_method: websearch
+    scan_query: 'site:apply.workable.com/huggingface'
+    notes: "Paris / NYC / Remote. ML hub & open-source models."
+    enabled: true
+
+  - name: Photoroom
+    careers_url: https://jobs.ashbyhq.com/photoroom
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/photoroom'
+    notes: "Paris FR. AI photo editor, Head of CV / Head of ML roles."
+    enabled: true
+
+  - name: Pigment
+    careers_url: https://jobs.lever.co/pigment
+    notes: "Paris FR / NYC / London. AI-powered FP&A planning platform."
+    enabled: true
+
+  # -- UK & Ireland AI (EU-friendly hiring) --
+
+  - name: Wayve
+    careers_url: https://job-boards.greenhouse.io/wayve
+    api: https://boards-api.greenhouse.io/v1/boards/wayve/jobs
+    notes: "London UK. Embodied AI for self-driving, ML & robotics roles."
+    enabled: true
+
+  - name: Isomorphic Labs
+    careers_url: https://job-boards.greenhouse.io/isomorphiclabs
+    api: https://boards-api.greenhouse.io/v1/boards/isomorphiclabs/jobs
+    notes: "London / Lausanne / Cambridge MA. DeepMind spin-out for drug discovery AI."
+    enabled: true
+
+  - name: PhysicsX
+    careers_url: https://job-boards.greenhouse.io/physicsx
+    api: https://boards-api.greenhouse.io/v1/boards/physicsx/jobs
+    notes: "London UK. Physics-informed ML for engineering, ~40 roles."
+    enabled: true
+
+  - name: Stability AI
+    careers_url: https://job-boards.greenhouse.io/stabilityai
+    api: https://boards-api.greenhouse.io/v1/boards/stabilityai/jobs
+    notes: "London / SF. Generative AI image/video research lab."
+    enabled: true
+
+  - name: Synthesia
+    careers_url: https://jobs.ashbyhq.com/synthesia
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/synthesia OR site:job-boards.greenhouse.io/synthesia'
+    notes: "London UK. AI video generation for enterprise, $4B valuation."
+    enabled: true
+
+  - name: Faculty
+    careers_url: https://jobs.ashbyhq.com/faculty
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/faculty'
+    notes: "London UK. Applied AI consultancy. 80+ roles, AI Safety / MLE / Delivery."
+    enabled: true
+
+  - name: Causaly
+    careers_url: https://jobs.ashbyhq.com/causaly
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/causaly'
+    notes: "London / Athens. Biomedical knowledge graph + AI."
+    enabled: true
+
+  # -- Nordics AI --
+
+  - name: Lovable
+    careers_url: https://jobs.ashbyhq.com/lovable
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/lovable'
+    notes: "Stockholm SE. AI app builder (text-to-app), 80+ open roles."
+    enabled: true
+
+  - name: Legora
+    careers_url: https://jobs.ashbyhq.com/legora
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/legora'
+    notes: "Stockholm SE / NYC / London. AI-native legal workspace."
+    enabled: true
+
+  - name: Spotify
+    careers_url: https://jobs.lever.co/spotify
+    notes: "Stockholm SE / NYC / London. Audio platform, large ML/personalization org."
+    enabled: true
+
+  - name: Vinted
+    careers_url: https://jobs.lever.co/vinted
+    notes: "Vilnius LT / Berlin. C2C marketplace unicorn, data science & ML roles."
+    enabled: true
+
+  # -- Iberia AI --
+
+  - name: Amplemarket
+    careers_url: https://job-boards.greenhouse.io/amplemarket
+    api: https://boards-api.greenhouse.io/v1/boards/amplemarket/jobs
+    notes: "Lisbon PT / Remote. AI-native sales platform."
+    enabled: true
+
+  # -- AI / Developer Tools --
+
+  - name: Perplexity
+    careers_url: https://jobs.ashbyhq.com/perplexity
+    scan_method: websearch
+    scan_query: ‘site:jobs.ashbyhq.com/perplexity "AI" OR "Applied AI" OR "Forward Deployed" OR "Engineer"’
+    notes: "AI-native search and enterprise AI platform."
+    enabled: true
+
+  - name: Clay Labs
+    careers_url: https://jobs.ashbyhq.com/claylabs
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/claylabs "AI" OR "Developer Experience" OR "Growth" OR "Engineer"'
+    notes: "AI-native GTM and workflow automation platform."
+    enabled: true
+
+  - name: Runway
+    careers_url: https://job-boards.greenhouse.io/runwayml
+    api: https://boards-api.greenhouse.io/v1/boards/runwayml/jobs
+    notes: "Generative AI video and creative tooling platform."
+    enabled: true
+
+  - name: Hightouch
+    careers_url: https://job-boards.greenhouse.io/hightouch
+    api: https://boards-api.greenhouse.io/v1/boards/hightouch/jobs
+    notes: "Data activation platform with AI agents and solutions engineering roles."
+    enabled: true
+
+  - name: WorkOS
+    careers_url: https://jobs.ashbyhq.com/workos
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/workos "Solutions Engineer" OR "Developer Success" OR "Engineer"'
+    notes: "Developer tools and enterprise-ready auth/platform APIs."
+    enabled: true
+
+  # -- Dev Tools / AI Infra (DevRel, SA, FDE focus) --
+
+  - name: Supabase
+    careers_url: https://jobs.ashbyhq.com/supabase
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/supabase'
+    notes: "Open-source Firebase alternative. Remote-first. Postgres + Auth + Storage. Strong DevRel/DX hiring."
+    enabled: true
+
+  - name: Resend
+    careers_url: https://jobs.ashbyhq.com/resend
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/resend'
+    notes: "Email API for developers. Remote-first. DX/DevRel focused."
+    enabled: true
+
+  - name: Clerk
+    careers_url: https://jobs.ashbyhq.com/clerk
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/clerk'
+    notes: "Auth & user management for developers. SE / TAM / PM roles."
+    enabled: true
+
+  - name: Inngest
+    careers_url: https://jobs.ashbyhq.com/inngest
+    scan_method: websearch
+    scan_query: 'site:jobs.ashbyhq.com/inngest'
+    notes: "Durable workflow engine for serverless. DX/DevRel/Engineering hiring."
+    enabled: true
+
+  - name: PlanetScale
+    careers_url: https://job-boards.greenhouse.io/planetscale
+    api: https://boards-api.greenhouse.io/v1/boards/planetscale/jobs
+    notes: "Serverless MySQL platform. Customer Engineering, Engineering, Sales."
+    enabled: true
+
+  - name: Zep AI
+    careers_url: https://www.getzep.com/careers
+    scan_method: websearch
+    scan_query: '"Zep" "Forward Deployed" OR "Developer Relations" OR "Founding" site:workatastartup.com OR site:getzep.com'
+    notes: "Context engineering platform for AI agents. YC W24. Lead FDE + DevRel Lead roles. US-only currently."
+    enabled: true
+
+  - name: Maxim AI
+    careers_url: https://www.getmaxim.ai/careers
+    scan_method: websearch
+    scan_query: '"Maxim AI" OR "getmaxim" careers "engineer" OR "product"'
+    notes: "AI evaluation and observability platform. Bangalore-based, mostly on-site."
+    enabled: true
+
+  # =====================================================================
+  # Curated seed expansion — broader industry coverage
+  # =====================================================================
+  # Added by PR E (Phase 2.2) to round out the template beyond AI/voice/FDE.
+  # These ship disabled by default — opt in via the Companies > Industry
+  # filter once you've reviewed the list. URLs use the BRANDED careers
+  # page where possible (most stable; ATS slugs change). Run a Health
+  # Check after enabling — the W1 classifier will flag any drift.
+
+  # -- Fintech --
+
+  - name: Stripe
+    careers_url: https://stripe.com/jobs
+    industries: [fintech]
+    notes: "Payments infrastructure. Strong FDE / Solutions Engineer hiring."
+    enabled: false
+
+  - name: Plaid
+    careers_url: https://plaid.com/careers
+    industries: [fintech]
+    notes: "Banking data APIs. SF + remote."
+    enabled: false
+
+  - name: Wise
+    careers_url: https://wise.jobs
+    industries: [fintech]
+    notes: "International money transfers. London HQ, EMEA-friendly."
+    enabled: false
+
+  - name: Adyen
+    careers_url: https://careers.adyen.com
+    industries: [fintech]
+    notes: "Global payments platform. Amsterdam HQ, EU hiring."
+    enabled: false
+
+  - name: Brex
+    careers_url: https://www.brex.com/jobs
+    industries: [fintech]
+    notes: "Corporate cards & spend management for startups."
+    enabled: false
+
+  - name: Mercury
+    careers_url: https://mercury.com/jobs
+    industries: [fintech]
+    notes: "Banking for startups. Remote-friendly US/Canada."
+    enabled: false
+
+  - name: Ramp
+    careers_url: https://ramp.com/careers
+    industries: [fintech, automation]
+    notes: "Spend management & finance automation."
+    enabled: false
+
+  - name: Affirm
+    careers_url: https://www.affirm.com/careers
+    industries: [fintech]
+    notes: "Buy-now-pay-later platform."
+    enabled: false
+
+  - name: Klarna
+    careers_url: https://www.klarna.com/careers
+    industries: [fintech]
+    notes: "BNPL & shopping. Stockholm HQ, EMEA."
+    enabled: false
+
+  - name: Marqeta
+    careers_url: https://www.marqeta.com/company/careers
+    industries: [fintech]
+    notes: "Card issuing platform. Oakland HQ, remote-friendly."
+    enabled: false
+
+  # -- Cybersecurity --
+
+  - name: Snyk
+    careers_url: https://snyk.io/careers
+    industries: [cybersecurity, developer_tools]
+    notes: "Developer security. Boston/London, EMEA."
+    enabled: false
+
+  - name: Wiz
+    careers_url: https://www.wiz.io/careers
+    industries: [cybersecurity]
+    notes: "Cloud security platform. NYC + remote."
+    enabled: false
+
+  - name: 1Password
+    careers_url: https://1password.com/careers
+    industries: [cybersecurity]
+    notes: "Password & identity management. Remote-first (Canada/US)."
+    enabled: false
+
+  - name: Okta
+    careers_url: https://www.okta.com/company/careers
+    industries: [cybersecurity, enterprise]
+    notes: "Identity & access management."
+    enabled: false
+
+  - name: Tailscale
+    careers_url: https://tailscale.com/careers
+    industries: [cybersecurity, developer_tools]
+    notes: "Zero-config VPN built on WireGuard. Remote-first."
+    enabled: false
+
+  - name: CrowdStrike
+    careers_url: https://www.crowdstrike.com/careers
+    industries: [cybersecurity]
+    notes: "Endpoint security & threat intelligence."
+    enabled: false
+
+  # -- Productivity / Collaboration --
+
+  - name: Notion
+    careers_url: https://www.notion.so/careers
+    industries: [automation, enterprise]
+    notes: "Workspace docs & databases. SF + remote."
+    enabled: false
+
+  - name: Linear
+    careers_url: https://linear.app/careers
+    industries: [developer_tools, enterprise]
+    notes: "Issue tracking for software teams. Remote-first."
+    enabled: false
+
+  - name: Figma
+    careers_url: https://www.figma.com/careers
+    industries: [design, developer_tools]
+    notes: "Collaborative design platform."
+    enabled: false
+
+  - name: Asana
+    careers_url: https://asana.com/jobs
+    industries: [automation, enterprise]
+    notes: "Work management."
+    enabled: false
+
+  - name: Monday.com
+    careers_url: https://monday.com/careers
+    industries: [automation, enterprise]
+    notes: "Work OS. Tel Aviv HQ, EMEA hiring."
+    enabled: false
+
+  - name: Coda
+    careers_url: https://coda.io/jobs
+    industries: [automation, enterprise]
+    notes: "Docs + spreadsheets + apps."
+    enabled: false
+
+  # -- E-commerce & Marketplaces --
+
+  - name: Shopify
+    careers_url: https://www.shopify.com/careers
+    industries: [ecommerce, developer_tools]
+    notes: "E-commerce platform. Remote-first (Canada/global)."
+    enabled: false
+
+  - name: Etsy
+    careers_url: https://careers.etsy.com
+    industries: [ecommerce]
+    notes: "Marketplace for handmade & vintage."
+    enabled: false
+
+  - name: Faire
+    careers_url: https://www.faire.com/careers
+    industries: [ecommerce]
+    notes: "Wholesale marketplace for retailers. Remote-friendly."
+    enabled: false
+
+  - name: Klaviyo
+    careers_url: https://www.klaviyo.com/company/careers
+    industries: [ecommerce, automation]
+    notes: "Email & SMS marketing for e-commerce."
+    enabled: false
+
+  - name: Bolt
+    careers_url: https://bolt.com/careers
+    industries: [ecommerce]
+    notes: "One-click checkout for online retailers."
+    enabled: false
+
+  - name: Postscript
+    careers_url: https://postscript.io/careers
+    industries: [ecommerce, automation]
+    notes: "SMS marketing for Shopify stores. Remote-first."
+    enabled: false
+
+  # -- Gaming & Interactive --
+
+  - name: Roblox
+    careers_url: https://corp.roblox.com/careers
+    industries: [gaming]
+    notes: "User-generated gaming platform. SF Bay Area."
+    enabled: false
+
+  - name: Niantic
+    careers_url: https://nianticlabs.com/careers
+    industries: [gaming]
+    notes: "AR gaming (Pokémon GO, Ingress)."
+    enabled: false
+
+  - name: Riot Games
+    careers_url: https://www.riotgames.com/en/work-with-us
+    industries: [gaming]
+    notes: "League of Legends, Valorant. LA + global studios."
+    enabled: false
+
+  - name: Epic Games
+    careers_url: https://www.epicgames.com/site/en-US/careers
+    industries: [gaming, developer_tools]
+    notes: "Fortnite, Unreal Engine. NC + global."
+    enabled: false
+
+  - name: Unity
+    careers_url: https://careers.unity.com
+    industries: [gaming, developer_tools]
+    notes: "Game engine & runtime. Remote-friendly."
+    enabled: false
+
+  # -- Healthcare & Healthtech --
+
+  - name: Oscar Health
+    careers_url: https://www.hioscar.com/careers
+    industries: [healthcare]
+    notes: "Tech-driven health insurance."
+    enabled: false
+
+  - name: Hims & Hers
+    careers_url: https://careers.forhims.com
+    industries: [healthcare]
+    notes: "Direct-to-consumer telemedicine."
+    enabled: false
+
+  - name: Cedar
+    careers_url: https://www.cedar.com/careers
+    industries: [healthcare]
+    notes: "Healthcare billing & patient experience."
+    enabled: false
+
+  - name: Tempus AI
+    careers_url: https://www.tempus.com/about-us/careers
+    industries: [healthcare, ai]
+    notes: "AI for precision medicine. Chicago + remote."
+    enabled: false
+
+  # -- Climate & Sustainability --
+
+  - name: Watershed
+    careers_url: https://watershed.com/careers
+    industries: [climate]
+    notes: "Enterprise carbon accounting platform."
+    enabled: false
+
+  - name: Pachama
+    careers_url: https://pachama.com/careers
+    industries: [climate]
+    notes: "Forest restoration & carbon credits."
+    enabled: false
+
+  - name: Persefoni
+    careers_url: https://www.persefoni.com/careers
+    industries: [climate, enterprise]
+    notes: "Carbon management & accounting platform."
+    enabled: false
+
+  - name: Carbon Direct
+    careers_url: https://carbon-direct.com/careers
+    industries: [climate]
+    notes: "Carbon management advisory & software."
+    enabled: false
+
+  # -- Education & EdTech --
+
+  - name: Coursera
+    careers_url: https://careers.coursera.com
+    industries: [education]
+    notes: "Online courses & degrees."
+    enabled: false
+
+  - name: Duolingo
+    careers_url: https://careers.duolingo.com
+    industries: [education]
+    notes: "Language learning. Pittsburgh HQ."
+    enabled: false
+
+  # -- Marketing SaaS & CRM --
+
+  - name: HubSpot
+    careers_url: https://www.hubspot.com/careers
+    industries: [automation, enterprise]
+    notes: "Marketing, sales, & service CRM."
+    enabled: false
+
+  - name: Zendesk
+    careers_url: https://jobs.zendesk.com
+    industries: [enterprise, automation]
+    notes: "Customer support platform."
+    enabled: false
+
+  # -- AI Infrastructure (additional) --
+
+  - name: Modal Labs
+    careers_url: https://modal.com/careers
+    industries: [ai, developer_tools]
+    notes: "Serverless GPU runtime for AI."
+    enabled: false
+
+  - name: Anyscale
+    careers_url: https://www.anyscale.com/careers
+    industries: [ai, developer_tools]
+    notes: "Ray-based distributed compute. Founded by Ray creators."
+    enabled: false
+
+  - name: Together AI
+    careers_url: https://www.together.ai/careers
+    industries: [ai]
+    notes: "Open-model AI infrastructure & inference."
+    enabled: false
+
+  - name: Cerebras
+    careers_url: https://www.cerebras.net/careers
+    industries: [ai]
+    notes: "Wafer-scale AI accelerator chips."
+    enabled: false
+
+  # =====================================================================
+  # Curated seed expansion — batch 2 (PR E iter 2)
+  # =====================================================================
+  # Adds depth to industries thin in batch 1 (healthcare, climate,
+  # education) and opens new categories (media/entertainment, logistics,
+  # broader dev tools). Same conventions: branded careers URLs,
+  # `enabled: false`, canonical industry tags, concise notes.
+
+  # -- Media & Entertainment --
+
+  - name: Netflix
+    careers_url: https://jobs.netflix.com
+    scan_method: websearch
+    scan_query: site:jobs.netflix.com
+    industries: [entertainment, media]
+    notes: "Streaming. LA + global studios."
+    enabled: false
+
+  - name: The New York Times
+    careers_url: https://www.nytco.com/careers
+    industries: [media]
+    notes: "News & journalism. NYC."
+    enabled: false
+
+  - name: The Atlantic
+    careers_url: https://www.theatlantic.com/careers
+    industries: [media]
+    notes: "Magazine & longform journalism."
+    enabled: false
+
+  - name: Vox Media
+    careers_url: https://www.voxmedia.com/pages/careers
+    industries: [media]
+    notes: "Vox, The Verge, Polygon, Eater."
+    enabled: false
+
+  - name: Substack
+    careers_url: https://substack.com/jobs
+    industries: [media, developer_tools]
+    notes: "Newsletter publishing platform."
+    enabled: false
+
+  - name: Patreon
+    careers_url: https://www.patreon.com/careers
+    industries: [media, entertainment]
+    notes: "Creator subscriptions."
+    enabled: false
+
+  - name: SoundCloud
+    careers_url: https://careers.soundcloud.com
+    industries: [entertainment, media]
+    notes: "Audio streaming for creators. Berlin + NYC."
+    enabled: false
+
+  - name: Bandcamp
+    careers_url: https://bandcamp.com/jobs
+    industries: [entertainment, ecommerce]
+    notes: "Music marketplace for indie artists."
+    enabled: false
+
+  # -- Healthcare (deepening) --
+
+  - name: Ro
+    careers_url: https://ro.co/careers
+    industries: [healthcare]
+    notes: "Direct-to-consumer telemedicine."
+    enabled: false
+
+  - name: Hinge Health
+    careers_url: https://www.hingehealth.com/careers
+    industries: [healthcare]
+    notes: "Digital MSK therapy."
+    enabled: false
+
+  - name: Headspace
+    careers_url: https://www.headspace.com/careers
+    industries: [healthcare]
+    notes: "Mindfulness & meditation app."
+    enabled: false
+
+  - name: Calm
+    careers_url: https://www.calm.com/careers
+    industries: [healthcare]
+    notes: "Sleep & meditation app."
+    enabled: false
+
+  - name: Doximity
+    careers_url: https://www.doximity.com/about/careers
+    industries: [healthcare]
+    notes: "Physician network & telehealth tools."
+    enabled: false
+
+  - name: Sword Health
+    careers_url: https://swordhealth.com/careers
+    industries: [healthcare, ai]
+    notes: "AI-powered MSK care. Porto HQ."
+    enabled: false
+
+  # -- E-commerce & Marketplaces (deepening) --
+
+  - name: Wayfair
+    careers_url: https://www.wayfair.com/careers
+    industries: [ecommerce]
+    notes: "Home goods marketplace. Boston + Berlin."
+    enabled: false
+
+  - name: Instacart
+    careers_url: https://instacart.careers
+    industries: [ecommerce]
+    notes: "Grocery delivery & retail tech."
+    enabled: false
+
+  - name: StockX
+    careers_url: https://stockx.com/about/careers
+    industries: [ecommerce]
+    notes: "Sneaker & streetwear resale marketplace."
+    enabled: false
+
+  - name: Whatnot
+    careers_url: https://www.whatnot.com/careers
+    industries: [ecommerce]
+    notes: "Live shopping marketplace."
+    enabled: false
+
+  - name: Mercari
+    careers_url: https://careers.mercari.com
+    industries: [ecommerce]
+    notes: "C2C marketplace. Tokyo HQ."
+    enabled: false
+
+  - name: Depop
+    careers_url: https://www.depop.com/careers
+    industries: [ecommerce]
+    notes: "Resale fashion app. London."
+    enabled: false
+
+  # -- Developer Tools (broader coverage) --
+
+  - name: Cloudflare
+    careers_url: https://www.cloudflare.com/careers
+    industries: [developer_tools, cybersecurity]
+    notes: "CDN, security, edge compute, Workers."
+    enabled: false
+
+  - name: Datadog
+    careers_url: https://careers.datadoghq.com
+    industries: [developer_tools, enterprise]
+    notes: "Observability platform."
+    enabled: false
+
+  - name: Sentry
+    careers_url: https://sentry.io/careers
+    industries: [developer_tools]
+    notes: "Application error tracking."
+    enabled: false
+
+  - name: LaunchDarkly
+    careers_url: https://launchdarkly.com/careers
+    industries: [developer_tools]
+    notes: "Feature flags & experimentation."
+    enabled: false
+
+  - name: MongoDB
+    careers_url: https://www.mongodb.com/careers
+    industries: [developer_tools, enterprise]
+    notes: "Document database & cloud platform."
+    enabled: false
+
+  - name: Elastic
+    careers_url: https://www.elastic.co/about/careers
+    industries: [developer_tools]
+    notes: "Search & observability (Elasticsearch). Remote-first."
+    enabled: false
+
+  - name: HashiCorp
+    careers_url: https://www.hashicorp.com/careers
+    industries: [developer_tools, cybersecurity]
+    notes: "Terraform, Vault, Nomad. Now part of IBM."
+    enabled: false
+
+  - name: Render
+    careers_url: https://render.com/careers
+    industries: [developer_tools]
+    notes: "Cloud platform for apps & databases."
+    enabled: false
+
+  - name: Postman
+    careers_url: https://www.postman.com/company/careers
+    industries: [developer_tools]
+    notes: "API platform & collaboration."
+    enabled: false
+
+  - name: Neon
+    careers_url: https://neon.tech/careers
+    industries: [developer_tools]
+    notes: "Serverless Postgres."
+    enabled: false
+
+  # -- Marketing & CX SaaS --
+
+  - name: Braze
+    careers_url: https://www.braze.com/careers
+    industries: [automation, enterprise]
+    notes: "Customer engagement & cross-channel messaging."
+    enabled: false
+
+  - name: Iterable
+    careers_url: https://iterable.com/careers
+    industries: [automation]
+    notes: "Cross-channel marketing automation."
+    enabled: false
+
+  - name: Customer.io
+    careers_url: https://customer.io/careers
+    industries: [automation]
+    notes: "Lifecycle messaging. Remote-first."
+    enabled: false
+
+  - name: Pendo
+    careers_url: https://www.pendo.io/careers
+    industries: [automation, enterprise]
+    notes: "Product analytics & in-app guidance."
+    enabled: false
+
+  - name: Amplitude
+    careers_url: https://amplitude.com/careers
+    industries: [automation, enterprise]
+    notes: "Product analytics."
+    enabled: false
+
+  # -- Climate & Energy --
+
+  - name: ChargePoint
+    careers_url: https://www.chargepoint.com/about/careers
+    industries: [climate]
+    notes: "EV charging network."
+    enabled: false
+
+  - name: Form Energy
+    careers_url: https://formenergy.com/careers
+    industries: [climate]
+    notes: "Long-duration iron-air battery storage."
+    enabled: false
+
+  - name: Helion Energy
+    careers_url: https://www.helionenergy.com/careers
+    industries: [climate]
+    notes: "Fusion energy. WA-based."
+    enabled: false
+
+  - name: Wallbox
+    careers_url: https://wallbox.com/en_us/careers
+    industries: [climate]
+    notes: "EV charging hardware. Barcelona HQ, EU."
+    enabled: false
+
+  # -- Education --
+
+  - name: Quizlet
+    careers_url: https://quizlet.com/careers
+    industries: [education]
+    notes: "Study & flashcard platform."
+    enabled: false
+
+  - name: Outschool
+    careers_url: https://outschool.com/careers
+    industries: [education]
+    notes: "Live online classes for kids."
+    enabled: false
+
+  - name: Articulate
+    careers_url: https://articulate.com/careers
+    industries: [education, enterprise]
+    notes: "E-learning authoring tools. Remote-first."
+    enabled: false
+
+  - name: Guild
+    careers_url: https://www.guild.com/careers
+    industries: [education, enterprise]
+    notes: "Workforce education platform."
+    enabled: false
+
+  # -- Cybersecurity (additional) --
+
+  - name: Druva
+    careers_url: https://www.druva.com/about/careers
+    industries: [cybersecurity, enterprise]
+    notes: "Cloud-native data protection."
+    enabled: false
+
+  - name: JumpCloud
+    careers_url: https://jumpcloud.com/careers
+    industries: [cybersecurity, enterprise]
+    notes: "Cloud directory & device management."
+    enabled: false
+
+  - name: Yubico
+    careers_url: https://www.yubico.com/about/careers
+    industries: [cybersecurity]
+    notes: "Hardware security keys. Stockholm + remote."
+    enabled: false
+
+  # -- Gaming (additional) --
+
+  - name: Take-Two Interactive
+    careers_url: https://careers.take2games.com
+    industries: [gaming]
+    notes: "Rockstar Games, 2K. NYC."
+    enabled: false
+
+  - name: Embark Studios
+    careers_url: https://www.embark-studios.com/careers
+    industries: [gaming]
+    notes: "The Finals, ARC Raiders. Stockholm."
+    enabled: false
+
+  # -- Logistics & Supply Chain --
+
+  - name: Flexport
+    careers_url: https://www.flexport.com/company/careers
+    industries: [automation, enterprise]
+    notes: "Digital freight forwarder."
+    enabled: false
+
+  - name: Project44
+    careers_url: https://www.project44.com/careers
+    industries: [automation, enterprise]
+    notes: "Supply chain visibility platform."
+    enabled: false
+
+  # =====================================================================
+  # Curated seed expansion — batch 3 (PR E iter 3)
+  # =====================================================================
+  # Pivots into industries the prior batches didn't reach: Travel,
+  # HR Tech, Insurance, Proptech, Legal, Mobility, Robotics, Web3, plus
+  # Design tools, Sports/Fitness, and the major Big Tech / cloud / code
+  # platforms that were missing.
+
+  # -- Travel & Hospitality --
+
+  - name: Airbnb
+    careers_url: https://careers.airbnb.com
+    industries: [ecommerce, tech]
+    notes: "Short-term rentals & experiences."
+    enabled: false
+
+  - name: Booking.com
+    careers_url: https://careers.booking.com
+    industries: [ecommerce, tech]
+    notes: "Travel booking. Amsterdam HQ, EMEA hiring."
+    enabled: false
+
+  - name: Expedia Group
+    careers_url: https://careers.expediagroup.com
+    industries: [ecommerce, tech]
+    notes: "Expedia, Hotels.com, Vrbo. Seattle + global."
+    enabled: false
+
+  - name: Hopper
+    careers_url: https://www.hopper.com/careers
+    industries: [ecommerce, tech]
+    notes: "Travel booking app. Montréal + remote."
+    enabled: false
+
+  - name: Skyscanner
+    careers_url: https://www.skyscanner.net/jobs
+    industries: [ecommerce, tech]
+    notes: "Flight & travel search. Edinburgh, EMEA."
+    enabled: false
+
+  - name: Airalo
+    careers_url: https://www.airalo.com/careers
+    industries: [ecommerce, tech]
+    notes: "Travel eSIM marketplace."
+    enabled: false
+
+  # -- HR Tech & Recruiting --
+
+  - name: Rippling
+    careers_url: https://www.rippling.com/careers
+    industries: [automation, enterprise]
+    notes: "HR, IT & finance unified platform."
+    enabled: false
+
+  - name: Gusto
+    careers_url: https://gusto.com/about/careers
+    industries: [automation, enterprise, fintech]
+    notes: "Payroll & HR for small business."
+    enabled: false
+
+  - name: Deel
+    careers_url: https://www.deel.com/careers
+    industries: [automation, enterprise]
+    notes: "Global payroll & contractor platform. Remote-first."
+    enabled: false
+
+  - name: Lattice
+    careers_url: https://lattice.com/careers
+    industries: [automation, enterprise]
+    notes: "Performance management & HR analytics."
+    enabled: false
+
+  - name: Greenhouse Software
+    careers_url: https://www.greenhouse.io/about/careers
+    industries: [automation, enterprise]
+    notes: "Recruiting & ATS platform (the company, not the boards)."
+    enabled: false
+
+  - name: BambooHR
+    careers_url: https://www.bamboohr.com/careers
+    industries: [automation, enterprise]
+    notes: "HRIS for small/mid business. Utah + remote."
+    enabled: false
+
+  # -- Insurance & Insurtech --
+
+  - name: Lemonade
+    careers_url: https://www.lemonade.com/careers
+    industries: [fintech]
+    notes: "AI-driven home & pet insurance."
+    enabled: false
+
+  - name: Coalition
+    careers_url: https://www.coalitioninc.com/careers
+    industries: [cybersecurity, fintech]
+    notes: "Cyber insurance with active risk monitoring."
+    enabled: false
+
+  - name: Next Insurance
+    careers_url: https://www.nextinsurance.com/careers
+    industries: [fintech]
+    notes: "Small business insurance."
+    enabled: false
+
+  # -- Proptech & Real Estate --
+
+  - name: Zillow
+    careers_url: https://www.zillow.com/careers
+    industries: [ecommerce, tech]
+    notes: "Real estate marketplace."
+    enabled: false
+
+  - name: Redfin
+    careers_url: https://www.redfin.com/about/jobs
+    industries: [ecommerce, tech]
+    notes: "Tech-driven brokerage."
+    enabled: false
+
+  - name: Opendoor
+    careers_url: https://www.opendoor.com/careers
+    scan_method: websearch
+    scan_query: site:opendoor.com/careers
+    industries: [ecommerce, tech, fintech]
+    notes: "iBuyer for residential real estate."
+    enabled: false
+
+  - name: Compass
+    careers_url: https://www.compass.com/careers
+    industries: [ecommerce, tech]
+    notes: "Tech-driven real estate brokerage."
+    enabled: false
+
+  # -- Legal Tech --
+
+  - name: Ironclad
+    careers_url: https://ironcladapp.com/careers
+    industries: [automation, enterprise]
+    notes: "Contract lifecycle management."
+    enabled: false
+
+  - name: Harvey AI
+    careers_url: https://www.harvey.ai/careers
+    industries: [ai, automation, enterprise]
+    notes: "Generative AI for legal work."
+    enabled: false
+
+  - name: Clio
+    careers_url: https://www.clio.com/about/careers
+    industries: [automation, enterprise]
+    notes: "Practice management for law firms."
+    enabled: false
+
+  # -- Mobility & Last-mile --
+
+  - name: Uber
+    careers_url: https://www.uber.com/global/en/careers
+    industries: [automation, ecommerce, tech]
+    notes: "Rideshare & delivery. SF + global."
+    enabled: false
+
+  - name: Lyft
+    careers_url: https://www.lyft.com/careers
+    scan_method: websearch
+    scan_query: site:lyft.com/careers
+    industries: [automation, tech]
+    notes: "Rideshare. SF + remote."
+    enabled: false
+
+  - name: DoorDash
+    careers_url: https://careers.doordash.com
+    industries: [ecommerce, automation]
+    notes: "Last-mile delivery."
+    enabled: false
+
+  - name: Waymo
+    careers_url: https://waymo.com/careers
+    scan_method: websearch
+    scan_query: site:waymo.com/careers
+    industries: [ai, automation, tech]
+    notes: "Autonomous vehicles. Alphabet."
+    enabled: false
+
+  - name: Lime
+    careers_url: https://www.li.me/careers
+    industries: [automation, tech]
+    notes: "Shared electric scooters & bikes."
+    enabled: false
+
+  # -- Robotics & Hardware --
+
+  - name: Boston Dynamics
+    careers_url: https://bostondynamics.wd1.myworkdayjobs.com/en-US/Boston_Dynamics
+    industries: [ai, tech]
+    notes: "Mobile robotics. Hyundai-owned."
+    enabled: false
+
+  - name: Anduril
+    careers_url: https://www.anduril.com/careers
+    industries: [ai, tech]
+    notes: "Defense tech & autonomous systems."
+    enabled: false
+
+  - name: Skydio
+    careers_url: https://www.skydio.com/careers
+    industries: [ai, tech]
+    notes: "Autonomous drones. SF Bay."
+    enabled: false
+
+  - name: Saildrone
+    careers_url: https://www.saildrone.com/careers
+    industries: [ai, climate, tech]
+    notes: "Autonomous ocean surface vehicles."
+    enabled: false
+
+  # -- Design Tools --
+
+  - name: Canva
+    careers_url: https://www.canva.com/careers
+    industries: [design]
+    notes: "Visual content design platform. Sydney + global."
+    enabled: false
+
+  - name: Framer
+    careers_url: https://www.framer.com/careers
+    industries: [design, developer_tools]
+    notes: "Site builder for designers. Amsterdam + remote."
+    enabled: false
+
+  - name: Webflow
+    careers_url: https://webflow.com/careers
+    industries: [design, developer_tools]
+    notes: "Visual web development platform."
+    enabled: false
+
+  # -- Creator & Audio Tools --
+
+  - name: Descript
+    careers_url: https://www.descript.com/careers
+    industries: [media, ai, developer_tools]
+    notes: "AI-powered audio/video editing."
+    enabled: false
+
+  - name: Riverside
+    careers_url: https://riverside.fm/careers
+    industries: [media, entertainment]
+    notes: "Remote podcast & video recording. Tel Aviv + remote."
+    enabled: false
+
+  # -- Sports & Fitness Tech --
+
+  - name: Strava
+    careers_url: https://jobs.ashbyhq.com/strava
+    industries: [healthcare, tech]
+    notes: "Fitness tracking & social network."
+    enabled: false
+
+  - name: Whoop
+    careers_url: https://www.whoop.com/us/en/careers
+    scan_method: websearch
+    scan_query: site:whoop.com/us/en/careers
+    industries: [healthcare, tech]
+    notes: "Wearable fitness & recovery tracking."
+    enabled: false
+
+  - name: Peloton
+    careers_url: https://careers.onepeloton.com
+    industries: [healthcare, entertainment]
+    notes: "Connected fitness."
+    enabled: false
+
+  - name: Tonal
+    careers_url: https://www.tonal.com/careers
+    industries: [healthcare]
+    notes: "Smart strength training system."
+    enabled: false
+
+  # -- Enterprise SaaS --
+
+  - name: ServiceNow
+    careers_url: https://www.servicenow.com/careers
+    industries: [enterprise, automation]
+    notes: "Workflow automation for enterprise IT."
+    enabled: false
+
+  - name: Workday
+    careers_url: https://www.workday.com/en-us/company/careers
+    industries: [enterprise, automation]
+    notes: "HR & finance enterprise software."
+    enabled: false
+
+  # -- Crypto & Web3 --
+
+  - name: Coinbase
+    careers_url: https://www.coinbase.com/careers
+    industries: [fintech]
+    notes: "Crypto exchange & infrastructure."
+    enabled: false
+
+  - name: Circle
+    careers_url: https://www.circle.com/careers
+    industries: [fintech]
+    notes: "USDC stablecoin issuer."
+    enabled: false
+
+  - name: Chainalysis
+    careers_url: https://www.chainalysis.com/careers
+    industries: [cybersecurity, fintech]
+    notes: "Blockchain analytics for compliance."
+    enabled: false
+
+  - name: Alchemy
+    careers_url: https://www.alchemy.com/careers
+    industries: [developer_tools, fintech]
+    notes: "Web3 developer infrastructure."
+    enabled: false
+
+  # -- Big Tech / Cloud / Code --
+
+  - name: GitHub
+    careers_url: https://github.careers
+    industries: [developer_tools]
+    notes: "Code hosting & collaboration. Microsoft."
+    enabled: false
+
+  - name: GitLab
+    careers_url: https://about.gitlab.com/jobs
+    industries: [developer_tools]
+    notes: "DevOps platform. All-remote."
+    enabled: false
+
+  - name: Atlassian
+    careers_url: https://www.atlassian.com/company/careers
+    industries: [developer_tools, enterprise]
+    notes: "Jira, Confluence, Trello, Bitbucket."
+    enabled: false
+
+  - name: JFrog
+    careers_url: https://jfrog.com/careers
+    industries: [developer_tools, enterprise]
+    notes: "Software supply chain & artifact management."
+    enabled: false
+
+  # =====================================================================
+  # Curated seed expansion — batch 4 (PR E iter 4)
+  # =====================================================================
+  # Closes obvious gaps the prior batches left open: GAFAM, social
+  # networks, digital banks, customer-service platforms, big gig
+  # marketplaces, music tools, more EdTech, geo, MLOps depth, biotech,
+  # solar/grid, construction/CAD.
+
+  # -- Big Tech (GAFAM) --
+
+  - name: Apple
+    careers_url: https://www.apple.com/careers
+    scan_method: websearch
+    scan_query: site:apple.com/careers
+    industries: [tech, design, entertainment]
+    notes: "Hardware, software, services. Cupertino + global."
+    enabled: false
+
+  - name: Google
+    careers_url: https://careers.google.com
+    scan_method: websearch
+    scan_query: site:careers.google.com
+    industries: [tech, ai, developer_tools]
+    notes: "Search, Cloud, Android, Workspace. Alphabet."
+    enabled: false
+
+  - name: Meta
+    careers_url: https://www.metacareers.com
+    industries: [tech, media]
+    notes: "Facebook, Instagram, WhatsApp, Reality Labs."
+    enabled: false
+
+  - name: Microsoft
+    careers_url: https://careers.microsoft.com
+    scan_method: websearch
+    scan_query: site:careers.microsoft.com/us/en/
+    industries: [tech, enterprise, developer_tools]
+    notes: "Azure, Office, GitHub, Xbox, LinkedIn parent."
+    enabled: false
+
+  - name: Amazon
+    careers_url: https://www.amazon.jobs
+    industries: [ecommerce, tech, developer_tools]
+    notes: "Retail, AWS, Devices."
+    enabled: false
+
+  # -- Social Networks --
+
+  - name: Reddit
+    careers_url: https://job-boards.greenhouse.io/reddit
+    api: https://boards-api.greenhouse.io/v1/boards/reddit/jobs
+    industries: [media, tech]
+    notes: "Community discussion platform."
+    enabled: false
+
+  - name: Pinterest
+    careers_url: https://www.pinterestcareers.com
+    industries: [media, ecommerce]
+    notes: "Visual discovery & shopping."
+    enabled: false
+
+  - name: Snap Inc.
+    careers_url: https://careers.snap.com
+    industries: [media, entertainment, tech]
+    notes: "Snapchat, AR Spectacles. LA."
+    enabled: false
+
+  - name: LinkedIn
+    careers_url: https://careers.linkedin.com
+    scan_method: websearch
+    scan_query: site:careers.linkedin.com
+    industries: [media, enterprise]
+    notes: "Professional network. Microsoft."
+    enabled: false
+
+  # -- Digital Banks & Robo-Advisors --
+
+  - name: SoFi
+    careers_url: https://www.sofi.com/careers
+    industries: [fintech]
+    notes: "Personal finance & lending."
+    enabled: false
+
+  - name: Chime
+    careers_url: https://www.chime.com/careers
+    industries: [fintech]
+    notes: "Mobile-first banking."
+    enabled: false
+
+  - name: Robinhood
+    careers_url: https://careers.robinhood.com
+    industries: [fintech]
+    notes: "Commission-free investing."
+    enabled: false
+
+  - name: Wealthfront
+    careers_url: https://www.wealthfront.com/careers
+    industries: [fintech]
+    notes: "Robo-advisor & cash management."
+    enabled: false
+
+  - name: Public
+    careers_url: https://public.com/careers
+    industries: [fintech]
+    notes: "Social investing app."
+    enabled: false
+
+  # -- CX / Voice / Comms platforms --
+
+  - name: Aircall
+    careers_url: https://aircall.io/careers
+    industries: [automation, enterprise]
+    notes: "Cloud phone for sales & support. Paris + NY."
+    enabled: false
+
+  - name: NICE
+    careers_url: https://www.nice.com/careers
+    industries: [enterprise, automation]
+    notes: "Customer experience & contact center."
+    enabled: false
+
+  - name: Five9
+    careers_url: https://www.five9.com/about/careers
+    industries: [enterprise, automation]
+    notes: "Cloud contact center."
+    enabled: false
+
+  - name: RingCentral
+    careers_url: https://www.ringcentral.com/about-ringcentral/careers.html
+    industries: [enterprise, automation]
+    notes: "Unified communications & contact center."
+    enabled: false
+
+  # -- Big Marketplaces & Gig --
+
+  - name: Fiverr
+    careers_url: https://www.fiverr.com/careers
+    industries: [ecommerce, automation]
+    notes: "Freelance services marketplace. Tel Aviv."
+    enabled: false
+
+  - name: Upwork
+    careers_url: https://www.upwork.com/about/careers
+    industries: [ecommerce, automation]
+    notes: "Freelance work marketplace."
+    enabled: false
+
+  - name: Eventbrite
+    careers_url: https://careers.eventbrite.com
+    industries: [ecommerce, entertainment]
+    notes: "Event ticketing & registration."
+    enabled: false
+
+  - name: Toptal
+    careers_url: https://www.toptal.com/careers
+    industries: [ecommerce, automation]
+    notes: "Top-3% freelance talent network. Remote-first."
+    enabled: false
+
+  # -- Music & Audio Tools --
+
+  - name: Splice
+    careers_url: https://splice.com/careers
+    industries: [entertainment, media]
+    notes: "Sample marketplace & DAW collaboration."
+    enabled: false
+
+  - name: BandLab
+    careers_url: https://bandlab.com/careers
+    industries: [entertainment, media]
+    notes: "Social music creation. Singapore."
+    enabled: false
+
+  - name: Output
+    careers_url: https://output.com/careers
+    industries: [entertainment, media]
+    notes: "Music production software & sample tools."
+    enabled: false
+
+  # -- EdTech --
+
+  - name: Codecademy
+    careers_url: https://www.codecademy.com/about/careers
+    industries: [education, developer_tools]
+    notes: "Interactive code learning."
+    enabled: false
+
+  - name: Khan Academy
+    careers_url: https://www.khanacademy.org/careers
+    industries: [education]
+    notes: "Free online education. Nonprofit."
+    enabled: false
+
+  - name: ClassDojo
+    careers_url: https://www.classdojo.com/careers
+    industries: [education]
+    notes: "K-8 classroom communication app."
+    enabled: false
+
+  - name: Newsela
+    careers_url: https://newsela.com/careers
+    industries: [education, media]
+    notes: "Reading content for K-12 schools."
+    enabled: false
+
+  # -- Geo & Mapping --
+
+  - name: Mapbox
+    careers_url: https://www.mapbox.com/jobs
+    industries: [developer_tools, tech]
+    notes: "Maps, navigation, location APIs."
+    enabled: false
+
+  - name: HERE Technologies
+    careers_url: https://www.here.com/careers
+    industries: [developer_tools, tech]
+    notes: "Location data & maps platform. Amsterdam HQ, EMEA."
+    enabled: false
+
+  - name: Foursquare
+    careers_url: https://foursquare.com/careers
+    industries: [developer_tools, tech]
+    notes: "Location intelligence & developer APIs."
+    enabled: false
+
+  # -- MLOps & AI Infra (depth) --
+
+  - name: Lightning AI
+    careers_url: https://lightning.ai/careers
+    industries: [ai, developer_tools]
+    notes: "PyTorch Lightning makers. Build & ship AI apps."
+    enabled: false
+
+  - name: Baseten
+    careers_url: https://www.baseten.co/careers
+    industries: [ai, developer_tools]
+    notes: "Model serving & inference infrastructure."
+    enabled: false
+
+  - name: Lambda Labs
+    careers_url: https://lambdalabs.com/careers
+    industries: [ai, developer_tools]
+    notes: "GPU cloud & workstations for AI."
+    enabled: false
+
+  - name: LlamaIndex
+    careers_url: https://www.llamaindex.ai/careers
+    industries: [ai, developer_tools]
+    notes: "Data framework for LLM applications."
+    enabled: false
+
+  # -- Healthcare / Biotech --
+
+  - name: Recursion
+    careers_url: https://www.recursion.com/careers
+    industries: [healthcare, ai]
+    notes: "AI for drug discovery. Salt Lake City."
+    enabled: false
+
+  - name: Insitro
+    careers_url: https://insitro.com/careers
+    industries: [healthcare, ai]
+    notes: "Machine learning for drug discovery. SF Bay."
+    enabled: false
+
+  - name: BenchSci
+    careers_url: https://www.benchsci.com/careers
+    industries: [healthcare, ai]
+    notes: "AI for biomedical R&D. Toronto."
+    enabled: false
+
+  # -- Climate / Energy --
+
+  - name: Sunrun
+    careers_url: https://www.sunrun.com/about/careers
+    industries: [climate]
+    notes: "Residential solar & storage. SF."
+    enabled: false
+
+  - name: Octopus Energy
+    careers_url: https://octopus.energy/careers
+    industries: [climate, enterprise]
+    notes: "Energy retail & tech. London + global."
+    enabled: false
+
+  - name: Aurora Solar
+    careers_url: https://www.aurorasolar.com/careers
+    industries: [climate, design]
+    notes: "Solar design & sales software."
+    enabled: false
+
+  - name: EnergyHub
+    careers_url: https://www.energyhub.com/careers
+    industries: [climate, enterprise]
+    notes: "Distributed energy resource management."
+    enabled: false
+
+  # -- Construction & Design Software --
+
+  - name: Procore
+    careers_url: https://careers.procore.com
+    industries: [enterprise, automation]
+    notes: "Construction project management."
+    enabled: false
+
+  - name: Autodesk
+    careers_url: https://www.autodesk.com/careers
+    industries: [design, enterprise]
+    notes: "AutoCAD, Revit, Fusion. Design software."
+    enabled: false
+
+  - name: Bentley Systems
+    careers_url: https://www.bentley.com/en/careers
+    industries: [enterprise, design]
+    notes: "Infrastructure engineering software."
+    enabled: false
+
+  # -- Crypto (additional) --
+
+  - name: Kraken
+    careers_url: https://www.kraken.com/careers
+    industries: [fintech]
+    notes: "Crypto exchange. Remote-first."
+    enabled: false
+
+  - name: Gemini
+    careers_url: https://www.gemini.com/careers
+    industries: [fintech]
+    notes: "Crypto exchange & custodian."
+    enabled: false
+
+  # -- Productivity / Collab --
+
+  - name: Zoom
+    careers_url: https://careers.zoom.us
+    industries: [enterprise, automation]
+    notes: "Video & unified communications."
+    enabled: false
+
+  - name: DocuSign
+    careers_url: https://careers.docusign.com
+    industries: [enterprise, automation]
+    notes: "E-signature & agreement cloud."
+    enabled: false
+
+  # =====================================================================
+  # Curated seed expansion — batch 5 (PR E iter 5)
+  # =====================================================================
+  # Reaches into regional markets (LatAm, India, APAC) and verticals the
+  # earlier batches barely touched: film/VFX, broader game studios,
+  # restaurant tech, sales engagement, aerospace, civic tech, vertical
+  # B2B insurance.
+
+  # -- LatAm tech --
+
+  - name: Mercado Libre
+    careers_url: https://careers.mercadolibre.com
+    industries: [ecommerce, fintech]
+    notes: "LatAm e-commerce & fintech leader. Buenos Aires."
+    enabled: false
+
+  - name: Nubank
+    careers_url: https://international.nubank.com.br/careers
+    industries: [fintech]
+    notes: "LatAm digital bank. São Paulo HQ."
+    enabled: false
+
+  - name: Rappi
+    careers_url: https://careers.rappi.com
+    industries: [ecommerce, automation]
+    notes: "LatAm super-app for delivery & services."
+    enabled: false
+
+  - name: dLocal
+    careers_url: https://careers.dlocal.com
+    industries: [fintech]
+    notes: "Cross-border payments for emerging markets. Montevideo."
+    enabled: false
+
+  # -- India tech & SaaS --
+
+  - name: Razorpay
+    careers_url: https://razorpay.com/jobs
+    industries: [fintech]
+    notes: "Payments & banking for Indian businesses. Bangalore."
+    enabled: false
+
+  - name: Zomato
+    careers_url: https://www.zomato.com/careers
+    industries: [ecommerce, automation]
+    notes: "Food delivery & restaurant discovery. India."
+    enabled: false
+
+  - name: Swiggy
+    careers_url: https://careers.swiggy.com
+    industries: [ecommerce, automation]
+    notes: "Food delivery & quick commerce. India."
+    enabled: false
+
+  - name: Zoho
+    careers_url: https://www.zoho.com/careers.html
+    industries: [enterprise, automation]
+    notes: "SaaS suite. Chennai HQ. Engineering across India."
+    enabled: false
+
+  - name: Freshworks
+    careers_url: https://www.freshworks.com/company/careers
+    industries: [enterprise, automation]
+    notes: "Customer & employee experience SaaS. Chennai + global."
+    enabled: false
+
+  - name: Plivo
+    careers_url: https://www.plivo.com/careers
+    industries: [developer_tools, automation]
+    notes: "Voice & messaging APIs. Bangalore + SF."
+    enabled: false
+
+  - name: BrowserStack
+    careers_url: https://www.browserstack.com/careers
+    industries: [developer_tools]
+    notes: "Cross-browser testing platform. Mumbai + remote."
+    enabled: false
+
+  # -- APAC tech --
+
+  - name: Grab
+    careers_url: https://grab.careers
+    industries: [ecommerce, fintech, automation]
+    notes: "SE Asia super-app. Singapore HQ."
+    enabled: false
+
+  - name: Sea Group
+    careers_url: https://career.sea.com
+    industries: [ecommerce, gaming, fintech]
+    notes: "Shopee, Garena, SeaMoney. Singapore."
+    enabled: false
+
+  - name: GoTo Group
+    careers_url: https://www.gotocompany.com/careers
+    industries: [ecommerce, fintech]
+    notes: "Indonesian super-app (Gojek + Tokopedia)."
+    enabled: false
+
+  - name: Coupang
+    careers_url: https://www.coupang.jobs
+    industries: [ecommerce]
+    notes: "South Korean e-commerce. Seoul + Seattle."
+    enabled: false
+
+  - name: miHoYo
+    careers_url: https://www.mihoyo.com/careers
+    industries: [gaming]
+    notes: "Genshin Impact, Honkai. Shanghai."
+    enabled: false
+
+  # -- Film, VFX & Animation --
+
+  - name: Framestore
+    careers_url: https://www.framestore.com/careers
+    industries: [entertainment, design]
+    notes: "VFX & animation. London + Mumbai + Montreal."
+    enabled: false
+
+  - name: Cinesite
+    careers_url: https://www.cinesite.com/careers
+    industries: [entertainment, design]
+    notes: "VFX & feature animation. London + Montreal."
+    enabled: false
+
+  - name: Method Studios
+    careers_url: https://www.methodstudios.com/careers
+    industries: [entertainment, design]
+    notes: "VFX studio. LA, Vancouver."
+    enabled: false
+
+  - name: DNEG
+    careers_url: https://www.dneg.com/careers
+    industries: [entertainment, design]
+    notes: "VFX studio. London + India."
+    enabled: false
+
+  # -- Game Studios --
+
+  - name: Supercell
+    careers_url: https://supercell.com/en/careers
+    industries: [gaming]
+    notes: "Mobile games (Clash of Clans, Brawl Stars). Helsinki."
+    enabled: false
+
+  - name: Ubisoft
+    careers_url: https://www.ubisoft.com/en-us/company/careers
+    industries: [gaming]
+    notes: "AAA games (Assassin's Creed, Far Cry). Paris HQ."
+    enabled: false
+
+  - name: Larian Studios
+    careers_url: https://larian.com/careers
+    industries: [gaming]
+    notes: "Baldur's Gate 3 makers. Belgium + global."
+    enabled: false
+
+  - name: Bungie
+    careers_url: https://www.bungie.net/careers
+    industries: [gaming]
+    notes: "Destiny, Marathon. Seattle."
+    enabled: false
+
+  - name: Krafton
+    careers_url: https://www.krafton.com/en/careers
+    industries: [gaming]
+    notes: "PUBG, inZOI. Seoul."
+    enabled: false
+
+  # -- Defense / Govtech / Civic Tech --
+
+  - name: Shield AI
+    careers_url: https://shield.ai/careers
+    industries: [ai, tech]
+    notes: "Defense autonomy. AI pilot for unmanned systems."
+    enabled: false
+
+  - name: Nava PBC
+    careers_url: https://www.navapbc.com/careers
+    industries: [enterprise]
+    notes: "Public benefit corporation building gov tech. Remote."
+    enabled: false
+
+  - name: GovTech Singapore
+    careers_url: https://www.tech.gov.sg/careers
+    industries: [enterprise]
+    notes: "Singapore's digital government agency."
+    enabled: false
+
+  - name: Civis Analytics
+    careers_url: https://www.civisanalytics.com/careers
+    industries: [enterprise, automation]
+    notes: "Data science for nonprofits, govt, brands."
+    enabled: false
+
+  # -- Aerospace & Space --
+
+  - name: SpaceX
+    careers_url: https://www.spacex.com/careers
+    industries: [tech]
+    notes: "Rockets & Starlink. Hawthorne + TX."
+    enabled: false
+
+  - name: Blue Origin
+    careers_url: https://www.blueorigin.com/careers
+    industries: [tech]
+    notes: "Suborbital & orbital launch."
+    enabled: false
+
+  - name: Rocket Lab
+    careers_url: https://www.rocketlabusa.com/careers
+    industries: [tech]
+    notes: "Small-satellite launch. NZ + US."
+    enabled: false
+
+  - name: Relativity Space
+    careers_url: https://www.relativityspace.com/careers
+    industries: [tech]
+    notes: "3D-printed rockets. Long Beach."
+    enabled: false
+
+  # -- Restaurant Tech --
+
+  - name: Toast
+    careers_url: https://careers.toasttab.com
+    industries: [enterprise, automation]
+    notes: "Restaurant POS & operations platform."
+    enabled: false
+
+  - name: Olo
+    careers_url: https://www.olo.com/careers
+    industries: [enterprise, automation]
+    notes: "Digital ordering for restaurant brands."
+    enabled: false
+
+  - name: ezCater
+    careers_url: https://www.ezcater.com/company/careers
+    industries: [ecommerce, enterprise]
+    notes: "Office catering marketplace."
+    enabled: false
+
+  - name: OpenTable
+    careers_url: https://www.opentable.com/careers
+    industries: [ecommerce, automation]
+    notes: "Restaurant reservations. Booking Holdings."
+    enabled: false
+
+  - name: Resy
+    careers_url: https://blog.resy.com/careers
+    industries: [ecommerce, automation]
+    notes: "Restaurant reservations & loyalty. Amex."
+    enabled: false
+
+  # -- Sales Engagement & RevOps --
+
+  - name: Outreach
+    careers_url: https://www.outreach.io/careers
+    industries: [automation, enterprise]
+    notes: "Sales engagement platform."
+    enabled: false
+
+  - name: Salesloft
+    careers_url: https://salesloft.com/careers
+    industries: [automation, enterprise]
+    notes: "Sales engagement platform."
+    enabled: false
+
+  - name: Clari
+    careers_url: https://www.clari.com/company/careers
+    industries: [automation, enterprise]
+    notes: "Revenue ops platform."
+    enabled: false
+
+  - name: Apollo.io
+    careers_url: https://www.apollo.io/careers
+    industries: [automation, enterprise]
+    notes: "Sales intelligence & engagement."
+    enabled: false
+
+  # -- Logistics & Supply Chain --
+
+  - name: Loadsmart
+    careers_url: https://loadsmart.com/careers
+    industries: [automation, enterprise]
+    notes: "Digital freight brokerage. NYC."
+    enabled: false
+
+  - name: Onfleet
+    careers_url: https://onfleet.com/careers
+    industries: [automation, enterprise]
+    notes: "Last-mile delivery management software."
+    enabled: false
+
+  - name: Bringg
+    careers_url: https://www.bringg.com/careers
+    industries: [automation, enterprise]
+    notes: "Delivery & fulfillment orchestration. Tel Aviv."
+    enabled: false
+
+  # -- B2B Marketplaces & Vertical --
+
+  - name: Joor
+    careers_url: https://joor.com/about-careers
+    industries: [ecommerce, enterprise]
+    notes: "B2B wholesale marketplace for fashion."
+    enabled: false
+
+  - name: Houzz
+    careers_url: https://www.houzz.com/careers
+    industries: [ecommerce, design]
+    notes: "Home renovation & design platform."
+    enabled: false
+
+  # -- Insurance (additional) --
+
+  - name: Hippo
+    careers_url: https://www.hippo.com/careers
+    industries: [fintech]
+    notes: "Smart-home insurance."
+    enabled: false
+
+  - name: Pie Insurance
+    careers_url: https://pieinsurance.com/careers
+    industries: [fintech]
+    notes: "Workers' comp insurance for small business."
+    enabled: false
+
+  - name: Bestow
+    careers_url: https://hellobestow.com/careers
+    industries: [fintech]
+    notes: "Life insurance via API."
+    enabled: false
+
+  # =====================================================================
+  # Curated seed expansion — batch 6 (PR E iter 6)
+  # =====================================================================
+  # Continues filling specialty verticals: dating, DTC beauty/fashion,
+  # pet tech, news & publishing, marketing analytics, customer feedback,
+  # video tools, industrial IoT, agtech, shipping, govtech, mental
+  # health, pharma data, localization, stock media.
+
+  # -- Dating & Social --
+
+  - name: Bumble
+    careers_url: https://bumble.com/work-here
+    industries: [media]
+    notes: "Dating & connections app. Austin."
+    enabled: false
+
+  - name: Match Group
+    careers_url: https://mtch.com/careers
+    industries: [media]
+    notes: "Tinder, Hinge, Match, OkCupid. Dallas."
+    enabled: false
+
+  - name: Grindr
+    careers_url: https://www.grindr.com/careers
+    industries: [media]
+    notes: "LGBTQ+ social & dating."
+    enabled: false
+
+  # -- DTC Beauty & Fashion --
+
+  - name: Glossier
+    careers_url: https://www.glossier.com/careers
+    industries: [ecommerce]
+    notes: "Beauty brand. NYC."
+    enabled: false
+
+  - name: Stitch Fix
+    careers_url: https://www.stitchfix.com/careers
+    industries: [ecommerce, ai]
+    notes: "Personalized clothing styling."
+    enabled: false
+
+  - name: Rent the Runway
+    careers_url: https://www.renttherunway.com/jobs
+    industries: [ecommerce]
+    notes: "Fashion rental subscription."
+    enabled: false
+
+  - name: Allbirds
+    careers_url: https://www.allbirds.com/pages/careers
+    industries: [ecommerce, climate]
+    notes: "Sustainable footwear. SF."
+    enabled: false
+
+  # -- Pet Tech --
+
+  - name: Chewy
+    careers_url: https://careers.chewy.com
+    industries: [ecommerce]
+    notes: "Online pet retail."
+    enabled: false
+
+  - name: Rover
+    careers_url: https://www.rover.com/careers
+    industries: [ecommerce, automation]
+    notes: "Pet-care marketplace (boarding, walking)."
+    enabled: false
+
+  - name: BarkBox
+    careers_url: https://barkbox.com/careers
+    industries: [ecommerce]
+    notes: "Dog product subscription. NYC."
+    enabled: false
+
+  # -- News, Wire & Publishing --
+
+  - name: Bloomberg
+    careers_url: https://www.bloomberg.com/careers
+    industries: [media, fintech]
+    notes: "Financial news, data, terminal."
+    enabled: false
+
+  - name: Reuters
+    careers_url: https://www.thomsonreuters.com/en/careers.html
+    industries: [media]
+    notes: "News agency. Thomson Reuters parent."
+    enabled: false
+
+  - name: Associated Press
+    careers_url: https://www.ap.org/careers
+    industries: [media]
+    notes: "Wire service. Nonprofit cooperative."
+    enabled: false
+
+  - name: Hearst
+    careers_url: https://www.hearst.com/careers
+    industries: [media, entertainment]
+    notes: "Magazines, newspapers, TV (Cosmo, Esquire, ESPN partial)."
+    enabled: false
+
+  # -- Marketing Analytics & Surveys --
+
+  - name: Mixpanel
+    careers_url: https://mixpanel.com/jobs
+    industries: [automation, enterprise]
+    notes: "Product analytics."
+    enabled: false
+
+  - name: Heap
+    careers_url: https://heap.io/careers
+    industries: [automation, enterprise]
+    notes: "Auto-capture product analytics."
+    enabled: false
+
+  - name: Hotjar
+    careers_url: https://www.hotjar.com/careers
+    industries: [automation]
+    notes: "Heatmaps & user feedback. Contentsquare."
+    enabled: false
+
+  - name: Qualtrics
+    careers_url: https://www.qualtrics.com/careers
+    industries: [enterprise, automation]
+    notes: "Experience management platform. SAP-spinoff."
+    enabled: false
+
+  - name: Typeform
+    careers_url: https://www.typeform.com/careers
+    industries: [automation, enterprise]
+    notes: "Conversational forms & surveys. Barcelona."
+    enabled: false
+
+  # -- Customer Feedback & PM --
+
+  - name: Productboard
+    careers_url: https://www.productboard.com/careers
+    industries: [automation, enterprise]
+    notes: "Product management & roadmap tool."
+    enabled: false
+
+  - name: Canny
+    careers_url: https://canny.io/careers
+    industries: [automation, enterprise]
+    notes: "User feedback & roadmap tool."
+    enabled: false
+
+  - name: Aha!
+    careers_url: https://www.aha.io/company/careers
+    industries: [automation, enterprise]
+    notes: "Roadmap & strategy software. Remote-first."
+    enabled: false
+
+  # -- Video & Async Recording --
+
+  - name: Vimeo
+    careers_url: https://vimeo.com/jobs
+    industries: [media, entertainment]
+    notes: "Pro video hosting & creator tools."
+    enabled: false
+
+  - name: Loom
+    careers_url: https://www.loom.com/careers
+    industries: [media, automation]
+    notes: "Async video messaging. Atlassian."
+    enabled: false
+
+  - name: Wistia
+    careers_url: https://wistia.com/jobs
+    industries: [media, automation]
+    notes: "Business video hosting & analytics."
+    enabled: false
+
+  # -- Industrial IoT & Manufacturing --
+
+  - name: Samsara
+    careers_url: https://www.samsara.com/careers
+    industries: [enterprise, automation]
+    notes: "Connected operations cloud. SF."
+    enabled: false
+
+  - name: Tulip
+    careers_url: https://tulip.co/careers
+    industries: [enterprise, automation]
+    notes: "Frontline ops platform for manufacturing."
+    enabled: false
+
+  - name: Augury
+    careers_url: https://www.augury.com/careers
+    industries: [enterprise, ai]
+    notes: "Machine health & predictive maintenance."
+    enabled: false
+
+  - name: Bright Machines
+    careers_url: https://www.brightmachines.com/careers
+    industries: [enterprise, ai]
+    notes: "Robotic factory automation."
+    enabled: false
+
+  # -- Agtech --
+
+  - name: Indigo Ag
+    careers_url: https://www.indigoag.com/careers
+    industries: [climate, enterprise]
+    notes: "Sustainable ag platform & carbon programs."
+    enabled: false
+
+  - name: Bowery Farming
+    careers_url: https://boweryfarming.com/careers
+    industries: [climate]
+    notes: "Indoor vertical farms."
+    enabled: false
+
+  - name: Plenty
+    careers_url: https://www.plenty.ag/careers
+    industries: [climate]
+    notes: "Vertical indoor farming."
+    enabled: false
+
+  - name: Pivot Bio
+    careers_url: https://www.pivotbio.com/careers
+    industries: [climate]
+    notes: "Microbial nitrogen for farms."
+    enabled: false
+
+  # -- Shipping & E-commerce Logistics --
+
+  - name: Shippo
+    careers_url: https://goshippo.com/careers
+    industries: [ecommerce, automation]
+    notes: "Multi-carrier shipping API."
+    enabled: false
+
+  - name: ShipBob
+    careers_url: https://www.shipbob.com/careers
+    industries: [ecommerce, automation]
+    notes: "Fulfillment for e-commerce brands."
+    enabled: false
+
+  - name: ShipStation
+    careers_url: https://www.shipstation.com/careers
+    industries: [ecommerce, automation]
+    notes: "Multi-channel shipping software. Auctane."
+    enabled: false
+
+  # -- Govtech --
+
+  - name: Tyler Technologies
+    careers_url: https://www.tylertech.com/careers
+    industries: [enterprise]
+    notes: "Public sector software (courts, finance, schools)."
+    enabled: false
+
+  - name: Granicus
+    careers_url: https://granicus.com/careers
+    industries: [enterprise]
+    notes: "Citizen engagement & gov communications."
+    enabled: false
+
+  - name: Mark43
+    careers_url: https://www.mark43.com/careers
+    industries: [enterprise]
+    notes: "Cloud-native public safety software."
+    enabled: false
+
+  - name: Carbyne
+    careers_url: https://carbyne.com/careers
+    industries: [enterprise]
+    notes: "Next-gen 911 emergency platform."
+    enabled: false
+
+  # -- Mental Health Tech --
+
+  - name: Lyra Health
+    careers_url: https://www.lyrahealth.com/careers
+    industries: [healthcare]
+    notes: "Workforce mental health benefits."
+    enabled: false
+
+  - name: Spring Health
+    careers_url: https://www.springhealth.com/careers
+    industries: [healthcare]
+    notes: "Mental health benefits for employers."
+    enabled: false
+
+  - name: Maven Clinic
+    careers_url: https://www.mavenclinic.com/about/careers
+    industries: [healthcare]
+    notes: "Family & women's health platform."
+    enabled: false
+
+  - name: Modern Health
+    careers_url: https://www.modernhealth.com/careers
+    industries: [healthcare]
+    notes: "Workplace mental health platform."
+    enabled: false
+
+  # -- Pharma & Clinical Data --
+
+  - name: Veeva Systems
+    careers_url: https://www.veeva.com/careers
+    industries: [healthcare, enterprise]
+    notes: "Cloud software for life sciences."
+    enabled: false
+
+  - name: IQVIA
+    careers_url: https://jobs.iqvia.com
+    industries: [healthcare, enterprise]
+    notes: "Clinical research & health data."
+    enabled: false
+
+  - name: Medidata
+    careers_url: https://www.medidata.com/en/careers
+    industries: [healthcare, enterprise]
+    notes: "Clinical trial cloud. Dassault Systèmes."
+    enabled: false
+
+  # -- Localization & Stock Media --
+
+  - name: Lokalise
+    careers_url: https://lokalise.com/careers
+    industries: [developer_tools, automation]
+    notes: "Translation management for software. Dover, DE + remote."
+    enabled: false
+
+  - name: Shutterstock
+    careers_url: https://www.shutterstock.com/careers
+    industries: [media, ecommerce]
+    notes: "Stock images, video, music."
+    enabled: false
+
+  # -- Productivity / File Sharing --
+
+  - name: Dropbox
+    careers_url: https://jobs.dropbox.com
+    industries: [enterprise, automation]
+    notes: "File sharing & collaboration."
+    enabled: false
+
+  # =====================================================================
+  # Curated seed expansion — batch 7 (PR E iter 7)
+  # =====================================================================
+  # Reaches deeper into specialty B2B (KYC, FinOps, GRC), data platforms,
+  # AI eval & vector DBs, CDP/iPaaS, workflow automation, deeper voice
+  # AI, more fitness, Korean/Japanese tech, Israeli tech.
+
+  # -- Identity, KYC & Auth --
+
+  - name: Stytch
+    careers_url: https://stytch.com/careers
+    industries: [cybersecurity, developer_tools]
+    notes: "Modern auth & identity APIs for developers."
+    enabled: false
+
+  - name: Persona
+    careers_url: https://withpersona.com/careers
+    industries: [cybersecurity, fintech]
+    notes: "Identity verification platform."
+    enabled: false
+
+  - name: Veriff
+    careers_url: https://www.veriff.com/careers
+    industries: [cybersecurity, fintech]
+    notes: "Identity verification. Tallinn HQ, EU."
+    enabled: false
+
+  - name: Onfido
+    careers_url: https://onfido.com/careers
+    industries: [cybersecurity, fintech]
+    notes: "Identity verification. Entrust-acquired."
+    enabled: false
+
+  - name: Sumsub
+    careers_url: https://sumsub.com/careers
+    industries: [cybersecurity, fintech]
+    notes: "KYC / KYB / AML automation."
+    enabled: false
+
+  # -- Accounting & FinOps --
+
+  - name: Bill.com
+    careers_url: https://www.bill.com/careers
+    industries: [fintech, automation]
+    notes: "AP/AR automation for SMB & accountants."
+    enabled: false
+
+  - name: Tipalti
+    careers_url: https://tipalti.com/careers
+    industries: [fintech, automation]
+    notes: "Global payables automation."
+    enabled: false
+
+  - name: Pilot
+    careers_url: https://pilot.com/careers
+    industries: [fintech, enterprise]
+    notes: "Bookkeeping, tax & CFO services for startups."
+    enabled: false
+
+  - name: Vena Solutions
+    careers_url: https://www.venasolutions.com/about/careers
+    industries: [fintech, enterprise]
+    notes: "FP&A platform. Toronto."
+    enabled: false
+
+  - name: Anaplan
+    careers_url: https://www.anaplan.com/careers
+    industries: [enterprise, fintech]
+    notes: "Connected planning platform. Thoma Bravo."
+    enabled: false
+
+  # -- Security Automation & GRC --
+
+  - name: Cyera
+    careers_url: https://www.cyera.com/careers
+    industries: [cybersecurity]
+    notes: "Data security posture management."
+    enabled: false
+
+  - name: Drata
+    careers_url: https://drata.com/careers
+    industries: [cybersecurity, automation]
+    notes: "Compliance automation (SOC 2, ISO, etc.)."
+    enabled: false
+
+  - name: Vanta
+    careers_url: https://www.vanta.com/careers
+    industries: [cybersecurity, automation]
+    notes: "Trust management & compliance automation."
+    enabled: false
+
+  - name: Secureframe
+    careers_url: https://secureframe.com/careers
+    industries: [cybersecurity, automation]
+    notes: "Compliance automation (SOC 2, HIPAA, GDPR)."
+    enabled: false
+
+  - name: Sysdig
+    careers_url: https://sysdig.com/careers
+    industries: [cybersecurity, developer_tools]
+    notes: "Cloud-native security & observability."
+    enabled: false
+
+  # -- Data Platforms & Databases --
+
+  - name: CockroachLabs
+    careers_url: https://www.cockroachlabs.com/careers
+    industries: [developer_tools, enterprise]
+    notes: "Distributed SQL database (CockroachDB)."
+    enabled: false
+
+  - name: Timescale
+    careers_url: https://www.timescale.com/careers
+    industries: [developer_tools]
+    notes: "Postgres for time-series & vector. Remote-first."
+    enabled: false
+
+  - name: MotherDuck
+    careers_url: https://motherduck.com/careers
+    industries: [developer_tools]
+    notes: "DuckDB-based serverless analytics."
+    enabled: false
+
+  - name: ClickHouse
+    careers_url: https://clickhouse.com/careers
+    industries: [developer_tools, enterprise]
+    notes: "Real-time analytical database."
+    enabled: false
+
+  - name: Materialize
+    careers_url: https://materialize.com/careers
+    industries: [developer_tools]
+    notes: "Streaming-SQL operational data warehouse."
+    enabled: false
+
+  # -- AI Evaluation & Observability --
+
+  - name: Galileo
+    careers_url: https://www.rungalileo.io/careers
+    industries: [ai, developer_tools]
+    notes: "LLM evaluation & observability."
+    enabled: false
+
+  - name: HoneyHive
+    careers_url: https://www.honeyhive.ai/careers
+    industries: [ai, developer_tools]
+    notes: "AI app evaluation & observability."
+    enabled: false
+
+  - name: Braintrust
+    careers_url: https://www.braintrust.dev/careers
+    industries: [ai, developer_tools]
+    notes: "AI app eval, prompt playground, observability."
+    enabled: false
+
+  - name: Arthur
+    careers_url: https://www.arthur.ai/careers
+    industries: [ai, developer_tools]
+    notes: "Model performance & risk monitoring."
+    enabled: false
+
+  # -- Vector Databases & Agent Infra --
+
+  - name: Weaviate
+    careers_url: https://weaviate.io/company/careers
+    industries: [ai, developer_tools]
+    notes: "Open-source vector database. Amsterdam."
+    enabled: false
+
+  - name: Qdrant
+    careers_url: https://qdrant.tech/careers
+    industries: [ai, developer_tools]
+    notes: "Vector search engine. Berlin."
+    enabled: false
+
+  - name: Chroma
+    careers_url: https://www.trychroma.com/careers
+    industries: [ai, developer_tools]
+    notes: "Open-source AI-native database."
+    enabled: false
+
+  - name: Marqo
+    careers_url: https://www.marqo.ai/careers
+    industries: [ai, developer_tools]
+    notes: "Multi-modal vector search."
+    enabled: false
+
+  # -- CDP & Reverse-ETL --
+
+  - name: Tealium
+    careers_url: https://tealium.com/about/careers
+    industries: [automation, enterprise]
+    notes: "Customer data platform. San Diego."
+    enabled: false
+
+  - name: Rudderstack
+    careers_url: https://www.rudderstack.com/careers
+    industries: [developer_tools, automation]
+    notes: "Open-source customer data pipeline."
+    enabled: false
+
+  - name: mParticle
+    careers_url: https://www.mparticle.com/careers
+    industries: [automation, enterprise]
+    notes: "Customer data platform. Rokt-acquired."
+    enabled: false
+
+  - name: Census
+    careers_url: https://www.getcensus.com/careers
+    industries: [developer_tools, automation]
+    notes: "Reverse-ETL: warehouse to SaaS tools."
+    enabled: false
+
+  # -- Workflow Automation --
+
+  - name: Make.com
+    careers_url: https://www.make.com/en/careers
+    industries: [automation, developer_tools]
+    notes: "Visual automation platform (formerly Integromat). Prague."
+    enabled: false
+
+  - name: Tray.io
+    careers_url: https://tray.io/careers
+    industries: [automation, enterprise]
+    notes: "Low-code integration & automation."
+    enabled: false
+
+  - name: Workato
+    careers_url: https://www.workato.com/careers
+    industries: [automation, enterprise]
+    notes: "Enterprise iPaaS & process automation."
+    enabled: false
+
+  # -- Fitness Hardware --
+
+  - name: Future Fitness
+    careers_url: https://www.future.co/careers
+    industries: [healthcare]
+    notes: "1:1 personal coaching app."
+    enabled: false
+
+  - name: Hydrow
+    careers_url: https://hydrow.com/careers
+    industries: [healthcare, entertainment]
+    notes: "Connected rower with live workouts."
+    enabled: false
+
+  - name: Tempo
+    careers_url: https://tempo.fit/careers
+    industries: [healthcare]
+    notes: "Connected strength training."
+    enabled: false
+
+  # -- Korea & Japan --
+
+  - name: Naver
+    careers_url: https://recruit.navercorp.com
+    industries: [tech, media]
+    notes: "Korean search & internet. Seoul."
+    enabled: false
+
+  - name: LINE
+    careers_url: https://careers.linecorp.com
+    industries: [tech, media]
+    notes: "Messaging app & super-app. Tokyo + Seoul."
+    enabled: false
+
+  - name: NCSoft
+    careers_url: https://kr.ncsoft.com/en/careers
+    industries: [gaming]
+    notes: "MMO games (Lineage). Seoul."
+    enabled: false
+
+  - name: Capcom
+    careers_url: https://www.capcom.co.jp/ir/english/recruit
+    industries: [gaming]
+    notes: "Resident Evil, Monster Hunter. Osaka."
+    enabled: false
+
+  # -- Israeli tech (additional) --
+
+  - name: Riskified
+    careers_url: https://www.riskified.com/careers
+    industries: [fintech, ecommerce]
+    notes: "E-commerce fraud prevention. Tel Aviv."
+    enabled: false
+
+  - name: AppsFlyer
+    careers_url: https://www.appsflyer.com/careers
+    industries: [automation, enterprise]
+    notes: "Mobile measurement & marketing analytics. Tel Aviv."
+    enabled: false
+
+  - name: Yotpo
+    careers_url: https://www.yotpo.com/careers
+    industries: [ecommerce, automation]
+    notes: "E-commerce marketing platform. Tel Aviv."
+    enabled: false
+
+  - name: Fundbox
+    careers_url: https://fundbox.com/careers
+    industries: [fintech]
+    notes: "SMB working capital. Tel Aviv + SF."
+    enabled: false
+
+  # -- Voice & Speech AI (additional) --
+
+  - name: AssemblyAI
+    careers_url: https://www.assemblyai.com/careers
+    industries: [ai, developer_tools]
+    notes: "Speech AI APIs (transcription, audio intel)."
+    enabled: false
+
+  - name: Cartesia
+    careers_url: https://cartesia.ai/careers
+    industries: [ai]
+    notes: "Real-time voice AI (Sonic). State-space models."
+    enabled: false
+
+  - name: Krisp
+    careers_url: https://krisp.ai/careers
+    industries: [ai, automation]
+    notes: "AI noise cancellation & meeting intelligence."
+    enabled: false
+
+  - name: Suki AI
+    careers_url: https://www.suki.ai/careers
+    industries: [ai, healthcare]
+    notes: "AI voice assistant for clinicians."
+    enabled: false
+
+  # =====================================================================
+  # Curated seed expansion — batch 8 (PR E iter 8) — closes the run to ~500
+  # =====================================================================
+  # Long-tail closer: Eastern Europe / Nordics, Brazil, Australia,
+  # autonomous vehicles, wearables, adtech, genomics, drones, Q-commerce,
+  # insurance long-tail, legal AI, workforce HR depth, audio/podcasting,
+  # food chain ops, surveying/CAD.
+
+  # -- European tech (Nordic / Eastern / DACH long-tail) --
+
+  - name: UiPath
+    careers_url: https://www.uipath.com/company/careers
+    industries: [automation, enterprise]
+    notes: "RPA & business automation. NYC + Bucharest."
+    enabled: false
+
+  - name: Wolt
+    careers_url: https://careers.wolt.com
+    industries: [ecommerce, automation]
+    notes: "Food & retail delivery. Helsinki HQ. DoorDash."
+    enabled: false
+
+  - name: Pleo
+    careers_url: https://www.pleo.io/en/careers
+    industries: [fintech, automation]
+    notes: "Spend management for European SMBs. Copenhagen."
+    enabled: false
+
+  - name: Kry
+    careers_url: https://career.kry.se
+    industries: [healthcare]
+    notes: "Digital primary care. Stockholm. (Livi in UK/FR.)"
+    enabled: false
+
+  - name: Trustpilot
+    careers_url: https://careers.trustpilot.com
+    industries: [enterprise, ecommerce]
+    notes: "Online review platform. Copenhagen + London."
+    enabled: false
+
+  # -- Brazilian tech --
+
+  - name: Stone
+    careers_url: https://carreiras.stone.com.br
+    industries: [fintech]
+    notes: "Brazilian payments & SMB software."
+    enabled: false
+
+  - name: PagSeguro
+    careers_url: https://carreiras.pagseguro.com.br
+    industries: [fintech]
+    notes: "Brazilian fintech (PagBank). São Paulo."
+    enabled: false
+
+  - name: iFood
+    careers_url: https://carreiras.ifood.com.br
+    industries: [ecommerce, automation]
+    notes: "Food delivery in Brazil & LatAm."
+    enabled: false
+
+  - name: QuintoAndar
+    careers_url: https://carreiras.quintoandar.com.br
+    industries: [ecommerce, tech]
+    notes: "Brazilian rental & real-estate marketplace."
+    enabled: false
+
+  # -- Australia / NZ --
+
+  - name: Xero
+    careers_url: https://www.xero.com/careers
+    industries: [fintech, enterprise]
+    notes: "Cloud accounting for SMBs. Wellington / Melbourne."
+    enabled: false
+
+  - name: Hudl
+    careers_url: https://www.hudl.com/about/careers
+    industries: [healthcare, entertainment]
+    notes: "Sports performance video & analytics."
+    enabled: false
+
+  - name: Culture Amp
+    careers_url: https://www.cultureamp.com/careers
+    industries: [automation, enterprise]
+    notes: "Employee experience platform. Melbourne."
+    enabled: false
+
+  # -- Real Estate (long-tail) --
+
+  - name: Latch
+    careers_url: https://www.latch.com/careers
+    industries: [tech, enterprise]
+    notes: "Smart-access systems for buildings."
+    enabled: false
+
+  - name: Pacaso
+    careers_url: https://www.pacaso.com/careers
+    industries: [ecommerce, fintech]
+    notes: "Co-ownership of luxury second homes."
+    enabled: false
+
+  - name: CoStar
+    careers_url: https://www.costargroup.com/careers
+    industries: [enterprise, ecommerce]
+    notes: "Commercial real estate data & marketplaces."
+    enabled: false
+
+  # -- Autonomous Vehicles --
+
+  - name: Cruise
+    careers_url: https://getcruise.com/careers
+    industries: [ai, automation, tech]
+    notes: "Self-driving (GM-owned). SF."
+    enabled: false
+
+  - name: Aurora Innovation
+    careers_url: https://aurora.tech/careers
+    industries: [ai, automation, tech]
+    notes: "Autonomous trucking platform."
+    enabled: false
+
+  - name: Zoox
+    careers_url: https://zoox.com/careers
+    scan_method: websearch
+    scan_query: site:zoox.com/careers
+    industries: [ai, automation, tech]
+    notes: "Autonomous robotaxi (Amazon-owned)."
+    enabled: false
+
+  # -- Wearables --
+
+  - name: Oura
+    careers_url: https://ouraring.com/careers
+    industries: [healthcare]
+    notes: "Health & sleep tracking ring. Helsinki + SF."
+    enabled: false
+
+  - name: Eight Sleep
+    careers_url: https://www.eightsleep.com/careers
+    industries: [healthcare]
+    notes: "Smart-mattress sleep technology."
+    enabled: false
+
+  - name: Withings
+    careers_url: https://www.withings.com/us/en/careers
+    industries: [healthcare]
+    notes: "Connected health devices. Paris."
+    enabled: false
+
+  # -- Adtech --
+
+  - name: The Trade Desk
+    careers_url: https://www.thetradedesk.com/careers
+    scan_method: websearch
+    scan_query: site:thetradedesk.com/careers
+    industries: [automation, media]
+    notes: "Programmatic ad platform. Ventura, CA."
+    enabled: false
+
+  - name: AppLovin
+    careers_url: https://www.applovin.com/careers
+    scan_method: websearch
+    scan_query: site:applovin.com/careers
+    industries: [automation, media]
+    notes: "Mobile app marketing & monetization."
+    enabled: false
+
+  - name: Criteo
+    careers_url: https://careers.criteo.com
+    industries: [automation, media]
+    notes: "Commerce media platform. Paris."
+    enabled: false
+
+  - name: Liftoff
+    careers_url: https://liftoff.io/careers
+    industries: [automation, media]
+    notes: "Mobile app growth platform."
+    enabled: false
+
+  # -- Genomics & Precision Health --
+
+  - name: Color Health
+    careers_url: https://www.color.com/careers
+    industries: [healthcare]
+    notes: "Population genomics & care delivery."
+    enabled: false
+
+  - name: Helix
+    careers_url: https://www.helix.com/pages/careers
+    industries: [healthcare, ai]
+    notes: "Population genomics platform."
+    enabled: false
+
+  - name: GRAIL
+    careers_url: https://grail.com/careers
+    industries: [healthcare, ai]
+    notes: "Multi-cancer early detection."
+    enabled: false
+
+  # -- Drones & Aerial --
+
+  - name: Parrot
+    careers_url: https://www.parrot.com/en/careers
+    industries: [tech, ai]
+    notes: "Commercial drones. Paris."
+    enabled: false
+
+  - name: Verity Studios
+    careers_url: https://veritystudios.com/careers
+    industries: [tech, entertainment]
+    notes: "Indoor drone shows for live events. Zürich."
+    enabled: false
+
+  # -- Quick Commerce --
+
+  - name: Gopuff
+    careers_url: https://gopuff.com/careers
+    industries: [ecommerce]
+    notes: "Instant delivery of essentials. Philadelphia."
+    enabled: false
+
+  - name: Getir
+    careers_url: https://getir.com/careers
+    industries: [ecommerce]
+    notes: "Quick commerce. Istanbul (now Turkey-only)."
+    enabled: false
+
+  - name: Zapp
+    careers_url: https://zapp.com/careers
+    industries: [ecommerce]
+    notes: "Premium 24/7 quick commerce. London."
+    enabled: false
+
+  # -- Insurance long-tail --
+
+  - name: Acrisure
+    careers_url: https://www.acrisure.com/careers
+    industries: [fintech]
+    notes: "AI-powered insurance brokerage."
+    enabled: false
+
+  - name: Newfront
+    careers_url: https://www.newfront.com/careers
+    industries: [fintech]
+    notes: "Digital commercial insurance brokerage. SF."
+    enabled: false
+
+  - name: Boost Insurance
+    careers_url: https://boostinsurance.com/careers
+    industries: [fintech]
+    notes: "Insurance-as-a-service infrastructure."
+    enabled: false
+
+  # -- Legal AI --
+
+  - name: Spellbook
+    careers_url: https://www.spellbook.legal/careers
+    industries: [ai, automation, enterprise]
+    notes: "AI for contract drafting. Toronto."
+    enabled: false
+
+  - name: Lexion
+    careers_url: https://lexion.ai/careers
+    industries: [ai, automation, enterprise]
+    notes: "Contract intelligence. Acquired by DocuSign."
+    enabled: false
+
+  - name: Eve Legal
+    careers_url: https://www.eve.legal/careers
+    industries: [ai, automation, enterprise]
+    notes: "AI for plaintiff law firms."
+    enabled: false
+
+  # -- Workforce / HR Tech (long-tail) --
+
+  - name: Remote.com
+    careers_url: https://remote.com/careers
+    industries: [automation, enterprise]
+    notes: "Global EOR & payroll. All-remote."
+    enabled: false
+
+  - name: Personio
+    careers_url: https://www.personio.com/careers
+    industries: [automation, enterprise]
+    notes: "All-in-one HR for European SMBs. Munich."
+    enabled: false
+
+  - name: HiBob
+    careers_url: https://www.hibob.com/careers
+    industries: [automation, enterprise]
+    notes: "Modern HR platform. Tel Aviv + London."
+    enabled: false
+
+  - name: Multiplier
+    careers_url: https://www.usemultiplier.com/careers
+    industries: [automation, enterprise]
+    notes: "Global EOR & contractor platform. Singapore."
+    enabled: false
+
+  # -- Audio & Podcasting --
+
+  - name: Acast
+    careers_url: https://acast.com/en/careers
+    industries: [media, entertainment]
+    notes: "Podcast hosting & monetization. Stockholm."
+    enabled: false
+
+  - name: Podia
+    careers_url: https://www.podia.com/careers
+    industries: [media, ecommerce]
+    notes: "Creator commerce (courses, memberships, downloads)."
+    enabled: false
+
+  - name: Libsyn
+    careers_url: https://corporate.libsyn.com/careers
+    industries: [media]
+    notes: "Pioneer podcast hosting. Pittsburgh."
+    enabled: false
+
+  # -- Food Chain Ops --
+
+  - name: ChowNow
+    careers_url: https://www.chownow.com/careers
+    industries: [enterprise, automation]
+    notes: "Direct online ordering for restaurants."
+    enabled: false
+
+  - name: Sweetgreen
+    careers_url: https://jobs.sweetgreen.com
+    industries: [ecommerce]
+    notes: "Fast-casual salad chain w/ tech-forward ops."
+    enabled: false
+
+  - name: Lunchbox
+    careers_url: https://lunchbox.io/careers
+    industries: [enterprise, automation]
+    notes: "Restaurant tech stack (digital ordering, loyalty)."
+    enabled: false
+
+  # -- Surveying / CAD / Construction --
+
+  - name: Trimble
+    careers_url: https://www.trimble.com/en/careers
+    industries: [enterprise, design]
+    notes: "Positioning, modeling & connected workflow tech."
+    enabled: false
+
+
+  # ── Added via audit 2026-05-14 ──────────────────────────────────────
+  # 5 new companies surfaced by JobSpy with auto-detected ATS URLs.
+  # All ship enabled: false so users opt in by hand.
+
+  - name: DPR Construction
+    careers_url: https://mydpr.wd5.myworkdayjobs.com/en-US/11212017
+    notes: "Added via audit 2026-05-14; 11 JobSpy hits across indeed."
+    enabled: false
+
+  - name: Marvell Technology
+    careers_url: https://marvell.wd1.myworkdayjobs.com/en-US/MarvellCareers
+    notes: "Added via audit 2026-05-14; 4 JobSpy hits across indeed."
+    enabled: false
+
+  - name: DRMP
+    careers_url: https://trilongroup.pinpointhq.com/
+    notes: "Added via audit 2026-05-14; 4 JobSpy hits across indeed."
+    enabled: false
+
+  - name: Liquid Agency
+    careers_url: https://ats.rippling.com/liquid-agency/jobs
+    notes: "Added via audit 2026-05-14; 4 JobSpy hits across indeed."
+    enabled: false
+
+  - name: i360technologies
+    careers_url: https://careers.smartrecruiters.com/I360technologies
+    notes: "Added via audit 2026-05-14; 3 JobSpy hits across indeed."
+    enabled: false

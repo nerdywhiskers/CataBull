@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CareerBot</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+  <!-- Fonts: Hanken Grotesk (display), Inter (body), Geist (UI labels) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Geist:wght@400;500;600;700&display=swap">
+
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/components-figma.css">
+  <link rel="stylesheet" href="/css/chatui.css">
+  <link rel="stylesheet" href="/css/onboarding.css">
+  <link rel="stylesheet" href="/vendor/xterm.min.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <!-- Onboarding (shown when setup incomplete) -->
+    <div id="onboarding-container" style="display:none"></div>
+
+    <!-- Dashboard (shown when setup complete) -->
+    <div id="dashboard-container" style="display:none">
+      <nav class="nav">
+        <div class="nav-brand">
+          <img src="/CareerBot-logo.svg" alt="" width="28" height="28" class="nav-brand-logo" />
+          <span class="nav-brand-text">Career<span class="nav-brand-accent">Bot</span></span>
+        </div>
+        <div class="nav-tabs" id="nav-tabs">
+          <button class="nav-tab active" data-view="pipeline">
+            <svg class="tab-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="12" height="12" rx="2"/><line x1="5" y1="5.5" x2="11" y2="5.5"/><line x1="5" y1="8" x2="11" y2="8"/><line x1="5" y1="10.5" x2="9" y2="10.5"/></svg>
+            Jobs
+          </button>
+          <button class="nav-tab" data-view="discover">
+            <svg class="tab-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/></svg>
+            Discover
+          </button>
+          <button class="nav-tab" data-view="portals">
+            <svg class="tab-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="12" height="9" rx="1.5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V5"/><line x1="2" y1="9" x2="14" y2="9"/></svg>
+            Portals
+          </button>
+          <button class="nav-tab" data-view="analytics">
+            <svg class="tab-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="8" width="3" height="6" rx="0.5"/><rect x="6.5" y="5" width="3" height="9" rx="0.5"/><rect x="11" y="2" width="3" height="12" rx="0.5"/></svg>
+            Analytics
+          </button>
+        </div>
+        <div class="nav-right">
+          <button class="nav-icon-btn" data-view="settings" id="settings-toggle" title="Settings" aria-label="Settings">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="2.5" y1="5" x2="7" y2="5"/><line x1="11" y1="5" x2="15.5" y2="5"/><circle cx="9" cy="5" r="2"/><line x1="2.5" y1="13" x2="10" y2="13"/><line x1="14" y1="13" x2="15.5" y2="13"/><circle cx="12" cy="13" r="2"/></svg>
+          </button>
+          <button class="nav-icon-btn theme-toggle" id="theme-toggle" title="Toggle light/dark mode">
+            <svg id="theme-icon-dark" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M15 9.5a6 6 0 1 1-6.5-6.5 5 5 0 0 0 6.5 6.5z"/></svg>
+            <svg id="theme-icon-light" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="display:none"><circle cx="9" cy="9" r="3.5"/><line x1="9" y1="1.5" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="16.5"/><line x1="1.5" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="16.5" y2="9"/><line x1="3.5" y1="3.5" x2="4.6" y2="4.6"/><line x1="13.4" y1="13.4" x2="14.5" y2="14.5"/><line x1="3.5" y1="14.5" x2="4.6" y2="13.4"/><line x1="13.4" y1="4.6" x2="14.5" y2="3.5"/></svg>
+          </button>
+          <button class="nav-icon-btn" id="terminal-toggle" title="Toggle chat (Ctrl+`)">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H6L3 16.5z"/></svg>
+            <span id="terminal-toggle-dot" class="status-dot"></span>
+          </button>
+          <button class="nav-profile" data-view="profile" title="Profile">
+            <span class="nav-profile-avatar" id="user-avatar">U</span>
+            <span id="user-name">User</span>
+          </button>
+        </div>
+      </nav>
+      <div class="dashboard-shell">
+        <main class="main" id="main-content">
+          <div id="view-pipeline" class="view active"></div>
+          <div id="view-discover" class="view"></div>
+          <div id="view-analytics" class="view"></div>
+          <div id="view-profile" class="view"></div>
+          <div id="view-portals" class="view"></div>
+          <div id="view-settings" class="view"></div>
+        </main>
+
+        <!-- Right rail: chat / terminal (permanent on >=1180px) -->
+        <aside id="terminal-drawer" class="terminal-drawer dock-right" style="display:flex">
+          <div id="terminal-resize-handle" class="terminal-resize-handle"></div>
+          <div class="terminal-drawer-header">
+            <div class="rail-brand">
+              <span class="rail-brand-icon">
+                <svg width="22" height="19" viewBox="0 0 22 19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="16" height="13" rx="3"/><circle cx="8" cy="9.5" r="1.2" fill="currentColor"/><circle cx="14" cy="9.5" r="1.2" fill="currentColor"/><path d="M11 1v2"/></svg>
+              </span>
+              <div class="rail-brand-text">
+                <span class="rail-brand-name">CareerBot AI</span>
+                <select class="terminal-header-agent" id="agent-select" title="Switch agent"></select>
+              </div>
+            </div>
+            <div class="terminal-view-toggle" id="terminal-view-toggle">
+              <button class="terminal-view-btn" id="terminal-view-chat" type="button">Chat</button>
+              <button class="terminal-view-btn" id="terminal-view-raw" type="button">Terminal</button>
+            </div>
+          </div>
+          <div class="terminal-content">
+            <div id="chat-pane" class="chat-pane"></div>
+            <div id="terminal" class="terminal-body"></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toast-container"></div>
+    <div id="command-palette-root"></div>
+  </div>
+
+  <script src="/vendor/marked.min.js"></script>
+  <script src="/vendor/purify.min.js"></script>
+  <script src="/vendor/xterm.min.js"></script>
+  <script src="/vendor/xterm-addon-fit.min.js"></script>
+  <script type="module" src="/js/app.mjs"></script>
+</body>
+</html>

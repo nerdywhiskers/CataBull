@@ -1,0 +1,82 @@
+{
+  "name": "careerbot",
+  "version": "1.4.1",
+  "description": "AI-powered job search pipeline — local-first dashboard, scanner, evaluator, and tailored application bundles built on Claude Code / Codex / OpenCode / Gemini / Hermes / OpenClaw",
+  "bin": {
+    "careerbot": "bin/careerbot.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "scripts/",
+    "scan/",
+    "modes/",
+    "templates/",
+    "config/profile.example.yml",
+    "dashboard-web/",
+    "fonts/",
+    "doctor.mjs",
+    "scan.mjs",
+    "scan-health.mjs",
+    "verify-pipeline.mjs",
+    "merge-tracker.mjs",
+    "normalize-statuses.mjs",
+    "dedup-tracker.mjs",
+    "generate-pdf.mjs",
+    "generate-latex.mjs",
+    "cv-sync-check.mjs",
+    "check-liveness.mjs",
+    "analyze-patterns.mjs",
+    "followup-cadence.mjs",
+    "VERSION",
+    "CLAUDE.md",
+    "DATA_CONTRACT.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "doctor": "node doctor.mjs",
+    "verify": "node verify-pipeline.mjs",
+    "normalize": "node normalize-statuses.mjs",
+    "dedup": "node dedup-tracker.mjs",
+    "merge": "node merge-tracker.mjs",
+    "pdf": "node generate-pdf.mjs",
+    "sync-check": "node cv-sync-check.mjs",
+    "liveness": "node check-liveness.mjs",
+    "scan": "node scan.mjs",
+    "scan-health": "node scan-health.mjs",
+    "dashboard": "node start.mjs",
+    "dashboard:server": "node dashboard-web/server.mjs",
+    "preview": "node marketing/preview.mjs",
+    "test": "node tests/test-all.mjs",
+    "test:unit": "node tests/test-core.mjs && node tests/test-health.mjs && node tests/test-providers.mjs && node tests/test-onboarding.mjs && node tests/test-workspace.mjs && node tests/test-discovery.mjs && node tests/test-relevance.mjs && node tests/test-discover.mjs && node tests/test-chat-session.mjs && node tests/test-tailor.mjs && node tests/test-cv.mjs && node tests/test-recovery.mjs && node tests/test-resolver.mjs && node tests/test-profiles.mjs && node tests/test-websearch.mjs && node tests/test-settings.mjs && node tests/test-updates.mjs && node tests/test-level3.mjs && node tests/test-jobspy.mjs"
+  },
+  "keywords": [
+    "ai",
+    "job-search",
+    "career",
+    "claude-code",
+    "automation",
+    "ats",
+    "resume",
+    "cv",
+    "cli"
+  ],
+  "author": "CareerBot contributors",
+  "license": "MIT",
+  "dependencies": {
+    "@fastify/multipart": "^10.0.0",
+    "@fastify/static": "^9.1.1",
+    "@fastify/websocket": "^11.2.0",
+    "fastify": "^5.8.5",
+    "js-yaml": "^4.1.1",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.12.0",
+    "node-pty": "^1.1.0",
+    "pdf-parse": "^2.4.5",
+    "playwright": "^1.58.1"
+  }
+}

@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CareerBot Architecture Flowchart</title>
+  <meta name="description" content="Interactive CareerBot architecture flowchart for users, contributors, and agents picking up the project." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Geist:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="architecture-page">
+<header class="nav">
+  <div class="container nav-inner">
+    <a href="./" class="brand" aria-label="CareerBot">
+      <img src="CareerBot-logo.svg" alt="" width="32" height="32" class="brand-logo" />
+      <span>Career<span class="brand-accent">Bot</span></span>
+    </a>
+    <nav class="nav-links">
+      <a href="./#features">Features</a>
+      <a href="./#how-it-works">How it works</a>
+      <a href="architecture.html" aria-current="page">Architecture</a>
+      <a href="https://github.com/your-github-user/careerbot" rel="noopener">GitHub</a>
+    </nav>
+    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" type="button">
+      <svg id="icon-dark" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 8.5a5.5 5.5 0 1 1-6-6 4.5 4.5 0 0 0 6 6z"/></svg>
+      <svg id="icon-light" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><circle cx="8" cy="8" r="3"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/></svg>
+    </button>
+  </div>
+</header>
+
+<main>
+  <section class="architecture-hero">
+    <div class="container architecture-hero-inner">
+      <span class="kicker">System map</span>
+      <h1>How CareerBot actually works.</h1>
+      <p class="lede">
+        A guided flowchart for the local dashboard, scanner, agent modes, pipeline, data contract, and resume generation loop.
+      </p>
+      <div class="architecture-actions">
+        <a class="btn btn-primary" href="#flowchart">Explore the flow</a>
+        <a class="btn btn-ghost" href="#agent-json">Jump to agent JSON</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="flowchart" class="architecture-flow">
+    <div class="container">
+      <div class="section-heading">
+        <span class="kicker">Interactive flowchart</span>
+        <h2>Hover for tooltips. Click a node for details.</h2>
+      </div>
+
+      <div class="map-controls" aria-label="Highlight a workflow">
+        <button class="path-chip active" type="button" data-path="all">All</button>
+        <button class="path-chip" type="button" data-path="entry profile portals scanner discovery pipeline">Role discovery</button>
+        <button class="path-chip" type="button" data-path="entry agent evaluate reports applications">Evaluation</button>
+        <button class="path-chip" type="button" data-path="entry agent tailor resume output profile">Resume generation</button>
+        <button class="path-chip" type="button" data-path="health portals scanner discovery pipeline">Health and recovery</button>
+        <button class="path-chip" type="button" data-path="agent modes workspace data contract">Agent handoff</button>
+      </div>
+
+      <div class="flow-shell">
+        <div class="flow-grid" aria-label="CareerBot architecture flow">
+          <section class="flow-lane">
+            <div class="lane-heading">
+              <span class="lane-number">01</span>
+              <h3>Start</h3>
+            </div>
+            <button class="flow-node active" type="button" data-flow-node data-node-id="entry" data-tip="The dashboard and CLI both resolve a workspace before anything else runs." data-title="Entry points" data-summary="Users start through the global careerbot CLI, npm run dashboard, or the static install scripts. The local Fastify dashboard runs at localhost:3737 and becomes the main control surface." data-files="bin/careerbot.mjs, start.mjs, dashboard-web/server.mjs, marketing/install.sh, marketing/install.ps1" data-risks="Keep install scripts, package bin entries, and dashboard startup paths aligned. A broken entrypoint makes the project feel broken even if the internals are fine.">
+              <span class="node-kicker">CLI + dashboard</span>
+              <strong>Entry points</strong>
+              <small>Install, launch, onboard</small>
+            </button>
+            <button class="flow-node" type="button" data-flow-node data-node-id="profile" data-tip="Personalization lives in the user layer, not in shared system prompts." data-title="Profile and onboarding" data-summary="First run creates or validates the user workspace, imports the CV, creates config/profile.yml, seeds modes/_profile.md, and helps generate role archetypes and target companies." data-files="cv.md, config/profile.yml, modes/_profile.md, portals.yml, dashboard-web/routes/onboarding.mjs" data-risks="Do not put user-specific archetypes or narrative in modes/_shared.md. That belongs in modes/_profile.md or config/profile.yml.">
+              <span class="node-kicker">User setup</span>
+              <strong>Profile and onboarding</strong>
+              <small>CV, archetypes, targets</small>
+            </button>
+          </section>
+
+          <section class="flow-lane">
+            <div class="lane-heading">
+              <span class="lane-number">02</span>
+              <h3>Find</h3>
+            </div>
+            <button class="flow-node" type="button" data-flow-node data-node-id="portals" data-tip="portals.yml is user data and can be customized without changing system code." data-title="Portal inventory" data-summary="Tracked companies and career URLs live in portals.yml. Health checks classify each portal and can auto-disable repeated failures." data-files="portals.yml, scan-health.mjs, scan/health.mjs, dashboard-web/routes/health.mjs" data-risks="Treat portals.yml as user-owned. Updates should preserve local company choices and API keys.">
+              <span class="node-kicker">Company sources</span>
+              <strong>Portal inventory</strong>
+              <small>Tracked companies and URLs</small>
+            </button>
+            <button class="flow-node" type="button" data-flow-node data-node-id="scanner" data-tip="Quick Scan is deterministic and cheap. Deep Scan adds web search and fallback discovery." data-title="Scanner layers" data-summary="Quick Scan runs scan.mjs against direct ATS APIs and known careers pages. Deep Scan adds Level 3 web search through configured providers such as Brave, Serper, and scrape fallback, then filters candidates for role fit." data-files="scan.mjs, scan/providers/*, scan/level3.mjs, dashboard-web/routes/scan-deep.mjs, lib/title-filter.mjs" data-risks="The scanner should err toward real current roles, then use relevance filters to avoid dumping unrelated postings into the pipeline.">
+              <span class="node-kicker">Quick + deep scan</span>
+              <strong>Scanner layers</strong>
+              <small>ATS APIs, webfetch, search</small>
+            </button>
+            <button class="flow-node" type="button" data-flow-node data-node-id="discovery" data-tip="Discovery is where raw postings become candidate roles the user might actually care about." data-title="Verified discovery" data-summary="Discovery dedupes URLs, sniffs unknown career pages, applies title filters, scores relevance, and records scan history before roles land in the pending pipeline." data-files="lib/discovery.mjs, lib/relevance.mjs, data/scan-history.tsv, data/pipeline.md" data-risks="Weak filtering creates noisy pending roles. Over-filtering hides opportunities. This is the quality dial for discovery.">
+              <span class="node-kicker">Quality gate</span>
+              <strong>Verified discovery</strong>
+              <small>Dedupe, sniff, score</small>
+            </button>
+          </section>
+
+          <section class="flow-lane">
+            <div class="lane-heading">
+              <span class="lane-number">03</span>
+              <h3>Decide</h3>
+            </div>
+            <button class="flow-node" type="button" data-flow-node data-node-id="pipeline" data-tip="The pipeline is a markdown-backed inbox, not a database." data-title="Pipeline UI" data-summary="The Discover and Pipeline views read markdown data, show score rationale, group roles by state, and expose actions such as Evaluate, Apply, Interviewed, Reject, and Skip." data-files="dashboard-web/public/js/views/discover.mjs, dashboard-web/public/js/views/pipeline.mjs, dashboard-web/routes/applications.mjs, data/pipeline.md" data-risks="Keep UI status transitions aligned to templates/states.yml so roles do not disappear into impossible states.">
+              <span class="node-kicker">Dashboard views</span>
+              <strong>Pipeline UI</strong>
+              <small>Discover, evaluate, apply</small>
+            </button>
+            <button class="flow-node" type="button" data-flow-node data-node-id="evaluate" data-tip="Scores below 4.0 should usually discourage applying. Quality beats volume here." data-title="Evaluation mode" data-summary="The agent reads shared scoring rules plus the user's profile, verifies the role, writes a report, calculates score blocks, and tracks the role as Evaluated." data-files="modes/evaluate.md, modes/_shared.md, modes/_profile.md, reports/*, dashboard-web/lib/parsers.mjs" data-risks="Offer verification should use Playwright for active-role checks. Do not blindly trust search snippets for live postings.">
+              <span class="node-kicker">Fit scoring</span>
+              <strong>Evaluation mode</strong>
+              <small>Reports and rationale</small>
+            </button>
+            <button class="flow-node" type="button" data-flow-node data-node-id="applications" data-tip="applications.md is the canonical tracker for evaluated, applied, interview, offer, rejected, discarded, and skip states." data-title="Application tracker" data-summary="Tracker rows in data/applications.md are normalized to the canonical states in templates/states.yml. Merge and dedup scripts protect the markdown data from duplicate company-role entries." data-files="data/applications.md, templates/states.yml, merge-tracker.mjs, dedup-tracker.mjs, normalize-statuses.mjs, verify-pipeline.mjs" data-risks="Never create duplicate tracker entries for the same company and role. Update the existing entry instead.">
+              <span class="node-kicker">Source of truth</span>
+              <strong>Application tracker</strong>
+              <small>Canonical states</small>
+            </button>
+          </section>
+
+          <section class="flow-lane">
+            <div class="lane-heading">
+              <span class="lane-number">04</span>
+              <h3>Generate</h3>
+            </div>
+            <button class="flow-node" type="button" data-flow-node data-node-id="agent" data-tip="CareerBot is agent-ready: the selected CLI is launched as a subprocess, with project modes as its playbook." data-title="Agent layer" data-summary="Interactive chat and headless tasks both spawn the user's chosen agent. The dashboard wraps CLI sessions, resumes conversations, and routes mode-specific work through prompt files." data-files="dashboard-web/lib/agents.mjs, dashboard-web/routes/terminal.mjs, dashboard-web/public/js/views/chat.mjs, modes/*.md" data-risks="Each agent CLI has different flags. Keep launch arguments tested so chat, headless tailor, and evaluation flows do not drift apart.">
+              <span class="node-kicker">Claude, Codex, OpenCode, Gemini</span>
+              <strong>Agent layer</strong>
+              <small>Interactive + headless</small>
+            </button>
+            <button class="flow-node" type="button" data-flow-node data-node-id="tailor" data-tip="Tailoring should happen by default when an evaluated score is 3.0 or higher." data-title="Tailor bundles" data-summary="For promising roles, the system generates role-specific resume markdown, cover-letter material, and application answers, then writes a reusable bundle under output/tailor-bundles." data-files="dashboard-web/routes/tailor.mjs, lib/tailor.mjs, modes/pdf.md, output/tailor-bundles/*" data-risks="Generated documents must stay grounded in cv.md and article-digest.md. Never invent metrics.">
+              <span class="node-kicker">Role-specific docs</span>
+              <strong>Tailor bundles</strong>
+              <small>Resume, cover, Q and A</small>
+            </button>
+            <button class="flow-node" type="button" data-flow-node data-node-id="resume" data-tip="PDF output is rendered through Playwright so the resume looks consistent locally." data-title="Resume export" data-summary="Markdown resumes can be downloaded directly. PDF resumes are rendered through the HTML template with Playwright and ATS-safe text normalization." data-files="templates/cv-template.html, generate-pdf.mjs, dashboard-web/routes/cv.mjs, output/*.pdf" data-risks="PDF generation depends on Chromium availability. Doctor and CLI setup should ensure the browser runtime exists.">
+              <span class="node-kicker">Markdown + PDF</span>
+              <strong>Resume export</strong>
+              <small>Downloadable artifacts</small>
+            </button>
+          </section>
+
+          <section class="flow-lane">
+            <div class="lane-heading">
+              <span class="lane-number">05</span>
+              <h3>Persist</h3>
+            </div>
+            <button class="flow-node" type="button" data-flow-node data-node-id="workspace" data-tip="The workspace resolver lets the npm package and source checkout behave consistently." data-title="Workspace resolver" data-summary="CareerBot resolves user data through CAREERBOT_WORKSPACE_ROOT, the current directory when it has markers, the project tree, or ~/.careerbot for installed CLI usage." data-files="lib/workspace-resolver.mjs, lib/workspace.mjs, dashboard-web/server.mjs, bin/careerbot.mjs" data-risks="Every route and script should resolve through the same workspace rules so data does not split across multiple directories.">
+              <span class="node-kicker">Local storage</span>
+              <strong>Workspace resolver</strong>
+              <small>Where data lives</small>
+            </button>
+            <button class="flow-node" type="button" data-flow-node data-node-id="data" data-tip="CareerBot intentionally uses human-editable files instead of a database." data-title="Markdown data model" data-summary="The app stores profile, pipeline, reports, applications, scan history, memory, and generated output as markdown, YAML, TSV, and files on disk." data-files="data/*, reports/*, output/*, memory/*, config/profile.yml, portals.yml" data-risks="Respect the data contract: user layer is never auto-updated, while system layer can ship improvements.">
+              <span class="node-kicker">No database</span>
+              <strong>Markdown data model</strong>
+              <small>YAML, MD, TSV, files</small>
+            </button>
+            <button class="flow-node" type="button" data-flow-node data-node-id="contract" data-tip="The data contract is the main safety rule for updates and agents." data-title="Data contract" data-summary="User-owned files hold personal details and work product. System-owned files hold prompts, scripts, dashboard code, templates, and documentation." data-files="DATA_CONTRACT.md, AGENTS.md, CLAUDE.md, modes/_shared.md, templates/*" data-risks="Never auto-edit user files during an update. Never store personalization in shared system files.">
+              <span class="node-kicker">Safety boundary</span>
+              <strong>Data contract</strong>
+              <small>User layer vs system layer</small>
+            </button>
+          </section>
+
+          <section class="flow-lane">
+            <div class="lane-heading">
+              <span class="lane-number">06</span>
+              <h3>Operate</h3>
+            </div>
+            <button class="flow-node" type="button" data-flow-node data-node-id="health" data-tip="Health checks prevent quiet scanner decay when a company moves careers platforms." data-title="Health and recovery" data-summary="Portal health checks classify broken, empty, redirected, blocked, and unknown careers pages. Recovery can search for a new URL and rewrite a confirmed portal entry." data-files="scan-health.mjs, scan/health.mjs, dashboard-web/routes/health.mjs, dashboard-web/public/js/views/portals.mjs" data-risks="Recovery should preserve user intent. Confirm URL rewrites rather than silently replacing user-maintained sources.">
+              <span class="node-kicker">Maintenance loop</span>
+              <strong>Health and recovery</strong>
+              <small>Classify, disable, repair</small>
+            </button>
+            <button class="flow-node" type="button" data-flow-node data-node-id="modes" data-tip="Modes are the operating manual agents read before doing work." data-title="Agent modes" data-summary="Mode files define behavior for scan, pipeline, evaluate, apply, pdf, interview prep, outreach, patterns, follow-up, training, and project evaluation." data-files="modes/*.md, modes/humanizer.md, modes/_shared.md, modes/_profile.md" data-risks="Read modes/humanizer.md before writing user-facing reports, outreach, CV content, or application answers.">
+              <span class="node-kicker">Prompt playbooks</span>
+              <strong>Agent modes</strong>
+              <small>Task-specific instructions</small>
+            </button>
+            <button class="flow-node" type="button" data-flow-node data-node-id="output" data-tip="Reports and generated documents are the user's audit trail." data-title="Outputs and verification" data-summary="Reports, tailored resumes, pipeline verification, follow-up analysis, and pattern analysis give the user a readable trail of every decision." data-files="reports/*, output/*, verify-pipeline.mjs, analyze-patterns.mjs, followup-cadence.mjs, test-all.mjs" data-risks="Run verification after larger pipeline or tracker changes. For batch evaluations, merge tracker additions afterward.">
+              <span class="node-kicker">Audit trail</span>
+              <strong>Outputs and verification</strong>
+              <small>Reports, tests, checks</small>
+            </button>
+          </section>
+        </div>
+
+        <aside class="flow-inspector" aria-live="polite">
+          <span class="inspector-label">Selected node</span>
+          <h3 id="inspector-title">Entry points</h3>
+          <p id="inspector-summary">Users start through the global careerbot CLI, npm run dashboard, or the static install scripts. The local Fastify dashboard runs at localhost:3737 and becomes the main control surface.</p>
+          <dl class="inspector-meta">
+            <div>
+              <dt>Key files</dt>
+              <dd id="inspector-files">bin/careerbot.mjs, start.mjs, dashboard-web/server.mjs, marketing/install.sh, marketing/install.ps1</dd>
+            </div>
+            <div>
+              <dt>Watch out for</dt>
+              <dd id="inspector-risks">Keep install scripts, package bin entries, and dashboard startup paths aligned. A broken entrypoint makes the project feel broken even if the internals are fine.</dd>
+            </div>
+          </dl>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="architecture-summary">
+    <div class="container">
+      <div class="summary-grid">
+        <article>
+          <span class="summary-stat">Local-first</span>
+          <h3>Everything routes through a workspace.</h3>
+          <p>User data stays in the workspace: CV, profile, portals, reports, pipeline, applications, memory, and generated output.</p>
+        </article>
+        <article>
+          <span class="summary-stat">No database</span>
+          <h3>Plain files make it inspectable.</h3>
+          <p>Markdown, YAML, TSV, and generated files are easy for users and agents to audit, diff, repair, and back up.</p>
+        </article>
+        <article>
+          <span class="summary-stat">Agent-ready</span>
+          <h3>Modes are the control plane.</h3>
+          <p>Claude Code, Codex, OpenCode, and Gemini can all follow the same project modes and data contract.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="agent-json" class="agent-json-section">
+    <div class="container">
+      <div class="json-header">
+        <div>
+          <span class="kicker">Agent handoff</span>
+          <h2>Quick-start JSON for future agents.</h2>
+          <p>This is intentionally compact, factual, and safe to paste into an agent session.</p>
+        </div>
+        <button class="btn btn-ghost" type="button" id="copy-agent-json">Copy JSON</button>
+      </div>
+      <pre class="agent-json"><code>{
+  "project": {
+    "name": "CareerBot",
+    "purpose": "Local-first AI job search dashboard and automation system for finding real roles, evaluating fit, generating tailored resumes, and tracking the pipeline.",
+    "runtime": "Node.js 18+, Fastify, vanilla JavaScript, Playwright, markdown/YAML/TSV data files",
+    "dashboard_url": "http://localhost:3737",
+    "marketing_preview": "http://localhost:8080"
+  },
+  "first_checks": [
+    "cv.md exists",
+    "config/profile.yml exists",
+    "modes/_profile.md exists",
+    "portals.yml exists"
+  ],
+  "core_commands": {
+    "start_dashboard": "npm run dashboard",
+    "doctor": "npm run doctor",
+    "quick_scan": "npm run scan",
+    "scan_health": "npm run scan-health",
+    "verify_pipeline": "npm run verify",
+    "run_tests": "npm test",
+    "marketing_preview": "npm run preview"
+  },
+  "major_workflows": {
+    "onboarding": [
+      "Import CV",
+      "Create profile.yml and modes/_profile.md",
+      "Seed portals.yml",
+      "Run initial scan"
+    ],
+    "quick_scan": [
+      "scan.mjs calls direct ATS providers and careers pages",
+      "dedupes against data/scan-history.tsv",
+      "writes new URLs to data/pipeline.md"
+    ],
+    "deep_scan": [
+      "runs quick scan",
+      "adds Level 3 web discovery through configured providers",
+      "filters by title and relevance",
+      "writes surviving roles to the pending pipeline"
+    ],
+    "evaluation": [
+      "verify role is active",
+      "read modes/_shared.md and modes/_profile.md",
+      "score fit using the rubric",
+      "save report under reports/",
+      "track role in data/applications.md"
+    ],
+    "tailored_resume": [
+      "generate by default when evaluated score is 3.0 or higher",
+      "ground content in cv.md and article-digest.md",
+      "write markdown and PDF outputs",
+      "surface downloads in dashboard profile and pipeline views"
+    ]
+  },
+  "data_contract": {
+    "user_layer_never_auto_update": [
+      "cv.md",
+      "config/profile.yml",
+      "modes/_profile.md",
+      "article-digest.md",
+      "portals.yml",
+      "data/*",
+      "reports/*",
+      "output/*",
+      "memory/*",
+      "interview-prep/*"
+    ],
+    "system_layer_safe_to_update": [
+      "dashboard-web/*",
+      "lib/*",
+      "scan/*",
+      "modes except modes/_profile.md",
+      "templates/*",
+      "batch/*",
+      "*.mjs scripts",
+      "docs/*"
+    ],
+    "rule": "Put user-specific customization in modes/_profile.md or config/profile.yml, never in modes/_shared.md."
+  },
+  "canonical_states": [
+    "Evaluated",
+    "Applied",
+    "Responded",
+    "Interview",
+    "Offer",
+    "Rejected",
+    "Discarded",
+    "SKIP"
+  ],
+  "important_files": {
+    "dashboard_entry": "dashboard-web/server.mjs",
+    "dashboard_frontend": "dashboard-web/public/js/views/*",
+    "scanner": "scan.mjs and scan/providers/*",
+    "deep_scan_route": "dashboard-web/routes/scan-deep.mjs",
+    "tailoring": "dashboard-web/routes/tailor.mjs and lib/tailor.mjs",
+    "pdf_generation": "generate-pdf.mjs and templates/cv-template.html",
+    "pipeline_integrity": "verify-pipeline.mjs, merge-tracker.mjs, dedup-tracker.mjs, normalize-statuses.mjs",
+    "settings": "dashboard-web/routes/settings.mjs and dashboard-web/public/js/views/settings.mjs",
+    "agent_modes": "modes/*.md"
+  },
+  "safety_rules": [
+    "Never submit an application without user review.",
+    "Discourage low-fit applications, especially below 4.0 out of 5.",
+    "Never invent resume metrics. Read proof points from cv.md and article-digest.md.",
+    "Use Playwright to verify whether a role is still active.",
+    "After batch evaluations, run node merge-tracker.mjs.",
+    "Do not create duplicate applications.md entries for the same company and role."
+  ],
+  "recommended_verification": [
+    "node --check changed-script.mjs",
+    "npm run test:unit",
+    "npm test",
+    "npm run verify",
+    "git diff --check"
+  ]
+}</code></pre>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <span class="footer-brand">CareerBot architecture map</span>
+    <span class="footer-links">
+      <a href="./">Marketing home</a>
+      <a href="https://github.com/your-github-user/careerbot">GitHub</a>
+      <a href="https://github.com/your-github-user/careerbot/blob/main/docs/design/ARCHITECTURE.md">Architecture docs</a>
+    </span>
+  </div>
+</footer>
+
+<script>
+  const root = document.documentElement;
+  const dark = document.getElementById('icon-dark');
+  const light = document.getElementById('icon-light');
+  const saved = localStorage.getItem('careerbot-marketing-theme') || 'dark';
+  root.setAttribute('data-theme', saved);
+  if (saved === 'light') {
+    dark.style.display = 'none';
+    light.style.display = 'block';
+  }
+
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    const cur = root.getAttribute('data-theme');
+    const next = cur === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    localStorage.setItem('careerbot-marketing-theme', next);
+    dark.style.display = next === 'dark' ? 'block' : 'none';
+    light.style.display = next === 'light' ? 'block' : 'none';
+  });
+
+  const nodes = [...document.querySelectorAll('[data-flow-node]')];
+  const chips = [...document.querySelectorAll('[data-path]')];
+  const inspector = {
+    title: document.getElementById('inspector-title'),
+    summary: document.getElementById('inspector-summary'),
+    files: document.getElementById('inspector-files'),
+    risks: document.getElementById('inspector-risks'),
+  };
+
+  function selectNode(node) {
+    nodes.forEach((candidate) => candidate.classList.toggle('active', candidate === node));
+    inspector.title.textContent = node.dataset.title;
+    inspector.summary.textContent = node.dataset.summary;
+    inspector.files.textContent = node.dataset.files;
+    inspector.risks.textContent = node.dataset.risks;
+  }
+
+  nodes.forEach((node) => {
+    node.addEventListener('click', () => selectNode(node));
+    node.addEventListener('focus', () => selectNode(node));
+  });
+
+  chips.forEach((chip) => {
+    chip.addEventListener('click', () => {
+      chips.forEach((candidate) => candidate.classList.toggle('active', candidate === chip));
+      const path = chip.dataset.path;
+      const ids = new Set(path.split(/\s+/).filter(Boolean));
+      nodes.forEach((node) => {
+        const highlighted = path === 'all' || ids.has(node.dataset.nodeId);
+        node.classList.toggle('is-muted', !highlighted);
+        node.classList.toggle('is-highlighted', highlighted && path !== 'all');
+      });
+      const first = nodes.find((node) => path === 'all' || ids.has(node.dataset.nodeId));
+      if (first) selectNode(first);
+    });
+  });
+
+  document.getElementById('copy-agent-json').addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const text = document.querySelector('.agent-json code').textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      const old = button.textContent;
+      button.textContent = 'Copied';
+      setTimeout(() => { button.textContent = old; }, 1300);
+    } catch {
+      button.textContent = 'Select and copy';
+    }
+  });
+</script>
+</body>
+</html>

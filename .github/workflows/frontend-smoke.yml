@@ -1,0 +1,39 @@
+name: Frontend smoke
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies (lockfile)
+        run: npm ci
+
+      # Playwright caches its browser binaries by version. Restoring the
+      # cache turns the first install (~150 MB) into a no-op on warm runs.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium for Playwright
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Frontend smoke test
+        run: node tests/test-frontend-smoke.mjs

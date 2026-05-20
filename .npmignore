@@ -1,0 +1,58 @@
+# What gets EXCLUDED from `npm pack` / `npm publish`.
+# package.json `files` allowlist already constrains what's shipped, but
+# this is belt-and-braces for anything that slips through (test outputs,
+# scratch dirs, real user data files that should never reach the registry).
+
+# Tests + dev tools — published package doesn't need them.
+test-*.mjs
+*.test.mjs
+
+# User data — never publish someone's CV / applications / portals.
+cv.md
+config/profile.yml
+modes/_profile.md
+portals.yml
+data/
+reports/
+output/
+interview-prep/
+article-digest.md
+batch/tracker-additions/
+
+# Scratch / build / IDE artefacts
+.tmp_*
+.nyc_output/
+coverage/
+*.log
+*.bak
+*.tmp
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Source-control internals
+.git/
+.gitignore
+.github/
+.claude/
+opencode.json
+nul
+
+# Worktree / fork plumbing
+worktrees/
+
+# CI scripts
+.github/workflows/
+
+# Docs that aren't shipped as install assets (keep README, CLAUDE.md, DATA_CONTRACT.md)
+docs/
+SECURITY.md
+CONTRIBUTING.md
+
+# Old shell entry points superseded by the CLI shim
+start.bat
+start.command
+start.sh
+start.mjs

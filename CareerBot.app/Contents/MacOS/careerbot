@@ -1,0 +1,28 @@
+#!/bin/bash
+# CareerBot.app launcher.
+#
+# This bundle exists so macOS Gatekeeper treats CareerBot as a proper app —
+# one-time "Open" prompt the first time, no prompt afterwards. The actual
+# work is delegated to start.command in the project root, run inside a
+# visible Terminal window so users see installation progress and errors.
+
+# Resolve project root: this script lives at
+#   <project-root>/CareerBot.app/Contents/MacOS/careerbot
+# so the project root is three levels up.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+# Strip quarantine here too — if Gatekeeper let the .app run, the rest of
+# the project still has the xattr from the original download.
+xattr -dr com.apple.quarantine "$PROJECT_DIR" 2>/dev/null || true
+
+# Open Terminal and run start.command so the user can see what's happening
+# (npm install progress, Playwright download, errors). Without this, a
+# silent crash would leave the user with no clue why the dashboard didn't
+# come up.
+osascript <<EOF
+tell application "Terminal"
+    activate
+    do script "cd '$PROJECT_DIR' && './start.command'"
+end tell
+EOF
