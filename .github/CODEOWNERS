@@ -1,0 +1,9 @@
+# Code owners for CareerBot
+# https://docs.github.com/articles/about-code-owners
+#
+# Every change requires review from the repo owner. Combined with the
+# branch ruleset's "require review from Code Owners", this means no
+# outside contributor's pull request can merge into a protected branch
+# without @nerdywhiskers approving it.
+
+* @nerdywhiskers
