@@ -27,12 +27,6 @@ Where to look depending on what you need.
 | [CUSTOMIZATION.md](guides/CUSTOMIZATION.md) | Profile, archetype table, portals, CV template, and hooks |
 | [SCRIPTS.md](guides/SCRIPTS.md) | Every npm script and test suite |
 
-### [deploy/](deploy/) - operational templates
-
-| File | Purpose |
-|---|---|
-| [pages-workflow.yml.template](deploy/pages-workflow.yml.template) | GitHub Pages deploy workflow for the marketing site |
-
 ## Conventions
 
 - Design docs that describe shipped features should say so near the top.
