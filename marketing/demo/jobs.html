@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CareerBot — Demo · Jobs</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Geist:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="dashboard-css/theme.css" />
+  <link rel="stylesheet" href="dashboard-css/layout.css" />
+  <link rel="stylesheet" href="dashboard-css/components.css" />
+  <link rel="stylesheet" href="dashboard-css/components-figma.css" />
+  <link rel="stylesheet" href="dashboard-css/chatui.css" />
+  <link rel="stylesheet" href="demo.css" />
+</head>
+<body>
+<div class="app">
+  <div id="dashboard-container">
+
+    <div id="dash-nav-mount"></div>
+    <script src="nav.js"></script>
+
+    <div class="dashboard-shell">
+      <main class="main">
+        <div class="view active">
+
+          <div class="pipeline-shell">
+
+            <header class="pipeline-header">
+              <div>
+                <h1 class="section-title">Pipeline</h1>
+                <p class="section-sub">Manage your active opportunities and AI-driven match insights.</p>
+              </div>
+              <div class="pipeline-header-stats">
+                <div class="stat-pill is-accent">
+                  <span class="stat-pill-label">Active offers</span>
+                  <span class="stat-pill-value">3</span>
+                </div>
+                <div class="stat-pill">
+                  <span class="stat-pill-label">Pending</span>
+                  <span class="stat-pill-value">8</span>
+                </div>
+              </div>
+            </header>
+
+            <section class="pipeline-toolbar">
+              <div class="pipeline-toolbar-row">
+                <div class="filter-tabs">
+                  <button class="filter-tab active" data-filter="pending" data-noop>Pending<span class="count">8</span></button>
+                  <button class="filter-tab" data-filter="all" data-noop>All<span class="count">14</span></button>
+                  <button class="filter-tab" data-filter="evaluated" data-noop>Evaluated<span class="count">3</span></button>
+                  <button class="filter-tab" data-filter="applied" data-noop>Applied<span class="count">2</span></button>
+                  <button class="filter-tab" data-filter="interview" data-noop>Interview<span class="count">1</span></button>
+                </div>
+                <label class="search-input">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="6" r="4.5"/><line x1="9.5" y1="9.5" x2="13" y2="13"/></svg>
+                  <input type="text" placeholder="Search company or role..." disabled />
+                </label>
+              </div>
+              <div class="pipeline-toolbar-divider">
+                <label class="toggle-row">
+                  <input type="checkbox" checked disabled>
+                  <span>Top matches only (4+)</span>
+                </label>
+                <div style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">
+                  <button class="btn btn-sm btn-primary" data-noop>
+                    <svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor" aria-hidden="true"><path d="M7.5 0L0 7.5h4L3.5 14 11 6.5H7L7.5 0z"/></svg>
+                    Scan
+                  </button>
+                  <button class="btn btn-sm btn-secondary" data-noop>Deep Scan</button>
+                  <button class="btn-icon" data-noop title="Refresh">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 6a4.5 4.5 0 1 1-1.3-3.18"/><polyline points="11.5 1 11.5 4 8.5 4"/></svg>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <div class="pipeline-table-shell">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th class="col-check"><input type="checkbox" disabled></th>
+                    <th>Company</th>
+                    <th>Role</th>
+                    <th>Posted Date</th>
+                    <th class="col-score">Match</th>
+                    <th class="col-actions">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="col-check"><input type="checkbox" disabled></td>
+                    <td class="col-company">
+                      <span class="cell-company">
+                        <span class="cell-company-logo">An</span>
+                        <span>Anthropic</span>
+                      </span>
+                    </td>
+                    <td><span class="cell-role">Staff Backend Engineer, Inference</span></td>
+                    <td><span class="cell-date">2026-05-04</span></td>
+                    <td class="col-score">
+                      <span class="score-ring tone-excellent">
+                        <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
+                          <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
+                          <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="12.57" />
+                        </svg>
+                        <span class="score-ring-value">4.6</span>
+                      </span>
+                    </td>
+                    <td class="col-actions">
+                      <span class="cell-actions">
+                        <a href="#" class="btn btn-ghost btn-sm" data-noop>↗</a>
+                        <button class="btn btn-sm btn-outline" data-noop>Skip</button>
+                        <button class="btn btn-sm btn-secondary" data-noop>Tailor</button>
+                        <button class="btn btn-sm btn-soft" data-noop>Applied</button>
+                        <button class="btn btn-ghost btn-sm overflow-trigger" data-noop title="More actions">⋮</button>
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="col-check"><input type="checkbox" disabled></td>
+                    <td class="col-company">
+                      <span class="cell-company">
+                        <span class="cell-company-logo">Co</span>
+                        <span>Cohere</span>
+                      </span>
+                    </td>
+                    <td><span class="cell-role">Founding Platform Engineer</span></td>
+                    <td><span class="cell-date">2026-05-05</span></td>
+                    <td class="col-score">
+                      <span class="score-ring tone-good">
+                        <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
+                          <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
+                          <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="17.59" />
+                        </svg>
+                        <span class="score-ring-value">4.3</span>
+                      </span>
+                    </td>
+                    <td class="col-actions">
+                      <span class="cell-actions">
+                        <a href="#" class="btn btn-ghost btn-sm" data-noop>↗</a>
+                        <button class="btn btn-sm btn-outline" data-noop>Skip</button>
+                        <button class="btn btn-sm btn-secondary" data-noop>Tailor</button>
+                        <button class="btn btn-sm btn-soft" data-noop>Applied</button>
+                        <button class="btn btn-ghost btn-sm overflow-trigger" data-noop title="More actions">⋮</button>
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="col-check"><input type="checkbox" disabled></td>
+                    <td class="col-company">
+                      <span class="cell-company">
+                        <span class="cell-company-logo">An</span>
+                        <span>Anthropic</span>
+                      </span>
+                    </td>
+                    <td><span class="cell-role">Senior Research Engineer, Alignment</span></td>
+                    <td><span class="cell-date">2026-05-02</span></td>
+                    <td class="col-score">
+                      <span class="score-ring tone-good">
+                        <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
+                          <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
+                          <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="22.62" />
+                        </svg>
+                        <span class="score-ring-value">4.1</span>
+                      </span>
+                    </td>
+                    <td class="col-actions">
+                      <span class="cell-actions">
+                        <a href="#" class="btn btn-ghost btn-sm" data-noop>↗</a>
+                        <button class="btn btn-sm btn-outline" data-noop>Skip</button>
+                        <button class="btn btn-sm btn-secondary" data-noop>Tailor</button>
+                        <button class="btn btn-sm btn-soft" data-noop>Applied</button>
+                        <button class="btn btn-ghost btn-sm overflow-trigger" data-noop title="More actions">⋮</button>
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="col-check"><input type="checkbox" disabled></td>
+                    <td class="col-company">
+                      <span class="cell-company">
+                        <span class="cell-company-logo">Ru</span>
+                        <span>Runway</span>
+                      </span>
+                    </td>
+                    <td><span class="cell-role">Senior ML Engineer, Video</span></td>
+                    <td><span class="cell-date">2026-05-03</span></td>
+                    <td class="col-score">
+                      <span class="score-ring tone-decent">
+                        <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
+                          <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
+                          <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="32.67" />
+                        </svg>
+                        <span class="score-ring-value">3.7</span>
+                      </span>
+                    </td>
+                    <td class="col-actions">
+                      <span class="cell-actions">
+                        <a href="#" class="btn btn-ghost btn-sm" data-noop>↗</a>
+                        <button class="btn btn-sm btn-outline" data-noop>Skip</button>
+                        <button class="btn btn-sm btn-secondary" data-noop>Tailor</button>
+                        <button class="btn btn-sm btn-soft" data-noop>Applied</button>
+                        <button class="btn btn-ghost btn-sm overflow-trigger" data-noop title="More actions">⋮</button>
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="col-check"><input type="checkbox" disabled></td>
+                    <td class="col-company">
+                      <span class="cell-company">
+                        <span class="cell-company-logo">Vi</span>
+                        <span>Vinted</span>
+                      </span>
+                    </td>
+                    <td><span class="cell-role">Staff Backend Engineer</span></td>
+                    <td><span class="cell-date">2026-05-04</span></td>
+                    <td class="col-score">
+                      <span class="score-ring tone-decent">
+                        <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
+                          <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
+                          <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="37.70" />
+                        </svg>
+                        <span class="score-ring-value">3.5</span>
+                      </span>
+                    </td>
+                    <td class="col-actions">
+                      <span class="cell-actions">
+                        <a href="#" class="btn btn-ghost btn-sm" data-noop>↗</a>
+                        <button class="btn btn-sm btn-outline" data-noop>Skip</button>
+                        <button class="btn btn-sm btn-secondary" data-noop>Tailor</button>
+                        <button class="btn btn-sm btn-soft" data-noop>Applied</button>
+                        <button class="btn btn-ghost btn-sm overflow-trigger" data-noop title="More actions">⋮</button>
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="pipeline-table-footer">
+                <div class="pipeline-pagesize">
+                  <label for="demo-pagesize">Per page</label>
+                  <select id="demo-pagesize" class="pagesize-select" disabled>
+                    <option>5</option>
+                    <option selected>10</option>
+                    <option>25</option>
+                    <option>50</option>
+                    <option>100</option>
+                  </select>
+                </div>
+                <span class="pipeline-table-range">Showing 1–5 of 8 results</span>
+                <span class="pagination">
+                  <button class="btn-icon is-sm" type="button" disabled aria-label="Previous page">
+                    <svg width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 1.5L1.5 6L6 10.5"/></svg>
+                  </button>
+                  <span class="pagination-status">Page 1 / 2</span>
+                  <button class="btn-icon is-sm" type="button" data-noop aria-label="Next page">
+                    <svg width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1.5L6.5 6L2 10.5"/></svg>
+                  </button>
+                </span>
+              </div>
+            </div>
+
+            <section class="pipeline-insights">
+              <article class="insight-card tone-mauve">
+                <div>
+                  <span class="insight-card-icon">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2a5 5 0 0 0-3 9v3h6v-3a5 5 0 0 0-3-9z"/><path d="M8 18h4"/><path d="M9 16h2"/></svg>
+                  </span>
+                  <h3 class="insight-card-title">Match Insight</h3>
+                  <p class="insight-card-body">Roles matching <strong>"platform engineer"</strong> are seeing the strongest engagement in your pipeline this week.</p>
+                </div>
+                <a class="insight-card-cta" href="analytics.html">View Analytics</a>
+              </article>
+
+              <article class="insight-card tone-indigo">
+                <div>
+                  <span class="insight-card-icon">
+                    <svg width="22" height="20" viewBox="0 0 22 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="16" height="13" rx="3"/><circle cx="8" cy="9.5" r="1.2" fill="currentColor"/><circle cx="14" cy="9.5" r="1.2" fill="currentColor"/><path d="M11 1v2"/></svg>
+                  </span>
+                  <h3 class="insight-card-title">AI Suggestion</h3>
+                  <p class="insight-card-body">Update your portfolio link in the <strong>"Cohere"</strong> application to lift its score above 4.8.</p>
+                </div>
+                <button class="insight-card-cta" type="button" data-noop>Optimize Now</button>
+              </article>
+
+              <button class="insight-card is-empty insight-card-button" type="button" data-noop>
+                <span class="insight-card-icon">
+                  <svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="15" cy="15" r="12"/><line x1="15" y1="9" x2="15" y2="21"/><line x1="9" y1="15" x2="21" y2="15"/></svg>
+                </span>
+                <h3 class="insight-card-title">Add Entry</h3>
+                <p class="insight-card-sub">Manually add a job to track</p>
+              </button>
+            </section>
+
+          </div>
+
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<script src="chat-rail.js"></script>
+<script src="noop.js"></script>
+</body>
+</html>

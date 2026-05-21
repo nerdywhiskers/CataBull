@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CareerBot - Demo - Profile</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Geist:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="dashboard-css/theme.css" />
+  <link rel="stylesheet" href="dashboard-css/layout.css" />
+  <link rel="stylesheet" href="dashboard-css/components.css" />
+  <link rel="stylesheet" href="dashboard-css/components-figma.css" />
+  <link rel="stylesheet" href="dashboard-css/chatui.css" />
+  <link rel="stylesheet" href="demo.css" />
+</head>
+<body>
+<div class="app">
+  <div id="dashboard-container">
+
+    <div id="dash-nav-mount"></div>
+    <script src="nav.js"></script>
+
+    <div class="dashboard-shell">
+      <main class="main">
+        <div class="view active">
+
+          <div class="section-header">
+            <h2 class="section-title">Profile</h2>
+          </div>
+
+          <div class="profile-switcher-bar">
+            <div class="profile-switcher-left">
+              <span class="profile-switcher-label">Profile</span>
+              <select class="form-select profile-switcher-select" data-noop>
+                <option selected>engineering (active)</option>
+                <option>design-pivot</option>
+              </select>
+              <button class="btn btn-sm" data-noop>Switch</button>
+            </div>
+            <div class="profile-switcher-actions">
+              <button class="btn btn-secondary btn-sm" data-noop>Save Profile</button>
+              <button class="btn btn-outline btn-sm" data-noop>Import</button>
+              <a class="btn btn-outline btn-sm" href="#" data-noop>Export</a>
+              <button class="btn btn-outline btn-sm profile-switcher-danger" data-noop>Delete</button>
+              <button class="btn btn-primary btn-sm" data-noop>New profile</button>
+            </div>
+          </div>
+
+          <div class="filter-tabs filter-tabs-plain" style="margin-bottom:20px">
+            <button class="filter-tab" data-noop>Identity</button>
+            <button class="filter-tab" data-noop>Archetypes</button>
+            <button class="filter-tab active" data-noop>CV</button>
+          </div>
+
+          <div class="card" style="margin-bottom:16px;background:var(--surface0);border-left:3px solid var(--mauve)">
+            <div style="font-size:13px;color:var(--text);line-height:1.6">
+              <strong style="color:var(--mauve)">Tip:</strong> Evaluated roles with a score of <strong>3.0+</strong> generate a tailored resume by default.
+              Download Markdown or PDF from the active resume below.
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:240px">
+                <label style="font-size:13px;color:var(--subtext)">CV:</label>
+                <select class="form-select" style="flex:1;min-width:200px" data-noop>
+                  <option selected>cv-demo-user-anthropic-2026-05-17 (MD + PDF)</option>
+                  <option>cv-demo-user-cohere-2026-05-16 (MD + PDF)</option>
+                  <option>cv.md (master) (MD)</option>
+                </select>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+                <a class="btn btn-sm" href="#" data-noop>Download MD</a>
+                <a class="btn btn-sm" href="#" data-noop>Download PDF</a>
+                <button class="btn btn-primary btn-sm" data-noop>Save</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2" style="gap:24px">
+            <div class="card">
+              <h3 style="font-size:14px;font-weight:600;color:var(--subtext);margin-bottom:12px">Editor (output/cv-demo-user-anthropic-2026-05-17.md)</h3>
+              <textarea class="form-textarea" style="min-height:500px;font-family:'SF Mono','Fira Code',monospace;font-size:13px" disabled># Demo User
+Berlin, Germany | demo.user@example.com | github.com/demo-user-example
+
+## Professional Summary
+Senior platform engineer with six years building reliable backend systems, developer tooling, and production AI workflows for high-change teams.
+
+## Core Competencies
+- Distributed systems
+- Developer experience
+- Incident response
+- Platform migration
+- Applied AI tooling
+
+## Work Experience
+### Senior Platform Engineer, Example SaaS
+- Led service migration work across 200 production services without customer-visible downtime.
+- Built internal deployment tooling that reduced release coordination from days to hours.
+
+## Projects
+- AI workflow evaluator for routing product-support requests to the right engineering queue.
+
+## Skills
+Node.js, TypeScript, Python, Postgres, Kubernetes, observability, CI/CD</textarea>
+            </div>
+            <div class="card">
+              <h3 style="font-size:14px;font-weight:600;color:var(--subtext);margin-bottom:12px">Preview</h3>
+              <div class="markdown-body">
+                <h1>Demo User</h1>
+                <p>Berlin, Germany | demo.user@example.com | github.com/demo-user-example</p>
+                <h2>Professional Summary</h2>
+                <p>Senior platform engineer with six years building reliable backend systems, developer tooling, and production AI workflows for high-change teams.</p>
+                <h2>Core Competencies</h2>
+                <ul>
+                  <li>Distributed systems</li>
+                  <li>Developer experience</li>
+                  <li>Incident response</li>
+                  <li>Platform migration</li>
+                  <li>Applied AI tooling</li>
+                </ul>
+                <h2>Work Experience</h2>
+                <h3>Senior Platform Engineer, Example SaaS</h3>
+                <ul>
+                  <li>Led service migration work across 200 production services without customer-visible downtime.</li>
+                  <li>Built internal deployment tooling that reduced release coordination from days to hours.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<script src="chat-rail.js"></script>
+<script src="noop.js"></script>
+</body>
+</html>

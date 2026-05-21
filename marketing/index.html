@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CareerBot — Honest, local-first job search</title>
+  <meta name="description" content="AI-powered job search dashboard. Verified discovery, fit-scored postings, score-3+ tailored resumes, pipeline tracking, and local settings. Runs on your machine." />
+  <meta property="og:title" content="CareerBot — Honest, local-first job search" />
+  <meta property="og:description" content="AI-powered job search dashboard. Verified discovery, fit-scored postings, score-3+ tailored resumes, pipeline tracking, and local settings. Runs on your machine." />
+  <meta property="og:type" content="website" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Geist:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ── NAV ─────────────────────────────────────────────────────────── -->
+<header class="nav">
+  <div class="container nav-inner">
+    <a href="#top" class="brand" aria-label="CareerBot">
+      <img src="CareerBot-logo.svg" alt="" width="32" height="32" class="brand-logo" />
+      <span>Career<span class="brand-accent">Bot</span></span>
+    </a>
+    <nav class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#how-it-works">How it works</a>
+      <a href="#vs">Why</a>
+      <a href="https://github.com/your-github-user/careerbot" rel="noopener">GitHub ↗</a>
+    </nav>
+    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" type="button">
+      <svg id="icon-dark" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 8.5a5.5 5.5 0 1 1-6-6 4.5 4.5 0 0 0 6 6z"/></svg>
+      <svg id="icon-light" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><circle cx="8" cy="8" r="3"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ── HERO ────────────────────────────────────────────────────────── -->
+<section id="top" class="hero">
+  <div class="container hero-inner">
+    <div class="hero-copy">
+      <span class="kicker">Local-first · agent-ready</span>
+      <h1>Your job search, <span class="accent">finally honest</span>.</h1>
+      <p class="lede">
+        AI-powered job search  with no application spam, subscription fees, or data leaks. Runs on your machine, with your choice of agent or local model.
+      </p>
+      <div class="install-tabs" data-install-tabs>
+        <div class="install-tablist" role="tablist" aria-label="Install commands">
+          <button class="install-tab active" id="install-tab-macos" type="button" role="tab" aria-selected="true" aria-controls="install-panel-macos" data-install-tab="macos">macOS</button>
+          <button class="install-tab" id="install-tab-linux" type="button" role="tab" aria-selected="false" aria-controls="install-panel-linux" data-install-tab="linux">Linux / WSL2</button>
+          <button class="install-tab" id="install-tab-windows" type="button" role="tab" aria-selected="false" aria-controls="install-panel-windows" data-install-tab="windows">Windows</button>
+        </div>
+        <div class="install-panel active" id="install-panel-macos" role="tabpanel" aria-labelledby="install-tab-macos" data-install-panel="macos">
+          <pre class="install-cmd"><code>curl -fsSL https://your-github-user.github.io/careerbot/install.sh | bash</code><button class="copy-btn" data-copy="curl -fsSL https://your-github-user.github.io/careerbot/install.sh | bash" type="button" aria-label="Copy macOS install command">Copy</button></pre>
+        </div>
+        <div class="install-panel" id="install-panel-linux" role="tabpanel" aria-labelledby="install-tab-linux" data-install-panel="linux">
+          <pre class="install-cmd"><code>curl -fsSL https://your-github-user.github.io/careerbot/install.sh | bash</code><button class="copy-btn" data-copy="curl -fsSL https://your-github-user.github.io/careerbot/install.sh | bash" type="button" aria-label="Copy Linux install command">Copy</button></pre>
+        </div>
+        <div class="install-panel" id="install-panel-windows" role="tabpanel" aria-labelledby="install-tab-windows" data-install-panel="windows">
+          <pre class="install-cmd"><code>irm https://your-github-user.github.io/careerbot/install.ps1 | iex</code><button class="copy-btn" data-copy="irm https://your-github-user.github.io/careerbot/install.ps1 | iex" type="button" aria-label="Copy Windows install command">Copy</button></pre>
+        </div>
+      </div>
+      <p class="install-note">Run <code>careerbot</code> and open <code>http://localhost:3737</code>. <a href="https://github.com/your-github-user/careerbot#install">Detailed install instructions</a>.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="demo/">Demo</a>
+        <a class="btn btn-github btn-with-icon" href="https://github.com/your-github-user/careerbot">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          Star on GitHub
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── HERO SHOT BAND (full-width, sits between hero copy and pitch) ─ -->
+<section class="hero-shot-band" aria-label="CareerBot dashboard preview">
+  <div class="container">
+    <a class="hero-screenshot" href="demo/" aria-label="Open the live demo of the Discover dashboard">
+      <img src="assets/hero-discover.png" alt="CareerBot Discover dashboard with the AI chat rail open on the right" width="1440" height="900" loading="eager" decoding="async" />
+    </a>
+  </div>
+</section>
+
+<!-- ── PITCH IN 30 SECONDS ─────────────────────────────────────────── -->
+<section class="pitch">
+  <div class="container">
+    <h2>What Can CareerBot Do?</h2>
+    <ul class="pitch-list">
+      <li><strong>Create a full job profile in minutes.</strong> Tune target roles, comp, location rules, and archetypes.</li>
+      <li><strong>Evaluate roles before you apply.</strong> Score match, level, comp, culture, and posting legitimacy.</li>
+      <li><strong>Generate tailored resumes and applications.</strong> Ask CareerBot to help you with any part of the application process.</li>
+      <li><strong>Free, open source, runs on your laptop.</strong> Bring your own agent setup. Use OpenClaw or Hermes for even more automation.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ── FEATURES ────────────────────────────────────────────────────── -->
+<section id="features" class="features">
+  <div class="container">
+    <h2>Features</h2>
+    <div class="feature-grid">
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+        </div>
+        <h3>Robust Role Discovery</h3>
+        <p>Quick Scan checks known portals. Deep Scan can use Brave, Serper, and scrape fallback when portals miss roles.</p>
+      </article>
+
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+        </div>
+        <h3>Agentic Integration</h3>
+        <p>Chat with CareerBot any time, it sees what you see. Ask it to research a role or help you apply.</p>
+      </article>
+
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v18M3 12h18"/></svg>
+        </div>
+        <h3>Tailored Applications</h3>
+        <p>One-click tailored resume packages, with Markdown and PDF downloads.</p>
+      </article>
+
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 12l4-4 4 4 4-4 4 4 2-2"/></svg>
+        </div>
+        <h3>Pipeline Tracking</h3>
+        <p>Move roles from Evaluated to Applied to Interview with clear next-step actions and clean status tabs.</p>
+      </article>
+
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.5"/><path d="M3 19c0-3 2.6-5 6-5s6 2 6 5"/><path d="M14 19c0-2 1.6-3.5 4-3.5s3 1.5 3 3.5"/></svg>
+        </div>
+        <h3>Multiple User Profiles</h3>
+        <p>Create profiles for different searches, switch between them, and import or export your user-data layer.</p>
+      </article>
+
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h3>Local Settings</h3>
+        <p>Your data stays on your machine. Use fully local models through OpenCode or your own agent.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ────────────────────────────────────────────────── -->
+<section id="how-it-works" class="how-it-works">
+  <div class="container">
+    <h2>How it works</h2>
+    <ol class="hiw-list">
+      <li>
+        <span class="hiw-step">01</span>
+        <div>
+          <h3>Install + onboard</h3>
+          <p>Run one command, upload your CV, and let CareerBot generate your profile and seed your portals.</p>
+        </div>
+      </li>
+      <li>
+        <span class="hiw-step">02</span>
+        <div>
+          <h3>Land on real roles</h3>
+          <p>The Discover tab shows current postings sorted by fit, not a config screen.</p>
+        </div>
+      </li>
+      <li>
+        <span class="hiw-step">03</span>
+        <div>
+          <h3>Tailor the right ones</h3>
+          <p>Score the posting. If it reaches 3.0+, CareerBot creates a tailored resume in Markdown and PDF.</p>
+        </div>
+      </li>
+      <li>
+        <span class="hiw-step">04</span>
+        <div>
+          <h3>Evaluate before you apply</h3>
+          <p>Score every role on match, level, comp, and culture. Skip the bad fits.</p>
+        </div>
+      </li>
+      <li>
+        <span class="hiw-step">05</span>
+        <div>
+          <h3>Track + follow up</h3>
+          <p>Applications, interviews, follow-up cadence, and generated resumes stay organized on your laptop.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ── VS AUTO-APPLY TOOLS ─────────────────────────────────────────── -->
+<section id="vs" class="comparison">
+  <div class="container">
+    <h2>Why CareerBot</h2>
+    <p class="vs-intro">Auto-apply tools optimize for volume. CareerBot optimizes for the <em>five</em> applications that matter.</p>
+    <div class="vs-grid">
+      <div class="vs-col">
+        <h3>Auto-apply tools</h3>
+        <ul class="vs-list vs-list-against">
+          <li>Upload your CV to a SaaS</li>
+          <li>Spam-apply to hundreds of roles a day</li>
+          <li>Generic output, blasted at scale</li>
+          <li>Black-box matching, monthly subscription</li>
+        </ul>
+      </div>
+      <div class="vs-col vs-col-us">
+        <h3>CareerBot</h3>
+        <ul class="vs-list vs-list-for">
+          <li>Your data never leaves your machine</li>
+          <li>No spam applications that go nowhere</li>
+          <li>Every score comes with a rationale</li>
+          <li>Open source. Free. Bring your own agent.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="vs-note">Quality applications convert. Spam doesn't.</p>
+  </div>
+</section>
+
+<!-- ── PLANNED INTEGRATIONS ────────────────────────────────────────── -->
+<section id="integrations" class="integrations">
+  <div class="container">
+    <h2>Planned integrations</h2>
+    <p class="integrations-intro">Today: Claude Code, Codex, OpenCode, Gemini, OpenClaw, and Hermes. Next:</p>
+    <div class="integration-grid">
+      <article class="integration">
+        <h3>Mobile Sync</h3>
+        <span class="integration-status">Planned app integration</span>
+        <p>Sync your profile, pipeline, and follow-up queue to a companion mobile app.</p>
+      </article>
+      <article class="integration integration-suggest">
+        <h3>…and more</h3>
+        <span class="integration-status">Open to suggestions</span>
+        <p>Want one? <a href="https://github.com/your-github-user/careerbot/issues" rel="noopener">Open an issue</a>.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ── PRIVACY ─────────────────────────────────────────────────────── -->
+<section class="privacy">
+  <div class="container privacy-inner">
+    <div>
+      <h2>Your data, your machine</h2>
+      <p>Your CV, profile, target list, generated resumes, and API key settings live at <code>~/.careerbot/</code>. Nothing is uploaded.</p>
+      <p>First run creates the workspace for you. Run <code>careerbot doctor</code> to see exactly what the system reads and writes.</p>
+    </div>
+    <pre class="codeblock"><code>~/.careerbot/
+├── cv.md
+├── config/
+│   └── profile.yml
+├── portals.yml
+├── .env
+├── data/
+│   ├── applications.md
+│   └── pipeline.md
+├── reports/
+└── output/
+    ├── cv-demo-company-2026-05-17.md
+    ├── cv-demo-company-2026-05-17.pdf
+    └── tailor-bundles/</code></pre>
+  </div>
+</section>
+
+<!-- ── FINAL CTA ───────────────────────────────────────────────────── -->
+<section class="final-cta">
+  <div class="container">
+    <h2>Ready to try it?</h2>
+    <div class="install-tabs install-tabs-compact" data-install-tabs>
+      <div class="install-tablist" role="tablist" aria-label="Install commands">
+        <button class="install-tab active" id="install-tab-final-macos" type="button" role="tab" aria-selected="true" aria-controls="install-panel-final-macos" data-install-tab="macos">macOS</button>
+        <button class="install-tab" id="install-tab-final-linux" type="button" role="tab" aria-selected="false" aria-controls="install-panel-final-linux" data-install-tab="linux">Linux / WSL2</button>
+        <button class="install-tab" id="install-tab-final-windows" type="button" role="tab" aria-selected="false" aria-controls="install-panel-final-windows" data-install-tab="windows">Windows</button>
+      </div>
+      <div class="install-panel active" id="install-panel-final-macos" role="tabpanel" aria-labelledby="install-tab-final-macos" data-install-panel="macos">
+        <pre class="install-cmd install-cmd-tight"><code>curl -fsSL https://your-github-user.github.io/careerbot/install.sh | bash</code><button class="copy-btn" data-copy="curl -fsSL https://your-github-user.github.io/careerbot/install.sh | bash" type="button" aria-label="Copy macOS install command">Copy</button></pre>
+      </div>
+      <div class="install-panel" id="install-panel-final-linux" role="tabpanel" aria-labelledby="install-tab-final-linux" data-install-panel="linux">
+        <pre class="install-cmd install-cmd-tight"><code>curl -fsSL https://your-github-user.github.io/careerbot/install.sh | bash</code><button class="copy-btn" data-copy="curl -fsSL https://your-github-user.github.io/careerbot/install.sh | bash" type="button" aria-label="Copy Linux install command">Copy</button></pre>
+      </div>
+      <div class="install-panel" id="install-panel-final-windows" role="tabpanel" aria-labelledby="install-tab-final-windows" data-install-panel="windows">
+        <pre class="install-cmd install-cmd-tight"><code>irm https://your-github-user.github.io/careerbot/install.ps1 | iex</code><button class="copy-btn" data-copy="irm https://your-github-user.github.io/careerbot/install.ps1 | iex" type="button" aria-label="Copy Windows install command">Copy</button></pre>
+      </div>
+    </div>
+    <div class="cta-links">
+      <a class="btn btn-primary" href="https://github.com/your-github-user/careerbot">View on GitHub</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ──────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="container footer-inner">
+    <span class="footer-brand">CareerBot · v1.4.1 · MIT</span>
+    <span class="footer-links">
+      <a href="https://github.com/your-github-user/careerbot">GitHub</a>
+      <a href="https://github.com/your-github-user/careerbot/issues">Report a bug</a>
+      <a href="https://github.com/your-github-user/careerbot/blob/main/LICENSE">License</a>
+    </span>
+  </div>
+</footer>
+
+<script>
+  // ── Theme toggle ─────────────────────────────────────────────────
+  const root = document.documentElement;
+  const dark = document.getElementById('icon-dark');
+  const light = document.getElementById('icon-light');
+  const saved = localStorage.getItem('careerbot-marketing-theme') || 'dark';
+  root.setAttribute('data-theme', saved);
+  if (saved === 'light') { dark.style.display = 'none'; light.style.display = 'block'; }
+
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    const cur = root.getAttribute('data-theme');
+    const next = cur === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    localStorage.setItem('careerbot-marketing-theme', next);
+    dark.style.display = next === 'dark' ? 'block' : 'none';
+    light.style.display = next === 'light' ? 'block' : 'none';
+  });
+
+  // ── Copy install command ─────────────────────────────────────────
+  document.querySelectorAll('.copy-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const text = btn.dataset.copy;
+      try {
+        await navigator.clipboard.writeText(text);
+        const orig = btn.textContent;
+        btn.textContent = 'Copied ✓';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+      } catch {
+        btn.textContent = 'Press ⌘C';
+      }
+    });
+  });
+
+  // Install tabs
+  document.querySelectorAll('[data-install-tabs]').forEach((group) => {
+    const tabs = [...group.querySelectorAll('[data-install-tab]')];
+    const panels = [...group.querySelectorAll('[data-install-panel]')];
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const target = tab.dataset.installTab;
+        tabs.forEach((candidate) => {
+          const active = candidate === tab;
+          candidate.classList.toggle('active', active);
+          candidate.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        panels.forEach((panel) => {
+          panel.classList.toggle('active', panel.dataset.installPanel === target);
+        });
+      });
+    });
+  });
+
+  // ── Smooth-scroll for nav links ──────────────────────────────────
+  document.querySelectorAll('a[href^="#"]').forEach((a) => {
+    a.addEventListener('click', (e) => {
+      const id = a.getAttribute('href');
+      if (id === '#' || !id) return;
+      const target = document.querySelector(id);
+      if (!target) return;
+      e.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+</script>
+</body>
+</html>
