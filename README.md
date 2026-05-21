@@ -1,35 +1,49 @@
+<div align="center">
+
 # CareerBot
 
-> Your job search, finally honest. Local-first dashboard, scanner, evaluator, and tailored application bundles integrated with Claude Code / Codex / OpenCode / Gemini / Hermes / OpenClaw.
+Your local-first AI job search command center.
 
-<img width="2880" height="1800" alt="hero-discover" src="https://github.com/user-attachments/assets/fc025f3c-352c-4958-b6da-ba2be5ba83a5" />
+[Install](#install) | [Features](#features) | [Docs](docs/README.md) | [Setup](docs/guides/SETUP.md) | [Security](SECURITY.md)
 
-Live site: [careerbot landing page](https://your-github-user.github.io/careerbot/)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Playwright](https://img.shields.io/badge/Playwright-PDF%20%2B%20scraping-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
+[![Fastify](https://img.shields.io/badge/Fastify-dashboard-000000?logo=fastify&logoColor=white)](https://fastify.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Local-first](https://img.shields.io/badge/local--first-no%20telemetry-7c3aed)](#features)
+
+<img width="2880" height="1800" alt="CareerBot dashboard showing job discovery cards" src="https://github.com/user-attachments/assets/fc025f3c-352c-4958-b6da-ba2be5ba83a5" />
+
+Live site: [careerbot landing page](https://nerdywhiskers.github.io/CareerBot/)
+
+</div>
+
+CareerBot is a local-first dashboard, scanner, evaluator, and tailored application bundle generator for serious job searches. It works with Claude Code, Codex, OpenCode, Gemini, Hermes, and OpenClaw, while keeping your CV, target list, reports, and application history on your machine.
 
 ## Install
 
-**One-line install** — bootstraps Node 18+ via [`fnm`](https://github.com/Schniz/fnm) if you don't already have it, then installs CareerBot and runs first-run setup. No admin / sudo needed.
+**One-line install** - bootstraps Node 18+ via [`fnm`](https://github.com/Schniz/fnm) if you do not already have it, then installs CareerBot and runs first-run setup. No admin or sudo needed.
 
 ```bash
 # macOS / Linux
-curl -fsSL https://your-github-user.github.io/careerbot/install.sh | bash
+curl -fsSL https://nerdywhiskers.github.io/CareerBot/install.sh | bash
 ```
 
 ```powershell
 # Windows (PowerShell)
-irm https://your-github-user.github.io/careerbot/install.ps1 | iex
+irm https://nerdywhiskers.github.io/CareerBot/install.ps1 | iex
 ```
 
 Then run `careerbot` and open <http://localhost:3737>. First run scaffolds a workspace at `~/.careerbot/` and installs Playwright Chromium into your user cache.
 
-**Prefer to see what you're running?** If you already have Node 18+ installed:
+**Prefer to see what you are running?** If you already have Node 18+ installed:
 
 ```bash
-# One-shot — runs CareerBot without a permanent install
-npx github:your-github-user/careerbot
+# One-shot - runs CareerBot without a permanent install
+npx github:nerdywhiskers/CareerBot
 
 # Or install once and reuse
-npm install -g github:your-github-user/careerbot
+npm install -g github:nerdywhiskers/CareerBot
 careerbot
 ```
 
@@ -44,12 +58,23 @@ careerbot verify         # pipeline integrity check
 careerbot --help
 ```
 
+### From Source
+
+```bash
+git clone https://github.com/nerdywhiskers/CareerBot.git
+cd CareerBot
+npm install
+npm run dashboard
+```
+
+Workspace defaults to the cloned directory so your data stays where the code is.
+
 ## Supported CLI Agents
 
 Onboarding requires a working CLI agent on `PATH`; the wizard asks you to pick one and run a quick test before continuing.
 
 | Agent | Install hint |
-|-------|--------------|
+| --- | --- |
 | Claude Code | `npm install -g @anthropic-ai/claude-code` |
 | Codex CLI | See [github.com/openai/codex](https://github.com/openai/codex) |
 | OpenCode | `npm install -g opencode-ai` |
@@ -59,57 +84,59 @@ Onboarding requires a working CLI agent on `PATH`; the wizard asks you to pick o
 
 ## Features
 
-- **Discover** — card grid of all current postings across your tracked portals, sorted by fit score with rationale on every card
-- **Tailor bundle** — one click → tailored CV + cover letter + 5–8 application Q&A, written in your voice from `cv.md` and `config/profile.yml`
-- **Verified discovery** — onboarding's agent proposes companies, then verifies each careers URL via WebSearch + sniffer + role-fit pre-flight before they land in `portals.yml`
-- **URL recovery** — one-click "Find new URL" for auto-disabled companies; agent re-discovers + role-fit checks; you accept or reject the proposal
-- **Six ATS providers** — Greenhouse · Ashby · Lever · Workday · BambooHR · Teamtailor. Direct API access, zero LLM tokens for scanning. Webfetch fallback with outbound-link sniffer for branded careers pages
-- **Health monitoring with auto-recovery** — periodic per-portal health checks; three consecutive failures auto-disable a company until you fix it
-- **Deep evaluation** — A–E rubric (CV match, level strategy, comp research, cultural fit, red flags) with weighted score, comp targets, and STAR stories
-- **Integrated terminal** — Claude Code / Codex / OpenCode / Gemini / Hermes / OpenClaw session docked to the dashboard, persistent across views
-- **Local-first, MIT, no telemetry** — your CV, applications, target list never leave your machine
+| Feature | What it does |
+| --- | --- |
+| Discover | Card grid of current postings across tracked portals, sorted by fit score with rationale on every card |
+| Tailor bundle | One click creates a tailored CV, cover letter, and 5-8 application Q&A from `cv.md` and `config/profile.yml` |
+| Verified discovery | Onboarding proposes companies, verifies careers URLs, and role-fit checks them before saving to `portals.yml` |
+| URL recovery | One-click "Find new URL" flow for auto-disabled companies |
+| ATS providers | Greenhouse, Ashby, Lever, Workday, BambooHR, and Teamtailor through direct APIs where possible |
+| Health monitoring | Periodic portal health checks with auto-disable after repeated failures |
+| Deep evaluation | A-E rubric for CV match, level strategy, compensation research, cultural fit, and red flags |
+| Integrated terminal | Claude Code, Codex, OpenCode, Gemini, Hermes, or OpenClaw session docked inside the dashboard |
+| Local-first | No telemetry; your CV, applications, reports, and target list stay on disk |
 
 ## Stack
 
-- **Frontend**: vanilla JS + CSS, zero build step (Catppuccin Mocha/Latte themes)
-- **Backend**: Fastify
-- **Terminal**: xterm.js + node-pty (WebSocket)
-- **Scanner**: direct API calls to ATS providers (zero LLM cost)
-- **PDF**: Playwright headless Chromium
-- **Data**: markdown + YAML on disk
+- **Frontend:** vanilla JS + CSS, zero build step
+- **Backend:** Fastify
+- **Terminal:** xterm.js + node-pty over WebSocket
+- **Scanner:** direct API calls to ATS providers, plus WebSearch fallback
+- **PDF:** Playwright headless Chromium
+- **Data:** Markdown, YAML, TSV, and JSON on disk
 
-## Workspace layout
+## Workspace Layout
 
-```
+```text
 ~/.careerbot/
-├── cv.md                      Your CV (markdown)
-├── config/profile.yml         Target roles, narrative, archetypes
-├── modes/_profile.md          Adaptive framing rules
-├── portals.yml                Tracked companies + filters
-├── data/
-│   ├── applications.md        Application tracker
-│   └── pipeline.md            Pending URLs
-├── reports/                   Evaluation reports
-└── output/
-    └── tailor-bundles/        Per-role CV / cover letter / Q&A
+|-- cv.md                      Your CV in Markdown
+|-- config/profile.yml         Target roles, narrative, archetypes
+|-- modes/_profile.md          Adaptive framing rules
+|-- portals.yml                Tracked companies and filters
+|-- data/
+|   |-- applications.md        Application tracker
+|   `-- pipeline.md            Pending URLs
+|-- reports/                   Evaluation reports
+`-- output/
+    `-- tailor-bundles/        Per-role CV / cover letter / Q&A
 ```
 
 ## Documentation
 
 Start at [docs/README.md](docs/README.md) for the doc index. Highlights:
 
-- [Design](docs/design/) — `ARCHITECTURE.md` (current system snapshot), `WORKSPACE_AND_PROFILES.md` (workspace + multi-profile composition), `MARKET_DISCOVERY.md` (W6, deferred)
-- [Guides](docs/guides/) — `SETUP.md`, `CUSTOMIZATION.md`, `SCRIPTS.md`
+- [Design](docs/design/) - `ARCHITECTURE.md`, `WORKSPACE_AND_PROFILES.md`, and `MARKET_DISCOVERY.md`
+- [Guides](docs/guides/) - `SETUP.md`, `CUSTOMIZATION.md`, and `SCRIPTS.md`
 
-## Backup & sync (optional)
+## Backup And Sync
 
 If you want your data versioned, fork this repo and repoint your local workspace at the fork. Dashboard works identically with or without a fork; your data is on disk either way.
 
-## Landing page
+## Landing Page
 
-Marketing site lives at [marketing/](marketing/). Preview locally with `npm run preview` (serves at <http://localhost:8080>).
+Marketing site lives at [marketing/](marketing/). Preview locally with `npm run preview` at <http://localhost:8080>.
 
-To deploy to GitHub Pages, copy the template into place once and push (requires `workflow` OAuth scope):
+To deploy to GitHub Pages, copy the template into place once and push. This requires the `workflow` OAuth scope:
 
 ```bash
 gh auth refresh -h github.com -s workflow
@@ -120,12 +147,14 @@ git commit -m "ci: deploy marketing/ to GitHub Pages"
 git push
 ```
 
-Then in the repo: **Settings → Pages → Source: GitHub Actions**. The site goes live at `https://<user>.github.io/career-bot/`.
+Then in the repo: **Settings -> Pages -> Source: GitHub Actions**. The site goes live at `https://<user>.github.io/CareerBot/`.
 
-## Built on
+## Attribution
 
-- [career-ops](https://github.com/santifer/career-ops) by santifer (original prototype)
+CareerBot is an independent project derived from [career-ops](https://github.com/santifer/career-ops), created by Santiago Fernandez de Valderrama. The `career-ops` name and brand remain with their maintainer and are referenced here only for attribution and lineage. CareerBot is not affiliated with, sponsored by, or endorsed by career-ops. See the [career-ops Trademark Policy](https://github.com/santifer/career-ops/blob/main/TRADEMARK.md) for details.
+
+CareerBot also credits [JobSpy](https://github.com/speedyapply/JobSpy), the Python job scraping library used as a reference for broader job-board discovery patterns.
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT - see [LICENSE](LICENSE).
