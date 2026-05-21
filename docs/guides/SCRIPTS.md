@@ -17,7 +17,6 @@ Root `.mjs` files are compatibility wrappers. The implementations live in `scrip
 | `npm run pdf` | `generate-pdf.mjs` | Convert HTML to ATS-optimized PDF |
 | `npm run sync-check` | `cv-sync-check.mjs` | Validate CV/profile consistency |
 | `npm run liveness` | `check-liveness.mjs` | Test if job URLs are still active |
-| `npm run preview` | `marketing/preview.mjs` | Local preview of the landing page |
 | `npm test` | `tests/test-all.mjs` | Run the integration smoke test suite |
 | `npm run test:unit` | selected `tests/test-*.mjs` suites from `package.json` | Run the unit suite set wired into npm |
 

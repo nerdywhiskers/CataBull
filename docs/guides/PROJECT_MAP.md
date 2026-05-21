@@ -28,7 +28,7 @@ The wrapper files should stay tiny. They exist so existing docs, scripts, and us
 | `modes/` | Agent task playbooks |
 | `templates/` | Resume and state templates |
 | `docs/` | Architecture, setup, design, and strategy notes |
-| `marketing/` | Static marketing site and install scripts published through GitHub Pages |
+| `marketing/` (on the `marketing` branch) | Static marketing site and install scripts published through GitHub Pages; kept off `main` |
 
 ## Compatibility Rule
 

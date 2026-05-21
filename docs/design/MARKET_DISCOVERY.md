@@ -11,7 +11,7 @@
 > - `runLevel4()` in [`dashboard-web/routes/scan-deep.mjs`](../../dashboard-web/routes/scan-deep.mjs)
 > - Tests: [`test-jobspy.mjs`](../../test-jobspy.mjs) (29 cases)
 > - Doctor: `JobSpy runner` check in [`doctor.mjs`](../../doctor.mjs)
-> - Install bootstrap: [`marketing/install.sh`](../../marketing/install.sh) and `install.ps1` install `uv` automatically
+> - Install bootstrap: [`marketing/install.sh`](https://github.com/nerdywhiskers/CareerBot/blob/marketing/marketing/install.sh) and `install.ps1` (on the `marketing` branch) install `uv` automatically
 >
 > Phases 2 and 3 of the original spec (dedicated dashboard tab,
 > onboarding cross-pollination) remain deferred — the current SSE

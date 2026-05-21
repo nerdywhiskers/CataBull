@@ -141,20 +141,14 @@ If you want your data versioned, fork this repo and repoint your local workspace
 
 ## Landing Page
 
-Marketing site lives at [marketing/](marketing/). Preview locally with `npm run preview` at <http://localhost:8080>.
+The marketing site lives on the [`marketing`](https://github.com/nerdywhiskers/CareerBot/tree/marketing) branch, kept separate from the application code on `main`. Every push to that branch auto-deploys to GitHub Pages via `.github/workflows/pages.yml` (which also lives on the `marketing` branch). The site is live at <https://nerdywhiskers.github.io/CareerBot/>.
 
-To deploy to GitHub Pages, copy the template into place once and push. This requires the `workflow` OAuth scope:
+To work on it locally:
 
 ```bash
-gh auth refresh -h github.com -s workflow
-mkdir -p .github/workflows
-cp docs/deploy/pages-workflow.yml.template .github/workflows/pages.yml
-git add .github/workflows/pages.yml
-git commit -m "ci: deploy marketing/ to GitHub Pages"
-git push
+git switch marketing
+npm run preview   # serves marketing/ at http://localhost:8080
 ```
-
-Then in the repo: **Settings -> Pages -> Source: GitHub Actions**. The site goes live at `https://<user>.github.io/CareerBot/`.
 
 ## Attribution
 
