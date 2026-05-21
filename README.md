@@ -1,6 +1,8 @@
 # CareerBot
 
-> Your job search, finally honest. Local-first dashboard, scanner, evaluator, and tailored application bundles built on Claude Code / Codex / OpenCode / Gemini / Hermes / OpenClaw.
+> Your job search, finally honest. Local-first dashboard, scanner, evaluator, and tailored application bundles integrated with Claude Code / Codex / OpenCode / Gemini / Hermes / OpenClaw.
+
+<img width="2880" height="1800" alt="hero-discover" src="https://github.com/user-attachments/assets/fc025f3c-352c-4958-b6da-ba2be5ba83a5" />
 
 Live site: [careerbot landing page](https://your-github-user.github.io/careerbot/)
 
@@ -54,16 +56,6 @@ Onboarding requires a working CLI agent on `PATH`; the wizard asks you to pick o
 | Gemini CLI | `npm install -g @google/gemini-cli` |
 | Hermes Agent | `curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh \| bash` or see [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) |
 | OpenClaw | `npm install -g openclaw@latest` or see [OpenClaw install docs](https://docs.openclaw.ai/install/index) |
-
-### From source (development)
-
-```bash
-git clone https://github.com/your-github-user/careerbot.git
-cd career-bot
-npm run dashboard
-```
-
-Workspace defaults to the cloned directory so your data stays where the code is.
 
 ## Features
 
