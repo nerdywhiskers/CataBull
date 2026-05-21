@@ -147,7 +147,7 @@ To work on it locally:
 
 ```bash
 git switch marketing
-npm run preview   # serves marketing/ at http://localhost:8080
+node marketing/preview.mjs   # serves marketing/ at http://localhost:8080
 ```
 
 ## Attribution
