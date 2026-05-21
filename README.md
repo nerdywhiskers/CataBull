@@ -12,6 +12,35 @@ Your local-first AI job search command center.
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Local-first](https://img.shields.io/badge/local--first-no%20telemetry-7c3aed)](#features)
 
+<table>
+  <tr>
+    <td align="center" width="16%">
+      <a href="https://docs.anthropic.com/en/docs/claude-code/overview"><strong>Claude Code</strong></a><br>
+      <sub>Anthropic CLI</sub>
+    </td>
+    <td align="center" width="16%">
+      <a href="https://github.com/openai/codex"><strong>Codex</strong></a><br>
+      <sub>OpenAI CLI</sub>
+    </td>
+    <td align="center" width="16%">
+      <a href="https://opencode.ai/"><strong>OpenCode</strong></a><br>
+      <sub>terminal AI agent</sub>
+    </td>
+    <td align="center" width="16%">
+      <a href="https://github.com/google-gemini/gemini-cli"><strong>Gemini CLI</strong></a><br>
+      <sub>Google Gemini</sub>
+    </td>
+    <td align="center" width="16%">
+      <a href="https://github.com/NousResearch/hermes-agent"><strong>Hermes</strong></a><br>
+      <sub>Nous Research</sub>
+    </td>
+    <td align="center" width="16%">
+      <a href="https://docs.openclaw.ai/install/index"><strong>OpenClaw</strong></a><br>
+      <sub>agent CLI</sub>
+    </td>
+  </tr>
+</table>
+
 <img width="1937" height="1269" alt="image" src="https://github.com/user-attachments/assets/d3ad5bee-6a1b-4cc8-95ca-b0b240e1ab67" />
 
 Live site: [careerbot landing page](https://nerdywhiskers.github.io/CareerBot/)
