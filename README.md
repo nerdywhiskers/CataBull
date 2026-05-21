@@ -12,7 +12,7 @@ Your local-first AI job search command center.
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Local-first](https://img.shields.io/badge/local--first-no%20telemetry-7c3aed)](#features)
 
-<img width="2880" height="1800" alt="CareerBot dashboard showing job discovery cards" src="https://github.com/user-attachments/assets/fc025f3c-352c-4958-b6da-ba2be5ba83a5" />
+<img width="1937" height="1269" alt="image" src="https://github.com/user-attachments/assets/d3ad5bee-6a1b-4cc8-95ca-b0b240e1ab67" />
 
 Live site: [careerbot landing page](https://nerdywhiskers.github.io/CareerBot/)
 
