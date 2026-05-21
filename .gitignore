@@ -61,3 +61,6 @@ tools/audit/last-results.json
 tools/audit/resolved-urls.json
 # .bak files written by apply-patches.mjs as a safety net
 templates/portals.example.yml.bak
+
+# Local-only go-public/security checklist (kept out of the public repo)
+docs/deploy/going-public.md
