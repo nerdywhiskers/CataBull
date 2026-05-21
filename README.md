@@ -154,6 +154,8 @@ npm run preview   # serves marketing/ at http://localhost:8080
 
 CareerBot is an independent project derived from [career-ops](https://github.com/santifer/career-ops), created by Santiago Fernandez de Valderrama. The `career-ops` name and brand remain with their maintainer and are referenced here only for attribution and lineage. CareerBot is not affiliated with, sponsored by, or endorsed by career-ops. See the [career-ops Trademark Policy](https://github.com/santifer/career-ops/blob/main/TRADEMARK.md) for details.
 
+The CareerBot name and brand are covered by the [CareerBot Trademark Policy](TRADEMARK.md), separate from the MIT-licensed code.
+
 CareerBot also credits [JobSpy](https://github.com/speedyapply/JobSpy), the Python job scraping library used as a reference for broader job-board discovery patterns.
 
 ## License
