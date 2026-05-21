@@ -1,0 +1,42 @@
+name: Sync main to marketing
+
+# Keeps the marketing branch up to date with main by merging main into it
+# on every push. The marketing branch is "main + the marketing/ overlay",
+# so this merge only brings non-marketing changes and never deletes the
+# marketing site. A merge conflict (e.g. someone edited a shared file
+# directly on marketing) fails the run loudly instead of guessing.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-marketing
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout marketing
+        uses: actions/checkout@v4
+        with:
+          ref: marketing
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Merge main into marketing
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo "marketing already contains main; nothing to sync."
+            exit 0
+          fi
+          git merge --no-edit origin/main
+          git push origin HEAD:marketing
