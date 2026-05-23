@@ -37,7 +37,7 @@ boundary of legacy callers) and `defaultWorkspace(fallback)` (env
 override).
 
 `lib/workspace-resolver.mjs` adds the *where to put it on first run*
-layer: env > cwd-with-markers > project-root (dev only) > `~/.careerbot/`.
+layer: env > cwd-with-markers > project-root (dev only) > `~/.catabull/`.
 
 The Workspace abstraction is the join point for hosted: a future
 `S3Workspace` swaps in without touching modes or routes.
@@ -140,14 +140,14 @@ the archive of a profile never re-archives recursively.
 
 `USER_PATHS` includes `data/scan-schedule-state.json`, `data/scan-health.json`, and `data/scan-health.log`, so profile archive/restore preserves scanner health state with the rest of scan state. Market discovery is deferred W6, so `data/market.md` and `data/market-cache.json` stay out of `USER_PATHS` until that feature lands.
 
-### 4. CAREERBOT_WORKSPACE_ROOT awareness
+### 4. CATABULL_WORKSPACE_ROOT awareness
 
 `profilesRoot(root)` joins `.profiles` to whatever `root` it's given.
 After PR 1.8, the dashboard server resolves its workspace via
 `ensureWorkspace()`, so the route layer naturally hands the resolved
 root to `archiveActiveProfile`/`restoreProfile`. No change needed —
-just confirm in a smoke test that `CAREERBOT_WORKSPACE_ROOT=/tmp/foo
-careerbot` produces archives at `/tmp/foo/.profiles/`, not the
+just confirm in a smoke test that `CATABULL_WORKSPACE_ROOT=/tmp/foo
+catabull` produces archives at `/tmp/foo/.profiles/`, not the
 package install dir.
 
 ## Forward compatibility — Phase 2 hosted

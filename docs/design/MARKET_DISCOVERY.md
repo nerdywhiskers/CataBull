@@ -11,7 +11,7 @@
 > - `runLevel4()` in [`dashboard-web/routes/scan-deep.mjs`](../../dashboard-web/routes/scan-deep.mjs)
 > - Tests: [`test-jobspy.mjs`](../../test-jobspy.mjs) (29 cases)
 > - Doctor: `JobSpy runner` check in [`doctor.mjs`](../../doctor.mjs)
-> - Install bootstrap: [`marketing/install.sh`](https://github.com/nerdywhiskers/CareerBot/blob/marketing/marketing/install.sh) and `install.ps1` (on the `marketing` branch) install `uv` automatically
+> - Install bootstrap: [`marketing/install.sh`](https://github.com/nerdywhiskers/CataBull/blob/marketing/marketing/install.sh) and `install.ps1` (on the `marketing` branch) install `uv` automatically
 >
 > Phases 2 and 3 of the original spec (dedicated dashboard tab,
 > onboarding cross-pollination) remain deferred — the current SSE
@@ -54,7 +54,7 @@ scan/market/
 data/
   market.md                         ← NEW (gitignored): triage queue, separate from pipeline.md
   market-cache.json                 ← NEW (gitignored): 30min cache by (query,sites) hash
-modes/market.md                     ← NEW: agent prompt for /careerbot market
+modes/market.md                     ← NEW: agent prompt for /catabull market
 docs/design/MARKET_DISCOVERY.md     ← THIS FILE
 test-market.mjs                     ← NEW: unit tests on JSON fixtures
 doctor.mjs                          ← MODIFIED: add Python + jobspy version check
@@ -148,7 +148,7 @@ node market.mjs --suggest-companies    # auto-add new companies to portals.yml a
 
 ## Mode prompt — `modes/market.md`
 
-The agent's job on `/careerbot market`:
+The agent's job on `/catabull market`:
 
 1. Read `config/profile.yml` and `data/market.md` (latest).
 2. For each new company: cross-check against archetypes in
@@ -179,7 +179,7 @@ function checkJobSpy() {
 ```
 
 Both are **optional checks** — only fail `npm run doctor` if the user
-has run `/careerbot market` recently or `preferences.market.enabled:
+has run `/catabull market` recently or `preferences.market.enabled:
 true`. Otherwise warn-only.
 
 ## config/profile.yml additions
@@ -204,7 +204,7 @@ preferences:
 | **Phase 2 — Dashboard tab** | New "Market" tab; query form, results table, "Add to portals" / "Send to pipeline" actions; reuses Phase 1 Node API | ~400 | 3h |
 | **Phase 3 — Onboarding cross-pollination** | During W2 onboarding, run market discovery for user's role+region; surface companies with *current* openings as preferred suggestions | ~150 | 2h |
 
-Phase 1 alone delivers value: agent can use it via `/careerbot market`.
+Phase 1 alone delivers value: agent can use it via `/catabull market`.
 Phase 2 makes it dashboard-native. Phase 3 makes onboarding smarter.
 
 ## Tests
@@ -256,7 +256,7 @@ Phase 2 makes it dashboard-native. Phase 3 makes onboarding smarter.
 
 ## What this is NOT
 
-- **Not a replacement for `/careerbot scan`.** The curated ATS scan
+- **Not a replacement for `/catabull scan`.** The curated ATS scan
   stays the primary daily flow.
 - **Not auto-merge into `pipeline.md`.** Aggregator noise would dilute
   the signal.

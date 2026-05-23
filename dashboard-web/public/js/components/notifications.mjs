@@ -7,7 +7,7 @@
  * - New job matches (future)
  */
 
-const NOTIFICATION_KEY = 'careerbot-notif-permission';
+const NOTIFICATION_KEY = 'catabull-notif-permission';
 
 export async function requestPermission() {
   if (!('Notification' in window)) return false;
@@ -29,7 +29,7 @@ export function send(title, options = {}) {
 
   const body = options.body || '';
   const icon = options.icon || '/favicon.ico';
-  const tag = options.tag || 'careerbot-' + Date.now();
+  const tag = options.tag || 'catabull-' + Date.now();
   const requireInteraction = options.requireInteraction || false;
 
   try {

@@ -9,10 +9,10 @@ import { preserveFocus } from '../lib/focus.mjs';
 // The per-company "Scan" button respects the cap set on the Discover page;
 // the Discover page is the source of truth for that select. Keep the key
 // in sync with discover.mjs:SCAN_LIMIT_KEY.
-const SCAN_LIMIT_KEY = 'careerbot-scan-limit';
+const SCAN_LIMIT_KEY = 'catabull-scan-limit';
 
-const INDUSTRY_FILTER_KEY = 'careerbot-portals-industry-filter';
-const HEALTH_FILTER_KEY = 'careerbot-portals-health-filter';
+const INDUSTRY_FILTER_KEY = 'catabull-portals-industry-filter';
+const HEALTH_FILTER_KEY = 'catabull-portals-health-filter';
 
 function loadSetFromStorage(key) {
   try {

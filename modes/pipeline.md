@@ -1,6 +1,6 @@
 # Mode: pipeline -- URL Inbox
 
-Processes accumulated offer URLs from `data/pipeline.md`. The user adds URLs whenever they want and then runs `/careerbot pipeline` to process them all.
+Processes accumulated offer URLs from `data/pipeline.md`. The user adds URLs whenever they want and then runs `/catabull pipeline` to process them all.
 
 ## Workflow
 

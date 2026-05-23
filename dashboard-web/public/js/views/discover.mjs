@@ -39,9 +39,9 @@ let searchQuery = '';
 let groupBy = 'flat';            // 'company' | 'flat' — flat by default per UX 2026-05-16
 
 // Scan controls moved here from the Portals page (2026-05-16). The
-// `careerbot-scan-limit` localStorage key stays shared with portals.mjs
+// `catabull-scan-limit` localStorage key stays shared with portals.mjs
 // so the per-company Scan button there honors the same cap.
-const SCAN_LIMIT_KEY = 'careerbot-scan-limit';
+const SCAN_LIMIT_KEY = 'catabull-scan-limit';
 const SCAN_LIMIT_OPTIONS = [
   { value: '5', label: '5' },
   { value: '10', label: '10' },

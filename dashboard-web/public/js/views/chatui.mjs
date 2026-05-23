@@ -3,7 +3,7 @@ import { renderMarkdown } from '../components/markdown.mjs';
 import { listModes } from '../lib/modes.mjs';
 
 const MAX_ECHO_AGE_MS = 30000;
-const COMMAND_PREFIX = '/careerbot';
+const COMMAND_PREFIX = '/catabull';
 
 let root = null;
 let onSubmitPrompt = null;
@@ -208,8 +208,8 @@ function renderSuggestions() {
 
   suggestionsEl.hidden = false;
   suggestionsEl.innerHTML = `
-    <div class="chat-command-header">CareerBot commands</div>
-    <div class="chat-command-list" role="listbox" aria-label="CareerBot commands">
+    <div class="chat-command-header">CataBull commands</div>
+    <div class="chat-command-list" role="listbox" aria-label="CataBull commands">
       ${visibleSuggestions.map((item, index) => `
         <button
           type="button"
@@ -326,7 +326,7 @@ export function init(container, { onSubmit, onNewChat } = {}) {
     <div class="chatui-shell">
       <div class="chat-messages" id="chat-messages"></div>
       <form class="chat-composer" id="chat-composer">
-        <textarea id="chat-composer-input" class="form-textarea chat-composer-input" placeholder="Ask CareerBot something or type /careerbot to show a list of commands" rows="3"></textarea>
+        <textarea id="chat-composer-input" class="form-textarea chat-composer-input" placeholder="Ask CataBull something or type /catabull to show a list of commands" rows="3"></textarea>
         <div class="chat-command-suggestions" id="chat-command-suggestions" hidden></div>
         <div class="chat-composer-actions">
           <button type="button" class="btn btn-ghost btn-sm chat-new-btn" id="chat-new-btn" title="Start a new chat">+ New</button>

@@ -15,15 +15,15 @@ import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync } from
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
-const CAREER_BOT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const CATA_BULL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // Support both layouts: data/applications.md (boilerplate) and applications.md (original)
-const APPS_FILE = existsSync(join(CAREER_BOT_ROOT, 'data/applications.md'))
-  ? join(CAREER_BOT_ROOT, 'data/applications.md')
-  : join(CAREER_BOT_ROOT, 'applications.md');
+const APPS_FILE = existsSync(join(CATA_BULL_ROOT, 'data/applications.md'))
+  ? join(CATA_BULL_ROOT, 'data/applications.md')
+  : join(CATA_BULL_ROOT, 'applications.md');
 const DRY_RUN = process.argv.includes('--dry-run');
 
 // Ensure required directories exist (fresh setup)
-mkdirSync(join(CAREER_BOT_ROOT, 'data'), { recursive: true });
+mkdirSync(join(CATA_BULL_ROOT, 'data'), { recursive: true });
 
 // Canonical status mapping
 function normalizeStatus(raw) {

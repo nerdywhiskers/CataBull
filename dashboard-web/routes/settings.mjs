@@ -17,19 +17,19 @@ export const SECRET_SETTINGS = [
   { id: 'apolloApiKey', envKey: 'APOLLO_API_KEY', label: 'Apollo API key' },
 ];
 
-const PROVIDER_KEY = 'CAREERBOT_WEBSEARCH';
+const PROVIDER_KEY = 'CATABULL_WEBSEARCH';
 const PROVIDERS = new Set(['auto', 'brave', 'scrape', 'serper']);
-const WEBSEARCH_ORDER_KEY = 'CAREERBOT_WEBSEARCH_ORDER';
-const DEEP_SCAN_LIMIT_KEY = 'CAREERBOT_DEEP_SCAN_LIMIT';
-const MIN_RELEVANCE_KEY = 'CAREERBOT_DEEP_SCAN_MIN_RELEVANCE';
-const FRESHNESS_DAYS_KEY = 'CAREERBOT_SCAN_FRESHNESS_DAYS';
-const TAILSCALE_MODE_KEY = 'CAREERBOT_TAILSCALE_MODE';
-const AUTO_UPDATE_KEY = 'CAREERBOT_AUTO_UPDATE';
+const WEBSEARCH_ORDER_KEY = 'CATABULL_WEBSEARCH_ORDER';
+const DEEP_SCAN_LIMIT_KEY = 'CATABULL_DEEP_SCAN_LIMIT';
+const MIN_RELEVANCE_KEY = 'CATABULL_DEEP_SCAN_MIN_RELEVANCE';
+const FRESHNESS_DAYS_KEY = 'CATABULL_SCAN_FRESHNESS_DAYS';
+const TAILSCALE_MODE_KEY = 'CATABULL_TAILSCALE_MODE';
+const AUTO_UPDATE_KEY = 'CATABULL_AUTO_UPDATE';
 const DEFAULT_WEBSEARCH_ORDER = 'brave,serper,scrape';
 const SCAN_HISTORY_HEADER = 'url\tfirst_seen\tportal\ttitle\tcompany\tstatus\n';
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
 
   app.get('/settings', async () => readSettings(root));
 

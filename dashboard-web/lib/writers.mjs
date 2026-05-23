@@ -408,9 +408,19 @@ export function markPipelineApplied(root, url, company, role) {
   ws.write(appsRelPath, appsContent.trimEnd() + '\n' + newRow + '\n');
 }
 
-/** Ensure a template file is copied to destination if destination doesn't exist */
-export function ensureFromTemplate(root, templateRel, destRel) {
+/**
+ * Ensure a template file is copied to destination if destination doesn't exist.
+ *
+ * Looks for the template inside the workspace first (project-tree / dev mode,
+ * where the repo's own templates/ dir is the workspace). If it isn't there —
+ * e.g. a freshly scaffolded ~/.catabull home workspace that only carries a
+ * subset of templates — fall back to copying it out of `fallbackRoot` (the
+ * package root, which always ships the canonical templates).
+ */
+export function ensureFromTemplate(root, templateRel, destRel, fallbackRoot = null) {
   const ws = asWorkspace(root);
   if (ws.exists(destRel)) return false;
-  return ws.copy(templateRel, destRel);
+  if (ws.exists(templateRel)) return ws.copy(templateRel, destRel);
+  if (fallbackRoot) return asWorkspace(fallbackRoot).copyTo(templateRel, root, destRel);
+  return false;
 }

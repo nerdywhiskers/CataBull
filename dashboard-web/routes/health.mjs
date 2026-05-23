@@ -139,7 +139,7 @@ function decorate(snapshot) {
 }
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
 
   // GET /health/status — return the most recent snapshot (or null if none).
   app.get('/health/status', async () => {

@@ -5,15 +5,15 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleExecutable</key>
-    <string>careerbot</string>
+    <string>catabull</string>
     <key>CFBundleIdentifier</key>
-    <string>com.careerbot.launcher</string>
+    <string>com.catabull.launcher</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>CareerBot</string>
+    <string>CataBull</string>
     <key>CFBundleDisplayName</key>
-    <string>CareerBot</string>
+    <string>CataBull</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

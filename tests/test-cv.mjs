@@ -7,7 +7,7 @@ import { join } from 'path';
 
 import { listCvFiles, resolveCvPath } from '../dashboard-web/routes/cv.mjs';
 
-const root = mkdtempSync(join(tmpdir(), 'careerbot-cv-route-test-'));
+const root = mkdtempSync(join(tmpdir(), 'catabull-cv-route-test-'));
 
 try {
   writeFileSync(join(root, 'cv.md'), '# Master CV\n');

@@ -1,6 +1,6 @@
-# CareerBot Trademark Policy
+# CataBull Trademark Policy
 
-This document explains how the "CareerBot" name and brand may be used. It
+This document explains how the "CataBull" name and brand may be used. It
 complements, and does not replace, the MIT [LICENSE](LICENSE) that governs
 the source code.
 
@@ -12,9 +12,9 @@ the source code.
   endorsement.
 - **In doubt? Ask.** nerdywhiskers@gmail.com, subject "Trademark request".
 
-## CareerBot and career-ops
+## CataBull and career-ops
 
-CareerBot is an independent project derived from
+CataBull is an independent project derived from
 [career-ops](https://github.com/santifer/career-ops), created by Santiago
 Fernández de Valderrama. Two things follow from that, and this policy
 keeps them apart:
@@ -24,17 +24,17 @@ keeps them apart:
 - **"career-ops" is its maintainer's trademark, not ours.** We use the
   name only to describe lineage and compatibility, under that project's
   own [Trademark Policy](https://github.com/santifer/career-ops/blob/main/TRADEMARK.md).
-  CareerBot is not affiliated with, sponsored by, or endorsed by
+  CataBull is not affiliated with, sponsored by, or endorsed by
   career-ops.
 
-This document is only about the "CareerBot" name. That name is distinct
-from "career-ops" and belongs to the CareerBot maintainers.
+This document is only about the "CataBull" name. That name is distinct
+from "career-ops" and belongs to the CataBull maintainers.
 
 ## The relationship with the MIT license
 
 The MIT license grants broad freedoms to use, copy, modify, and
 redistribute the source code. It does not grant rights to the name
-"CareerBot," its logo, or any associated brand assets. Those are reserved
+"CataBull," its logo, or any associated brand assets. Those are reserved
 by the project's maintainers.
 
 This is the model used by PostgreSQL, Apache, Mozilla, and most mature
@@ -44,10 +44,10 @@ open-source projects: the code is free, the brand is stewarded.
 
 - **Forking and modifying the code**, per MIT. No permission needed.
 - **Describing compatibility, origin, and lineage.** "Works with
-  CareerBot," "based on CareerBot," "fork of CareerBot," and "extends
-  CareerBot" are all welcome with attribution.
+  CataBull," "based on CataBull," "fork of CataBull," and "extends
+  CataBull" are all welcome with attribution.
 - **Naming a fork distinctly.** Pick your own product name, and mention
-  CareerBot as the origin if you like.
+  CataBull as the origin if you like.
 - **Educational, journalistic, and personal use.** Blog posts, tutorials,
   videos, talks, papers, research.
 - **Community contributions.** Use the name freely in pull requests,
@@ -58,18 +58,18 @@ open-source projects: the code is free, the brand is stewarded.
 These uses are reserved because they can be perceived as official
 affiliation, endorsement, or sponsorship:
 
-- **Product, service, or company names** that include "CareerBot" or
-  close variants: "CareerBot Cloud," "CareerBot Pro," "CareerBot SaaS,"
-  "CareerBot Hosted," "CareerBot by [vendor]," and the like.
+- **Product, service, or company names** that include "CataBull" or
+  close variants: "CataBull Cloud," "CataBull Pro," "CataBull SaaS,"
+  "CataBull Hosted," "CataBull by [vendor]," and the like.
 - **Endorsement, sponsorship, or affiliation claims:** "Powered by
-  CareerBot," "Official CareerBot," "Sponsored by CareerBot," "Partner of
-  CareerBot," and similar phrasing.
+  CataBull," "Official CataBull," "Sponsored by CataBull," "Partner of
+  CataBull," and similar phrasing.
 - **Domain names, social handles, and app store listings** containing
-  "CareerBot" or close variants for commercial purposes.
+  "CataBull" or close variants for commercial purposes.
 - **Logos, wordmarks, and visual identity assets** in any commercial
   context.
 - **Compatibility certifications** that imply official testing or
-  approval: "CareerBot Certified," "CareerBot Verified."
+  approval: "CataBull Certified," "CataBull Verified."
 
 This list is illustrative, not exhaustive. The principle is simple: if
 your use suggests an official relationship that does not exist, please
@@ -110,7 +110,7 @@ noted in the repository.
 
 ---
 
-© 2026 nerdywhiskers. "CareerBot"™ is an unregistered
+© 2026 nerdywhiskers. "CataBull"™ is an unregistered
 trademark of nerdywhiskers, used to identify this project
 and its official distributions. "career-ops"™ is a trademark of Santiago
 Fernández de Valderrama and is referenced here only for attribution.

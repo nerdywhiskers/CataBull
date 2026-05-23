@@ -15,12 +15,12 @@ import { readSettings } from './routes/settings.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Workspace resolution order:
-//   1. CAREERBOT_WORKSPACE_ROOT env (the CLI sets this; explicit override always wins)
-//   2. cwd if it looks like a CareerBot workspace
+//   1. CATABULL_WORKSPACE_ROOT env (the CLI sets this; explicit override always wins)
+//   2. cwd if it looks like a CataBull workspace
 //   3. The project directory containing this server file, when it has
 //      cv.md / portals.yml — i.e. running from a checked-out source tree
 //      (npm run dashboard from the repo).
-//   4. ~/.careerbot/ — the fresh-install path used by the global CLI
+//   4. ~/.catabull/ — the fresh-install path used by the global CLI
 //
 // The `allowProjectFallback` flag is true here so `npm run dashboard` from
 // inside the source repo keeps using the repo as the workspace; the
@@ -33,12 +33,12 @@ const resolved = ensureWorkspace({
   allowProjectFallback: true,
 });
 const workspace = defaultWorkspace(resolved.root);
-const CAREER_BOT_ROOT = workspace.root;
+const CATA_BULL_ROOT = workspace.root;
 
 // Load .env from the workspace before any route uses process.env.
 // Shell-set vars always win — this is just for users who put secrets
 // in .env (which is gitignored) instead of their shell profile.
-const envLoaded = loadEnvFile(CAREER_BOT_ROOT);
+const envLoaded = loadEnvFile(CATA_BULL_ROOT);
 
 const app = Fastify({ logger: false, requestTimeout: 300000 });
 
@@ -59,8 +59,8 @@ app.register(fastifyStatic, {
 });
 
 // Share root path + workspace with routes. Existing routes use
-// `careerBotRoot`; new code should prefer `workspace` (lib/workspace.mjs).
-app.decorate('careerBotRoot', CAREER_BOT_ROOT);
+// `cataBullRoot`; new code should prefer `workspace` (lib/workspace.mjs).
+app.decorate('cataBullRoot', CATA_BULL_ROOT);
 app.decorate('packageRoot', PROJECT_ROOT);
 app.decorate('workspace', workspace);
 
@@ -88,8 +88,8 @@ app.listen({ port: PORT, host: '127.0.0.1' }, (err) => {
     console.error(err);
     process.exit(1);
   }
-  console.log(`\n  CareerBot dashboard running at http://localhost:${PORT}`);
-  console.log(`  Workspace root: ${CAREER_BOT_ROOT} (${resolved.reason})`);
+  console.log(`\n  CataBull dashboard running at http://localhost:${PORT}`);
+  console.log(`  Workspace root: ${CATA_BULL_ROOT} (${resolved.reason})`);
   if (envLoaded.loaded > 0) {
     console.log(`  Loaded ${envLoaded.loaded} env var${envLoaded.loaded === 1 ? '' : 's'} from .env`);
   }
@@ -106,11 +106,11 @@ app.listen({ port: PORT, host: '127.0.0.1' }, (err) => {
   logSessionToken(PORT);
   activateTailnetAccess();
   console.log('');
-  startScheduler(CAREER_BOT_ROOT);
+  startScheduler(CATA_BULL_ROOT);
 });
 
 function activateTailnetAccess() {
-  const settings = readSettings(CAREER_BOT_ROOT);
+  const settings = readSettings(CATA_BULL_ROOT);
   const tailscale = settings.tailscale || {};
   const mode = tailscale.mode || 'off';
   if (mode === 'off') return;

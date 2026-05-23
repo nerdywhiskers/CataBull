@@ -12,7 +12,7 @@ import {
   setActiveProfileId,
 } from '../dashboard-web/lib/user-data.mjs';
 
-const root = mkdtempSync(join(tmpdir(), 'careerbot-profiles-'));
+const root = mkdtempSync(join(tmpdir(), 'catabull-profiles-'));
 
 function writeProfile(name, email) {
   writeFileSync(join(root, 'cv.md'), `# ${name}\n`);

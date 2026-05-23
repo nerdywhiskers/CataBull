@@ -18,13 +18,17 @@ function renderProfileSwitcher() {
     `<option value="${esc(p.id)}"${p.active ? ' selected' : ''}>${esc(p.label || p.id)}${p.active ? ' (active)' : ''}</option>`
   ).join('');
   const hasProfiles = storedProfiles.length > 0;
+  // Only offer "Switch" when there's another profile to switch to — the active
+  // (incl. synthetic "current") profile is already loaded, so a lone entry has
+  // nothing to switch to.
+  const hasSwitchTarget = storedProfiles.some(p => !p.active);
   return `
     <div class="profile-switcher-bar">
       <div class="profile-switcher-left">
         <span class="profile-switcher-label">Profile</span>
         ${hasProfiles
           ? `<select class="form-select profile-switcher-select" id="profile-switcher">${options}</select>
-             <button class="btn btn-sm" id="switch-profile-btn">Switch</button>`
+             ${hasSwitchTarget ? '<button class="btn btn-sm" id="switch-profile-btn">Switch</button>' : ''}`
           : `<span class="profile-switcher-empty">No saved profiles yet</span>`}
       </div>
       <div class="profile-switcher-actions">
@@ -320,14 +324,22 @@ function update(container) {
     try {
       await api.updateProfile(updated);
       profile = updated;
+      // Refresh the switcher so the current-profile label reflects any name
+      // edit just saved (the active profile always shows in the dropdown).
+      try {
+        const pd = await api.listProfiles();
+        storedProfiles = pd.profiles || [];
+        activeProfileId = pd.active || null;
+      } catch { /* keep existing switcher state */ }
       toast('Profile saved');
+      update(container);
     } catch (err) { toast(`Save failed: ${err.message}`, 'error'); }
   });
 
   container.querySelector('#new-profile-btn')?.addEventListener('click', async () => {
     const ok = await confirmModal({
       title: 'Create a new profile?',
-      body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:8px">CareerBot will save the current profile as a snapshot, clear the active workspace, and reload onboarding for a fresh profile.</p><p style="font-size:13px;color:var(--subtext0)">Your existing CV, profile, portals, reports, and applications stay stored under Profiles.</p>`,
+      body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:8px">CataBull will save the current profile as a snapshot, clear the active workspace, and reload onboarding for a fresh profile.</p><p style="font-size:13px;color:var(--subtext0)">Your existing CV, profile, portals, reports, and applications stay stored under Profiles.</p>`,
       confirmText: 'Save current and start new',
     });
     if (!ok) return;
@@ -347,7 +359,7 @@ function update(container) {
     const target = storedProfiles.find(p => p.id === selected);
     const ok = await confirmModal({
       title: `Switch to ${esc(target?.label || selected)}?`,
-      body: `<p style="font-size:14px;color:var(--subtext)">CareerBot will save the current active profile, restore the selected profile, and reload the dashboard.</p>`,
+      body: `<p style="font-size:14px;color:var(--subtext)">CataBull will save the current active profile, restore the selected profile, and reload the dashboard.</p>`,
       confirmText: 'Switch profile',
     });
     if (!ok) return;

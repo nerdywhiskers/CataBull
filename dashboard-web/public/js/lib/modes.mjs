@@ -45,10 +45,10 @@ function resolveTarget(mode, context = {}) {
 function buildPrompt(mode, context = {}) {
   const target = resolveTarget(mode, context);
   const command = mode.targetKind === 'jd-text'
-    ? `/careerbot ${mode.slash}`
+    ? `/catabull ${mode.slash}`
     : mode.needsTarget && target
-    ? `/careerbot ${mode.slash} ${quoteIfNeeded(target)}`
-    : `/careerbot ${mode.slash}`;
+    ? `/catabull ${mode.slash} ${quoteIfNeeded(target)}`
+    : `/catabull ${mode.slash}`;
 
   const extraLines = [];
   if (context.text && (mode.targetKind === 'jd-text' || !mode.needsTarget)) extraLines.push(context.text);
@@ -59,7 +59,7 @@ function buildPrompt(mode, context = {}) {
   return compactLines([command, ...extraLines]);
 }
 
-// Inline expansions for non-Claude agents (codex, opencode). The `/careerbot`
+// Inline expansions for non-Claude agents (codex, opencode). The `/catabull`
 // slash command only resolves inside Claude Code via .claude/skills/. Other
 // agents read whatever we hand them as plain text, so we replace the slash
 // with self-contained instructions that point at the same modes/*.md files
@@ -78,7 +78,7 @@ function metaBlock(pairs) {
 
 const INLINE_EXPANSIONS = {
   evaluate: (target, ctx) => joinSections([
-    'You are running the careerbot "evaluate" workflow.',
+    'You are running the catabull "evaluate" workflow.',
     'Read these project files first using your file-reading tool:\n' +
       '  1. modes/_shared.md   (scoring rules, A-G blocks, report format)\n' +
       '  2. modes/_profile.md  (user customizations and archetypes)\n' +
@@ -89,31 +89,31 @@ const INLINE_EXPANSIONS = {
   ]),
 
   deep: (target, ctx) => joinSections([
-    'You are running the careerbot "deep" company-research workflow.',
+    'You are running the catabull "deep" company-research workflow.',
     'Read modes/deep.md using your file-reading tool and follow its 6-axis research protocol exactly. Use WebSearch / WebFetch to fill in the answers.',
     metaBlock([['Company', target], ['Role', ctx.role], ['URL', ctx.url]]),
   ]),
 
   outreach: (target, ctx) => joinSections([
-    'You are running the careerbot "outreach" workflow.',
+    'You are running the catabull "outreach" workflow.',
     'Read modes/outreach.md using your file-reading tool and follow its contact-discovery + LinkedIn-intro-drafting protocol exactly. Save any drafts under data/outreach/ as the mode file specifies.',
     metaBlock([['Company', target], ['Role', ctx.role], ['URL', ctx.url]]),
   ]),
 
   pdf: (target, ctx) => joinSections([
-    'You are running the careerbot "pdf" CV-generation workflow.',
+    'You are running the catabull "pdf" CV-generation workflow.',
     'Read modes/_shared.md and modes/pdf.md using your file-reading tool and follow them exactly. Generate the tailored CV via templates/cv-template.html and generate-pdf.mjs.',
     metaBlock([['URL', target], ['Company', ctx.company], ['Role', ctx.role]]),
   ]),
 
   apply: (target, ctx) => joinSections([
-    'You are running the careerbot "apply" workflow (live application assistant).',
+    'You are running the catabull "apply" workflow (live application assistant).',
     'Read modes/_shared.md and modes/apply.md using your file-reading tool, then follow them. Use Playwright (browser_navigate + browser_snapshot) to read the application form, generate answers, and present them for review.',
     metaBlock([['URL', target], ['Company', ctx.company], ['Role', ctx.role]]),
   ]),
 
   'interview-prep': (target, ctx) => joinSections([
-    'You are running the careerbot "interview-prep" workflow.',
+    'You are running the catabull "interview-prep" workflow.',
     'Read modes/interview-prep.md using your file-reading tool and follow it exactly. Pull from interview-prep/story-bank.md where relevant.',
     metaBlock([['Company', target], ['Role', ctx.role], ['URL', ctx.url]]),
   ]),
@@ -128,7 +128,7 @@ function genericInlinePrompt(mode, target, ctx) {
     ...(mode.targetKind !== 'company' ? [['Company', ctx.company]] : []),
   ]);
   return joinSections([
-    `You are running the careerbot "${mode.slash}" workflow.`,
+    `You are running the catabull "${mode.slash}" workflow.`,
     sharedNeeded
       ? `Read modes/_shared.md and modes/${mode.slash}.md using your file-reading tool, then execute the workflow exactly as those files describe.`
       : `Read modes/${mode.slash}.md using your file-reading tool, then execute the workflow exactly as that file describes.`,
@@ -191,8 +191,8 @@ export function runModePrompt(modeId, context = {}, runOptions = {}) {
     return Promise.resolve(false);
   }
 
-  // Claude Code resolves `/careerbot` via the project skill at
-  // .claude/skills/careerbot/SKILL.md. Codex / OpenCode have no equivalent
+  // Claude Code resolves `/catabull` via the project skill at
+  // .claude/skills/catabull/SKILL.md. Codex / OpenCode have no equivalent
   // skill loader, so for those agents we hand-expand the slash command into
   // self-contained instructions that point at the same mode files.
   const agent = (typeof getCurrentAgent === 'function' ? getCurrentAgent() : '') || 'claude';

@@ -18,7 +18,7 @@ report.
 
 ## What this is NOT
 
-This is not the deferred `/careerbot market` mode from
+This is not the deferred `/catabull market` mode from
 [docs/design/MARKET_DISCOVERY.md](../../docs/design/MARKET_DISCOVERY.md).
 That feature ships Python to every user; this audit only runs on your
 machine. The deferral spec is still the right home for the long-term
@@ -49,7 +49,7 @@ node tools/audit/run-audit.mjs --terms-file path.json   # override the bank
 
 ## Query bank
 
-The default bank is a curated ~18-term list covering CareerBot's
+The default bank is a curated ~18-term list covering CataBull's
 target audience broadly — engineering, design, data/ML, product,
 DevRel. It is **not** derived from any one user's profile because the
 audit is verifying a shared `portals.yml`; the queries should reflect

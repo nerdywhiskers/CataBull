@@ -4,7 +4,7 @@ import { runScan } from '../lib/scheduler.mjs';
 import { listProviders } from '../../scan/providers/index.mjs';
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
   const findCompany = (name) => readPortals(root)?.tracked_companies?.find(item => item.name.toLowerCase() === name.toLowerCase());
 
   app.get('/portals', async () => {

@@ -79,7 +79,7 @@ Generate a 3-4 sentence email:
 
 Use the outreach framework: 3 sentences, 300 character max.
 - Hook specific to company, then proof point, then soft ask
-- Suggest the user run `/careerbot outreach {company}` to find the right person first
+- Suggest the user run `/catabull outreach {company}` to find the right person first
 
 ### Second Follow-up (followupCount == 1)
 
@@ -93,7 +93,7 @@ Shorter than first (2-3 sentences). Take a **new angle**:
 Do NOT generate another follow-up. Instead suggest:
 > "This application has had {N} follow-ups with no response. Consider:
 > - Updating status to Discarded if the role seems filled
-> - Trying a different contact via /careerbot outreach
+> - Trying a different contact via /catabull outreach
 > - Keeping in Applied status but deprioritizing"
 
 ## Step 4 -- Record Follow-ups

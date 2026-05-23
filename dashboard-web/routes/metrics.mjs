@@ -4,7 +4,7 @@ import { computeMetrics, computeProgressMetrics } from '../lib/metrics.mjs';
 import { spawnWithTimeout } from '../lib/spawn-timeout.mjs';
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
 
   function runJsonScript(scriptName, args = []) {
     return spawnWithTimeout(join(root, scriptName), args, { cwd: root, timeoutMs: 300_000 })

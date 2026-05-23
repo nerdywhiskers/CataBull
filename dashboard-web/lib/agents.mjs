@@ -131,7 +131,17 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
   }
 
   if (agentName === 'codex') {
-    const args = ['exec'];
+    // --skip-git-repo-check: `codex exec` refuses to run in a directory that
+    // isn't a trusted git repo ("Not inside a trusted directory..."). The
+    // home workspace (~/.catabull) isn't a git repo, so without this every
+    // exec aborts non-zero and the caller surfaces a 502. Harmless when the
+    // workspace *is* a git tree (dev/project-tree mode).
+    const args = ['exec', '--skip-git-repo-check'];
+    // --full-auto grants the workspace-write sandbox codex needs to edit
+    // files (profile.yml, modes/_profile.md) during generation. Read-only
+    // steps (e.g. JSON CV extraction) don't pass allowEdits and stay in the
+    // default read-only sandbox.
+    if (allowEdits) args.push('--full-auto');
     // Codex exec does not expose a sticky session-id flag in this mode. The
     // modern CLI resumes with a subcommand rather than the removed --continue
     // flag. "-" makes the resumed turn read the prompt from stdin, matching
@@ -152,9 +162,19 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
   }
 
   if (agentName === 'gemini') {
-    // Gemini CLI: -p sends a one-shot non-interactive prompt; reads from stdin
-    // when no positional arg is provided.
-    return { args: ['-p'], env: process.env };
+    // Gemini runs headless when stdin is piped (non-TTY) and reads the prompt
+    // from stdin. The -p/--prompt flag instead expects an *inline* value
+    // (`gemini -p "<prompt>"`) and errors "Not enough arguments following: p"
+    // when the prompt is on stdin — and inline args choke on large prompts —
+    // so we omit it and let stdin carry the prompt. --skip-trust bypasses the
+    // trusted-folder check that otherwise aborts in the (non-git) home
+    // workspace.
+    const args = ['--skip-trust'];
+    // --yolo auto-approves tool calls so the agent can write files
+    // (profile.yml, modes/_profile.md) during generation. Read-only steps
+    // don't pass allowEdits and stay approval-gated.
+    if (allowEdits) args.push('--yolo');
+    return { args, env: process.env };
   }
 
   if (agentName === 'hermes') {

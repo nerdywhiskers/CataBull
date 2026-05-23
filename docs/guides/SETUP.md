@@ -24,23 +24,23 @@ The onboarding wizard detects these agents and requires a successful test before
 
 ```bash
 # macOS / Linux
-curl -fsSL https://your-github-user.github.io/careerbot/install.sh | bash
+curl -fsSL https://your-github-user.github.io/catabull/install.sh | bash
 ```
 
 ```powershell
 # Windows (PowerShell)
-irm https://your-github-user.github.io/careerbot/install.ps1 | iex
+irm https://your-github-user.github.io/catabull/install.ps1 | iex
 ```
 
-Then run `careerbot` and open <http://localhost:3737>.
+Then run `catabull` and open <http://localhost:3737>.
 
 Why this is the default:
 
 - Works on Windows, macOS, and Linux
 - No repo clone
-- Installs the `careerbot` command globally from GitHub
+- Installs the `catabull` command globally from GitHub
 - No admin permissions in the normal case
-- First run scaffolds a workspace at `~/.careerbot/` (override with `CAREERBOT_WORKSPACE_ROOT`)
+- First run scaffolds a workspace at `~/.catabull/` (override with `CATABULL_WORKSPACE_ROOT`)
 - First run also installs Playwright Chromium into your user cache
 
 The onboarding wizard at the dashboard walks you through CV upload, profile generation, portal selection, and an initial scan.
@@ -49,29 +49,29 @@ If you already have Node 18+ and want to inspect the install path first:
 
 ```bash
 # One-shot from GitHub, no permanent install
-npx github:your-github-user/careerbot
+npx github:your-github-user/catabull
 
 # Or install once and reuse
-npm install -g github:your-github-user/careerbot
-careerbot
+npm install -g github:your-github-user/catabull
+catabull
 ```
 
 CLI subcommands once installed:
 
 ```bash
-careerbot setup          # bootstrap first-run dependencies, then run doctor
-careerbot doctor         # validate setup prerequisites
-careerbot scan           # zero-token portal scan
-careerbot scan-health    # health-check tracked companies
-careerbot verify         # pipeline integrity check
-careerbot --help
+catabull setup          # bootstrap first-run dependencies, then run doctor
+catabull doctor         # validate setup prerequisites
+catabull scan           # zero-token portal scan
+catabull scan-health    # health-check tracked companies
+catabull verify         # pipeline integrity check
+catabull --help
 ```
 
 ## Option B: From source (development)
 
 ```bash
-git clone https://github.com/your-github-user/careerbot.git
-cd career-bot
+git clone https://github.com/your-github-user/catabull.git
+cd catabull
 npm install
 npm run dashboard
 ```
@@ -93,7 +93,7 @@ Edit `config/profile.yml` for personal details (name, target roles, narrative, c
 ## Verify setup
 
 ```bash
-careerbot doctor          # or: npm run doctor
+catabull doctor          # or: npm run doctor
 ```
 
 Doctor reports:
@@ -113,9 +113,9 @@ npm run verify             # reads data/applications.md
 | Action | Where |
 |---|---|
 | Land on real role matches | Discover tab, post-onboarding |
-| Evaluate an offer | Paste a URL or JD into the chat drawer, runs `/careerbot evaluate` |
+| Evaluate an offer | Paste a URL or JD into the chat drawer, runs `/catabull evaluate` |
 | Generate a tailored CV + cover letter + Q&A | Tailor button on any Discover/Pipeline card |
-| Run a portal scan | Search tab -> Run scan, or `careerbot scan` |
+| Run a portal scan | Search tab -> Run scan, or `catabull scan` |
 | Health-check tracked portals | Search tab -> Health -> Run check |
 | Recover an auto-disabled company's URL | Health tab -> Find new URL on the affected row |
 | Track the funnel | Pipeline / Analytics tabs |

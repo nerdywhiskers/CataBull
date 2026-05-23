@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Cross-platform launcher for the CareerBot dashboard.
+// Cross-platform launcher for the CataBull dashboard.
 // Checks for dependencies, installs if needed, and starts the server.
 
 import { existsSync } from 'fs';
@@ -42,7 +42,7 @@ if (!browser.ok && browser.reason !== 'missing-playwright') {
 }
 
 // Start the dashboard
-console.log('\n  Starting CareerBot dashboard...\n');
+console.log('\n  Starting CataBull dashboard...\n');
 const child = spawn(process.execPath, [serverPath], {
   cwd: __dirname,
   stdio: 'inherit',

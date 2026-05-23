@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# CareerBot batch runner — standalone orchestrator for claude -p workers
+# CataBull batch runner — standalone orchestrator for claude -p workers
 # Reads batch-input.tsv, delegates each offer to a claude -p worker,
 # tracks state in batch-state.tsv for resumability.
 
@@ -31,7 +31,7 @@ MIN_SCORE=0
 
 usage() {
   cat <<'USAGE'
-CareerBot batch runner — process job offers in batch via claude -p workers
+CataBull batch runner — process job offers in batch via claude -p workers
 Uses your default Claude model (Claude Max subscription).
 
 Usage: batch-runner.sh [OPTIONS]
@@ -460,7 +460,7 @@ main() {
     exit 0
   fi
 
-  echo "=== CareerBot batch runner ==="
+  echo "=== CataBull batch runner ==="
   echo "Parallel: $PARALLEL | Max retries: $MAX_RETRIES"
   echo "Input: $total_input offers"
   echo ""

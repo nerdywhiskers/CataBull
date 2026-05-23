@@ -37,7 +37,7 @@ const { updateCompany, readPortals } = await import('../dashboard-web/lib/writer
 console.log('\nW8 URL recovery (PR 1.2)');
 
 function withTempPortals(fn) {
-  const dir = mkdtempSync(join(tmpdir(), 'careerbot-recover-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'catabull-recover-test-'));
   const ws = new LocalWorkspace(dir);
   // Seed a portals.yml with one auto-disabled company.
   ws.writeYaml('portals.yml', {

@@ -59,7 +59,7 @@ const { LocalWorkspace } = await import('../lib/workspace.mjs');
 console.log('\nlib/tailor.mjs');
 
 function withTempWorkspace(fn) {
-  const dir = mkdtempSync(join(tmpdir(), 'careerbot-tailor-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'catabull-tailor-test-'));
   const ws = new LocalWorkspace(dir);
   return Promise.resolve()
     .then(() => fn(ws, dir))

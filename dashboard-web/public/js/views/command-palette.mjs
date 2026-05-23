@@ -139,7 +139,7 @@ function render() {
           <div class="palette-header">
             <div>
               <div class="palette-eyebrow">Command Palette</div>
-              <h2 class="palette-title">Launch a CareerBot mode</h2>
+              <h2 class="palette-title">Launch a CataBull mode</h2>
             </div>
             <button class="btn btn-ghost btn-sm" id="palette-close">Esc</button>
           </div>

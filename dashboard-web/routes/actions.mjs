@@ -20,7 +20,7 @@ function parseLivenessOutput(stdout) {
 }
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
 
   // Manual scan (legacy endpoint)
   app.post('/actions/scan', async (req) => {

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scan/market/jobspy_wrapper.py -- JobSpy sidecar for CareerBot Deep Scan (Level 4).
+scan/market/jobspy_wrapper.py -- JobSpy sidecar for CataBull Deep Scan (Level 4).
 
 Reads a JSON config from stdin and prints a JSON results envelope to stdout.
 Stays intentionally tiny: jobspy does all the scraping, Node code in

@@ -1,8 +1,8 @@
-# Contributing to CareerBot
+# Contributing to CataBull
 
 ## Branch model
 
-CareerBot uses a dev-first workflow with three long-lived branches:
+CataBull uses a dev-first workflow with three long-lived branches:
 
 | Branch | Role |
 | --- | --- |

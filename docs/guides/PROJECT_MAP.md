@@ -1,6 +1,6 @@
 # Project Map
 
-CareerBot keeps a small compatibility layer in the repo root, then moves most implementation code into focused folders.
+CataBull keeps a small compatibility layer in the repo root, then moves most implementation code into focused folders.
 
 ## Root
 
@@ -45,7 +45,7 @@ Then make sure the moved implementation resolves repo paths from one directory u
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 ```
 
-This keeps commands such as `node scan.mjs`, `npm run scan`, `careerbot scan`, dashboard subprocess calls, and existing docs working.
+This keeps commands such as `node scan.mjs`, `npm run scan`, `catabull scan`, dashboard subprocess calls, and existing docs working.
 
 ## Verification
 
