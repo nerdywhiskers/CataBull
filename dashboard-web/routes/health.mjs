@@ -386,9 +386,9 @@ export default async function (app) {
     // progress events. The script writes machine-friendly summaries
     // alongside, but we're already in a streaming context so the line-
     // level output is enough for a progress bar.
-    const recoverProc = spawn('node', ['scripts/healthcheck.mjs', 'recover'], {
+    const recoverProc = spawn(process.execPath, [join(app.packageRoot, 'scripts/healthcheck.mjs'), 'recover'], {
       cwd: root,
-      env: process.env,
+      env: { ...process.env, CATABULL_WORKSPACE_ROOT: root },
     });
     bulkFixInFlight = recoverProc;
 
@@ -455,9 +455,9 @@ export default async function (app) {
     send({ event: 'apply_start' });
 
     // Apply step — non-interactive, just runs and reports the count back.
-    const applyProc = spawn('node', ['scripts/healthcheck.mjs', 'apply'], {
+    const applyProc = spawn(process.execPath, [join(app.packageRoot, 'scripts/healthcheck.mjs'), 'apply'], {
       cwd: root,
-      env: process.env,
+      env: { ...process.env, CATABULL_WORKSPACE_ROOT: root },
     });
     bulkFixInFlight = applyProc;
 

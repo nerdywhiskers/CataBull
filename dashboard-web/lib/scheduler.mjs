@@ -1,7 +1,13 @@
 import { spawn } from 'child_process';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import { join, dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
+
+// Package root (dashboard-web/lib → project root). scan.mjs ships here, not in
+// the user's workspace, so the scheduler must launch it from the package and
+// point it at the workspace via CATABULL_WORKSPACE_ROOT.
+const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 const STATE_FILE = 'data/scan-schedule-state.json';
 const INTERVALS = {
@@ -78,7 +84,7 @@ export function runScan(root, opts = {}) {
   if (running) return Promise.resolve({ success: false, error: 'Scan already running' });
   running = true;
 
-  const args = [join(root, 'scan.mjs')];
+  const args = [join(PACKAGE_ROOT, 'scan.mjs')];
   if (opts.company) {
     args.push('--company', String(opts.company));
   }
@@ -87,7 +93,10 @@ export function runScan(root, opts = {}) {
   }
 
   return new Promise((resolve) => {
-    const proc = spawn('node', args, { cwd: root });
+    const proc = spawn(process.execPath, args, {
+      cwd: root,
+      env: { ...process.env, CATABULL_WORKSPACE_ROOT: root },
+    });
     let stdout = '', stderr = '';
 
     proc.stdout.on('data', d => stdout += d);
