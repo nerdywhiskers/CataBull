@@ -40,6 +40,11 @@ export const USER_PATHS = [
 const STORE_DIR = '.profiles';
 const ACTIVE_FILE = 'active.json';
 const MANIFEST_FILE = 'manifest.json';
+// Synthetic id for the live/active user layer when it has no archived snapshot
+// yet (single-profile install). Lets the switcher always show the current
+// profile instead of "No saved profiles yet". Reserved — never written to
+// active.json or created under .profiles/.
+export const CURRENT_PROFILE_ID = 'current';
 
 function rootWorkspace(root) {
   return asWorkspace(root);
@@ -111,7 +116,7 @@ export function setActiveProfileId(root, id) {
 export function listProfiles(root) {
   const profiles = profileWorkspace(root);
   const activeId = getActiveProfileId(root);
-  return profiles.list('.')
+  const stored = profiles.list('.')
     .filter(d => d.isDirectory)
     .map(d => {
       const id = d.name;
@@ -125,6 +130,27 @@ export function listProfiles(root) {
       };
     })
     .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+
+  // Surface the live/active user layer as a synthetic "current" entry when it
+  // isn't already represented by a stored snapshot. Snapshots only get created
+  // once the user makes a second profile (New profile / Switch archives the
+  // current one); until then the active profile lives only in the root layer,
+  // so the switcher would otherwise read "No saved profiles yet" even though a
+  // profile exists.
+  const activeRepresented = activeId && stored.some(p => p.id === activeId);
+  const hasCurrentId = stored.some(p => p.id === CURRENT_PROFILE_ID);
+  const hasActiveData = USER_PATHS.some(rel => rootWorkspace(root).exists(rel));
+  if (!activeRepresented && !hasCurrentId && hasActiveData) {
+    stored.unshift({
+      id: CURRENT_PROFILE_ID,
+      label: candidateLabel(root),
+      created_at: null,
+      updated_at: null,
+      active: true,
+      current: true,
+    });
+  }
+  return stored;
 }
 
 export function removeActiveUserData(root) {

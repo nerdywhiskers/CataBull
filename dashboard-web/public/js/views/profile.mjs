@@ -18,13 +18,17 @@ function renderProfileSwitcher() {
     `<option value="${esc(p.id)}"${p.active ? ' selected' : ''}>${esc(p.label || p.id)}${p.active ? ' (active)' : ''}</option>`
   ).join('');
   const hasProfiles = storedProfiles.length > 0;
+  // Only offer "Switch" when there's another profile to switch to — the active
+  // (incl. synthetic "current") profile is already loaded, so a lone entry has
+  // nothing to switch to.
+  const hasSwitchTarget = storedProfiles.some(p => !p.active);
   return `
     <div class="profile-switcher-bar">
       <div class="profile-switcher-left">
         <span class="profile-switcher-label">Profile</span>
         ${hasProfiles
           ? `<select class="form-select profile-switcher-select" id="profile-switcher">${options}</select>
-             <button class="btn btn-sm" id="switch-profile-btn">Switch</button>`
+             ${hasSwitchTarget ? '<button class="btn btn-sm" id="switch-profile-btn">Switch</button>' : ''}`
           : `<span class="profile-switcher-empty">No saved profiles yet</span>`}
       </div>
       <div class="profile-switcher-actions">
@@ -320,7 +324,15 @@ function update(container) {
     try {
       await api.updateProfile(updated);
       profile = updated;
+      // Refresh the switcher so the current-profile label reflects any name
+      // edit just saved (the active profile always shows in the dropdown).
+      try {
+        const pd = await api.listProfiles();
+        storedProfiles = pd.profiles || [];
+        activeProfileId = pd.active || null;
+      } catch { /* keep existing switcher state */ }
       toast('Profile saved');
+      update(container);
     } catch (err) { toast(`Save failed: ${err.message}`, 'error'); }
   });
 
