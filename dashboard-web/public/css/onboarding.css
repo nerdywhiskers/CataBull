@@ -14,17 +14,33 @@
   margin-bottom: 40px;
 }
 
+.onboarding-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.onboarding-logo {
+  display: block;
+  width: 36px;
+  height: 36px;
+}
+
 .onboarding-header h1 {
   font-size: 28px;
   font-weight: 700;
-  margin-bottom: 8px;
+  margin: 0;
 }
 
 .onboarding-header h1 span { color: var(--mauve); }
 
-.onboarding-header p {
+.onboarding-subtitle {
   color: var(--subtext);
-  font-size: 15px;
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0;
 }
 
 /* Progress bar pinned to the bottom of the onboarding viewport. Each step

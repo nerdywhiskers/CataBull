@@ -284,7 +284,9 @@
    a tiny static label, but a real <select> wins — users actually swap
    agents from here. Sized to feel like a small chip with a chevron. */
 select.terminal-header-agent {
-  background: var(--surface1);
+  /* Use background-color, not the `background` shorthand: the shorthand resets
+     background-image, which would wipe the custom dropdown arrow set below. */
+  background-color: var(--surface1);
   color: var(--text);
   font-family: var(--font-ui);
   font-size: 12px;
@@ -303,7 +305,7 @@ select.terminal-header-agent {
   margin-top: 4px;
   transition: background var(--transition), border-color var(--transition);
 }
-select.terminal-header-agent:hover { background: var(--surface2); border-color: var(--border); }
+select.terminal-header-agent:hover { background-color: var(--surface2); border-color: var(--border); }
 select.terminal-header-agent option { background: var(--mantle); color: var(--text); }
 
 .terminal-view-toggle {
