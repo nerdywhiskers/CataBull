@@ -20,10 +20,14 @@ function nodeBin() {
  * @param {object} opts
  * @param {string} opts.cwd - Working directory
  * @param {number} opts.timeoutMs - Soft timeout (SIGTERM). Hard timeout = timeoutMs + 5000
+ * @param {object} [opts.env] - Child env (defaults to inheriting process.env).
+ *   Pass `{ ...process.env, CATABULL_WORKSPACE_ROOT: <workspace> }` so the
+ *   spawned script resolves data against the user's workspace, not its own
+ *   package location (the two differ in a ~/.catabull home install).
  * @returns {Promise<{exitCode: number|null, stdout: string, stderr: string}>}
  *   exitCode === -1 means timed out (SIGKILL); -2 means spawn failed
  */
-export function spawnWithTimeout(script, args = [], { cwd, timeoutMs } = {}) {
+export function spawnWithTimeout(script, args = [], { cwd, timeoutMs, env } = {}) {
   return new Promise((resolve) => {
     let proc;
     let stdout = '';
@@ -39,7 +43,7 @@ export function spawnWithTimeout(script, args = [], { cwd, timeoutMs } = {}) {
     };
 
     try {
-      proc = spawn(nodeBin(), [script, ...args], { cwd });
+      proc = spawn(nodeBin(), [script, ...args], { cwd, env });
     } catch (err) {
       return resolve({ exitCode: -2, stdout: '', stderr: `spawn failed: ${err.message}` });
     }

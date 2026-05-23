@@ -17,9 +17,13 @@
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, renameSync, existsSync } from 'fs';
 import { join, basename, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
+import { defaultWorkspace } from '../lib/workspace.mjs';
 import { execFileSync } from 'child_process';
 
-const CATA_BULL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+// Data root = the user's workspace. CATABULL_WORKSPACE_ROOT (set by the CLI and
+// the dashboard when it spawns scripts) wins; otherwise fall back to the package
+// dir so a direct run from a git clone keeps working.
+const CATA_BULL_ROOT = defaultWorkspace(resolve(dirname(fileURLToPath(import.meta.url)), '..')).root;
 // Support both layouts: data/applications.md (boilerplate) and applications.md (original)
 const APPS_FILE = existsSync(join(CATA_BULL_ROOT, 'data/applications.md'))
   ? join(CATA_BULL_ROOT, 'data/applications.md')
