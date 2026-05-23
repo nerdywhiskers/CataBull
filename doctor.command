@@ -1,5 +1,5 @@
 #!/bin/bash
-# Mac-specific diagnostics for CareerBot. Catches the macOS-only issues
+# Mac-specific diagnostics for CataBull. Catches the macOS-only issues
 # (quarantine xattrs, Finder PATH, TCC-restricted folders) that the
 # cross-platform doctor.mjs can't see, then runs doctor.mjs for the rest.
 
@@ -21,7 +21,7 @@ FAILURES=0
 WARNINGS=0
 
 echo
-echo "CareerBot doctor — macOS"
+echo "CataBull doctor — macOS"
 echo "========================"
 echo
 echo "macOS:    $(sw_vers -productVersion 2>/dev/null || echo "unknown")"
@@ -45,7 +45,7 @@ case "$PROJECT_DIR" in
         hint "macOS may block file access by Terminal/iTerm here."
         hint "Either grant Terminal Full Disk Access (System Settings →"
         hint "Privacy & Security → Full Disk Access), or move the project"
-        hint "somewhere else: mv \"$PROJECT_DIR\" ~/CareerBot"
+        hint "somewhere else: mv \"$PROJECT_DIR\" ~/CataBull"
         ;;
     *)
         ok "Project is outside TCC-protected folders"
@@ -99,13 +99,13 @@ else
     hint "Fix: chmod +x \"$PROJECT_DIR/start.command\""
 fi
 
-# --- CareerBot.app launcher executable bit ---
-APP_LAUNCHER="$PROJECT_DIR/CareerBot.app/Contents/MacOS/careerbot"
+# --- CataBull.app launcher executable bit ---
+APP_LAUNCHER="$PROJECT_DIR/CataBull.app/Contents/MacOS/catabull"
 if [ -f "$APP_LAUNCHER" ]; then
     if [ -x "$APP_LAUNCHER" ]; then
-        ok "CareerBot.app launcher is executable"
+        ok "CataBull.app launcher is executable"
     else
-        fail "CareerBot.app launcher is not executable (app won't open)"
+        fail "CataBull.app launcher is not executable (app won't open)"
         hint "Fix: chmod +x \"$APP_LAUNCHER\""
     fi
 fi

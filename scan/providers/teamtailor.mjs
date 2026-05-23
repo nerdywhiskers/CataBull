@@ -14,7 +14,7 @@ const FETCH_TIMEOUT_MS = 8000;
 
 const HEADERS = {
   'Accept': 'application/rss+xml, text/xml, application/xml',
-  'User-Agent': 'Mozilla/5.0 (compatible; CareerBot/1.0)',
+  'User-Agent': 'Mozilla/5.0 (compatible; CataBull/1.0)',
 };
 
 function teamtailorSlug(company) {

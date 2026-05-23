@@ -1,7 +1,7 @@
 import { api } from '../api.mjs';
 import { toast } from './toast.mjs';
 
-const DISMISS_KEY = 'careerbot-update-dismissed-commit';
+const DISMISS_KEY = 'catabull-update-dismissed-commit';
 const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
 let bannerEl = null;
@@ -39,11 +39,11 @@ export async function safeCheck({ quiet = false } = {}) {
 export async function applyAvailableUpdate({ auto = false } = {}) {
   if (applying) return;
   applying = true;
-  showBanner({ status: 'updating', message: auto ? 'Auto update is running…' : 'Updating CareerBot…' });
+  showBanner({ status: 'updating', message: auto ? 'Auto update is running…' : 'Updating CataBull…' });
   try {
     const result = await api.applyUpdate();
-    showBanner({ status: 'updated', message: result.message || 'CareerBot updated. Restart dashboard to finish.' });
-    toast(result.message || 'CareerBot updated. Restart dashboard to finish.');
+    showBanner({ status: 'updated', message: result.message || 'CataBull updated. Restart dashboard to finish.' });
+    toast(result.message || 'CataBull updated. Restart dashboard to finish.');
   } catch (err) {
     showBanner({ status: 'error', message: err.message || 'Update failed. Check settings for details.' });
     toast(err.message || 'Update failed', 'error');
@@ -63,7 +63,7 @@ function showBanner(status) {
   const isUpdating = status.status === 'updating';
   const isDone = status.status === 'updated';
   const isError = status.status === 'error';
-  const title = isDone ? 'Update installed' : isError ? 'Update failed' : isUpdating ? 'Updating CareerBot' : 'CareerBot update available';
+  const title = isDone ? 'Update installed' : isError ? 'Update failed' : isUpdating ? 'Updating CataBull' : 'CataBull update available';
   const remoteLabel = status.remoteVersion ? `v${status.remoteVersion}` : status.remoteCommit ? `build ${status.remoteCommit}` : '';
   const message = status.message || (remoteLabel ? `New ${remoteLabel} is ready.` : 'A new update is ready.');
   const updateDisabled = isUpdating || isDone || isError;

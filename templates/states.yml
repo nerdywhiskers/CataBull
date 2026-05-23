@@ -1,5 +1,5 @@
-# CareerBot — Canonical States
-# Source of truth for CareerBot (writer) and dashboard (reader).
+# CataBull — Canonical States
+# Source of truth for CataBull (writer) and dashboard (reader).
 # Both systems MUST use these exact states.
 #
 # Rule: The status field in applications.md must contain EXACTLY

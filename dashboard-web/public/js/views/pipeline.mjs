@@ -26,7 +26,7 @@ let scanState = 'idle';         // idle | quick | deep — drives the scan loadi
 // Filters only the Pending tab — Evaluated/Applied/etc. already have their
 // own status-based tabs. Persisted to localStorage so a fresh page load
 // keeps the user's last filter set.
-const PENDING_FILTER_KEY = 'careerbot-pipeline-pending-filter';
+const PENDING_FILTER_KEY = 'catabull-pipeline-pending-filter';
 const DATE_RANGE_OPTIONS = [
   { value: 'any',  label: 'Any time' },
   { value: '24h',  label: 'Last 24 hours' },
@@ -66,7 +66,7 @@ let filterPopoverOpen = false;
 // doesn't trigger the 140ms fade-in (which reads as a flash).
 let suppressPopoverAnim = false;
 let pageSize = (() => {         // persisted per-page selection (5/10/25/50/100)
-  const saved = parseInt(localStorage.getItem('careerbot-pipeline-pagesize') || '10', 10);
+  const saved = parseInt(localStorage.getItem('catabull-pipeline-pagesize') || '10', 10);
   return [5, 10, 25, 50, 100].includes(saved) ? saved : 10;
 })();
 let currentPage = 1;            // 1-indexed; reset whenever filter/search changes
@@ -1156,7 +1156,7 @@ function update(container) {
       if ([5, 10, 25, 50, 100].includes(next)) {
         pageSize = next;
         currentPage = 1;
-        try { localStorage.setItem('careerbot-pipeline-pagesize', String(next)); } catch {}
+        try { localStorage.setItem('catabull-pipeline-pagesize', String(next)); } catch {}
         update(container);
       }
     };
@@ -1540,7 +1540,7 @@ function update(container) {
       });
       if (!ok) return;
 
-      const limit = parseInt(localStorage.getItem('careerbot-scan-limit') || '0', 10) || 0;
+      const limit = parseInt(localStorage.getItem('catabull-scan-limit') || '0', 10) || 0;
       scanState = 'deep';
       update(container);
 

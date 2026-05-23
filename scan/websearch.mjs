@@ -2,9 +2,9 @@
  * scan/websearch.mjs — WebSearch provider abstraction for Deep Scan Level 3.
  *
  * Three providers, swapped via env:
- *   CAREERBOT_WEBSEARCH=brave   — Brave Search API (recommended; free tier 2k req/mo)
- *   CAREERBOT_WEBSEARCH=serper  — Serper.dev (free tier 2.5k req/mo)
- *   CAREERBOT_WEBSEARCH=scrape  — DuckDuckGo HTML scrape (no key, fragile)
+ *   CATABULL_WEBSEARCH=brave   — Brave Search API (recommended; free tier 2k req/mo)
+ *   CATABULL_WEBSEARCH=serper  — Serper.dev (free tier 2.5k req/mo)
+ *   CATABULL_WEBSEARCH=scrape  — DuckDuckGo HTML scrape (no key, fragile)
  *
  * API keys come from env:
  *   BRAVE_SEARCH_API_KEY
@@ -44,7 +44,7 @@ export function resolveProvider({ provider, env = process.env } = {}) {
 }
 
 export function pickProviderName(provider, env = process.env) {
-  const explicit = String(provider || env.CAREERBOT_WEBSEARCH || '').trim().toLowerCase();
+  const explicit = String(provider || env.CATABULL_WEBSEARCH || '').trim().toLowerCase();
   if (explicit) return explicit;
   for (const candidate of providerOrder(env)) {
     if (candidate === 'brave' && env.BRAVE_SEARCH_API_KEY) return 'brave';
@@ -55,7 +55,7 @@ export function pickProviderName(provider, env = process.env) {
 }
 
 export function providerOrder(env = process.env) {
-  const raw = String(env.CAREERBOT_WEBSEARCH_ORDER || 'brave,serper,scrape')
+  const raw = String(env.CATABULL_WEBSEARCH_ORDER || 'brave,serper,scrape')
     .split(',')
     .map((p) => p.trim().toLowerCase())
     .map((p) => (p === 'ddg' || p === 'duckduckgo') ? 'scrape' : p)
@@ -152,7 +152,7 @@ function scrapeProvider() {
     async search(query, { maxResults = DEFAULT_MAX_RESULTS, fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
       const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
       const res = await fetchWithTimeout(fetchImpl, url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (CareerBot scan)' },
+        headers: { 'User-Agent': 'Mozilla/5.0 (CataBull scan)' },
       }, timeoutMs);
       if (res.status === 202) {
         throw new WebSearchError('DDG HTML returned HTTP 202 challenge page', { code: 'challenge', provider: 'scrape' });

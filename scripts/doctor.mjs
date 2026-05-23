@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * doctor.mjs — Setup validation for CareerBot
+ * doctor.mjs — Setup validation for CataBull
  * Checks all prerequisites and prints a pass/fail checklist.
  */
 
@@ -72,7 +72,7 @@ async function checkPlaywright() {
     return {
       pass: false,
       label: 'Playwright not installed',
-      fix: 'Run: npx careerbot@latest',
+      fix: 'Run: npx catabull@latest',
     };
   }
 
@@ -80,7 +80,7 @@ async function checkPlaywright() {
     return {
       pass: false,
       label: 'Playwright chromium not installed',
-      fix: 'Run: npx careerbot@latest',
+      fix: 'Run: npx catabull@latest',
     };
   }
 
@@ -295,10 +295,10 @@ function checkJobSpy() {
 
 function checkWebSearchProvider() {
   // Deep Scan Level 3 uses scan/websearch.mjs. The provider is selected
-  // via CAREERBOT_WEBSEARCH, or auto-selected from available API keys.
+  // via CATABULL_WEBSEARCH, or auto-selected from available API keys.
   // brave/serper require an API key; scrape works without a key but is
   // fragile.
-  const requested = (process.env.CAREERBOT_WEBSEARCH || '').toLowerCase()
+  const requested = (process.env.CATABULL_WEBSEARCH || '').toLowerCase()
     || (process.env.BRAVE_SEARCH_API_KEY ? 'brave'
       : process.env.SERPER_API_KEY ? 'serper'
         : 'scrape');
@@ -326,7 +326,7 @@ function checkWebSearchProvider() {
   return {
     pass: true,
     label: 'WebSearch provider: scrape (DuckDuckGo HTML, no key required)',
-    note: 'Best-effort scraping — for reliable Deep Scan set BRAVE_SEARCH_API_KEY in .env or set CAREERBOT_WEBSEARCH=brave.',
+    note: 'Best-effort scraping — for reliable Deep Scan set BRAVE_SEARCH_API_KEY in .env or set CATABULL_WEBSEARCH=brave.',
   };
 }
 
@@ -348,7 +348,7 @@ function checkAutoDir(name) {
 }
 
 async function main() {
-  console.log('\nCareerBot doctor');
+  console.log('\nCataBull doctor');
   console.log('================\n');
 
   // Surface package vs workspace explicitly so a globally installed CLI

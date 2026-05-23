@@ -51,7 +51,7 @@ mkdirSync(join(ROOT, 'data'), { recursive: true });
 
 const CONCURRENCY = 10;
 const FETCH_TIMEOUT_MS = 10_000;
-const MIN_RELEVANCE_ENV_KEY = 'CAREERBOT_DEEP_SCAN_MIN_RELEVANCE';
+const MIN_RELEVANCE_ENV_KEY = 'CATABULL_DEEP_SCAN_MIN_RELEVANCE';
 
 loadEnvFile(ROOT);
 
@@ -667,7 +667,7 @@ async function main() {
     originalConsoleLog(JSON.stringify(summary, null, 2));
   }
 
-  console.log(`\n→ Run /careerbot pipeline to evaluate new offers.`);
+  console.log(`\n→ Run /catabull pipeline to evaluate new offers.`);
 }
 
 function buildDiagnostics(companyStats, sniffResults) {

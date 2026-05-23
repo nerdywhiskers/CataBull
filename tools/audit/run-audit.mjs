@@ -113,7 +113,7 @@ function readYaml(path) {
 }
 
 // ── Default query bank ───────────────────────────────────────────────
-// Curated to cover the major job families CareerBot supports, not any
+// Curated to cover the major job families CataBull supports, not any
 // one user's profile. The audit is verifying a shared portals.yml; the
 // queries should reflect the *project's* target audience, not the
 // running user's archetype. Override via --terms-file <path.json>

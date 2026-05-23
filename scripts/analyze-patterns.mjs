@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * analyze-patterns.mjs — Rejection Pattern Detector for CareerBot
+ * analyze-patterns.mjs — Rejection Pattern Detector for CataBull
  *
  * Parses applications.md + all linked reports, extracts dimensions
  * (archetype, seniority, remote, gaps, scores), classifies outcomes,
@@ -15,11 +15,11 @@ import { readFileSync, existsSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
-const CAREER_BOT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const APPS_FILE = existsSync(join(CAREER_BOT_ROOT, 'data/applications.md'))
-  ? join(CAREER_BOT_ROOT, 'data/applications.md')
-  : join(CAREER_BOT_ROOT, 'applications.md');
-const REPORTS_DIR = join(CAREER_BOT_ROOT, 'reports');
+const CATA_BULL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const APPS_FILE = existsSync(join(CATA_BULL_ROOT, 'data/applications.md'))
+  ? join(CATA_BULL_ROOT, 'data/applications.md')
+  : join(CATA_BULL_ROOT, 'applications.md');
+const REPORTS_DIR = join(CATA_BULL_ROOT, 'reports');
 
 // --- CLI args ---
 const args = process.argv.slice(2);
@@ -221,7 +221,7 @@ function analyze() {
   // Enrich entries with report data and classification
   const enriched = entries.map(e => {
     const reportMatch = e.report.match(/\]\(([^)]+)\)/);
-    const reportPath = reportMatch ? join(CAREER_BOT_ROOT, reportMatch[1]) : null;
+    const reportPath = reportMatch ? join(CATA_BULL_ROOT, reportMatch[1]) : null;
     const reportData = reportPath ? parseReport(reportPath) : null;
     const outcome = classifyOutcome(e.status);
     const score = parseFloat(e.score) || 0;

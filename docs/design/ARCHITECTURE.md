@@ -1,6 +1,6 @@
 # Architecture
 
-A snapshot of how CareerBot is wired today (2026-05-08, post-v1.4
+A snapshot of how CataBull is wired today (2026-05-08, post-v1.4
 merge). For the deeper "why" behind specific subsystems see the design
 docs in `docs/design/`; for the strategic direction see
 
@@ -26,8 +26,8 @@ docs in `docs/design/`; for the strategic direction see
            │        │              Workspace (lib/workspace.mjs)                         │
            └───────▶│  read · write · readYaml · writeYaml · copy · delete · mkdir · list│
                     │  Resolved at startup by lib/workspace-resolver.mjs:                │
-                    │    env CAREERBOT_WORKSPACE_ROOT > cwd-with-markers > project-tree  │
-                    │    > ~/.careerbot/  (CLI default)                                 │
+                    │    env CATABULL_WORKSPACE_ROOT > cwd-with-markers > project-tree  │
+                    │    > ~/.catabull/  (CLI default)                                 │
                     └────────────────────────────┬───────────────────────────────────────┘
                                                  │
                                                  ▼
@@ -215,7 +215,7 @@ scripts maintain consistency:
   with W5 outbound-link sniffer for branded careers pages.
 - **Agent layer** — CLI subprocesses (Claude Code / Codex / OpenCode /
   Gemini / Hermes / OpenClaw); user picks one via the dashboard. No vendor lock-in.
-- **Distribution** — GitHub-backed npm install (`npm install -g github:your-github-user/careerbot`) plus install scripts; `careerbot` CLI scaffolds `~/.careerbot/` on first run.
+- **Distribution** — GitHub-backed npm install (`npm install -g github:your-github-user/catabull`) plus install scripts; `catabull` CLI scaffolds `~/.catabull/` on first run.
 - **Data** — markdown tables, YAML configs, TSV scan history. No DB.
 - **Tests** — unit and smoke suites under `tests/`; `package.json` defines the current `npm run test:unit` subset and `npm test` integration smoke entry. Pure logic; no live network in tests.
 

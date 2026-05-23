@@ -1,4 +1,4 @@
-# User Profile Context -- CareerBot
+# User Profile Context -- CataBull
 
 <!-- ============================================================
      THIS FILE IS YOURS. It will NEVER be auto-updated.

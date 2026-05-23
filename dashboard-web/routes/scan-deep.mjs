@@ -65,7 +65,7 @@ export function buildDeepScanQueries(portals = {}) {
 }
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
 
   app.get('/scan/deep', async (req, reply) => {
     const queryLimit = Math.max(0, parseInt(req.query?.limit, 10) || 0);
@@ -254,9 +254,9 @@ export default async function (app) {
  */
 function readDeepScanSettings(env = process.env) {
   return {
-    deepScanLimit: clampInt(env.CAREERBOT_DEEP_SCAN_LIMIT, 0, 1000),
-    minRelevance: resolveMinRelevance(env.CAREERBOT_DEEP_SCAN_MIN_RELEVANCE, DEFAULT_MIN_RELEVANCE),
-    freshnessDays: clampInt(env.CAREERBOT_SCAN_FRESHNESS_DAYS, 0, 365),
+    deepScanLimit: clampInt(env.CATABULL_DEEP_SCAN_LIMIT, 0, 1000),
+    minRelevance: resolveMinRelevance(env.CATABULL_DEEP_SCAN_MIN_RELEVANCE, DEFAULT_MIN_RELEVANCE),
+    freshnessDays: clampInt(env.CATABULL_SCAN_FRESHNESS_DAYS, 0, 365),
   };
 }
 
@@ -317,7 +317,7 @@ function runQuickScan({ root, limit, onProgress = () => {} }) {
     const args = [join(PACKAGE_ROOT, 'scan.mjs')];
     if (limit > 0) args.push('--limit', String(limit));
 
-    const env = { ...process.env, CAREERBOT_WORKSPACE_ROOT: root };
+    const env = { ...process.env, CATABULL_WORKSPACE_ROOT: root };
     const child = spawn(process.execPath, args, { cwd: root, env });
 
     let buf = '';

@@ -78,7 +78,7 @@ async function init() {
   } catch { /* ok */ }
 
   // Theme toggle
-  const savedTheme = localStorage.getItem('careerbot-theme') || 'dark';
+  const savedTheme = localStorage.getItem('catabull-theme') || 'dark';
   document.documentElement.setAttribute('data-theme', savedTheme);
   updateThemeIcon(savedTheme);
 
@@ -86,7 +86,7 @@ async function init() {
     const current = document.documentElement.getAttribute('data-theme');
     const next = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('careerbot-theme', next);
+    localStorage.setItem('catabull-theme', next);
     updateThemeIcon(next);
   });
 
@@ -139,9 +139,9 @@ async function init() {
   // If onboarding left a prompt for us (the "Run with <agent>" button on
   // the done step), fire it now that the dashboard is up and the terminal
   // is initialized.
-  const pendingPrompt = sessionStorage.getItem('careerbot-autogen-prompt');
+  const pendingPrompt = sessionStorage.getItem('catabull-autogen-prompt');
   if (pendingPrompt) {
-    sessionStorage.removeItem('careerbot-autogen-prompt');
+    sessionStorage.removeItem('catabull-autogen-prompt');
     // Slight delay so the initial view's render finishes first.
     setTimeout(() => { runPrompt(pendingPrompt); }, 400);
   }

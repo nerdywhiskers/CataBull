@@ -167,8 +167,8 @@ export function statusPriority(status) {
 }
 
 /** Parse applications.md and return array of application objects. */
-export function parseApplications(careerBotRoot) {
-  const ws = asWorkspace(careerBotRoot);
+export function parseApplications(cataBullRoot) {
+  const ws = asWorkspace(cataBullRoot);
   const relPath = ws.exists('data/applications.md') ? 'data/applications.md' : 'applications.md';
   const content = ws.read(relPath);
   if (content == null) return [];
@@ -221,8 +221,8 @@ export function parseApplications(careerBotRoot) {
   }
 
   // Enrich with job URLs (simplified: tiers 1 + 4)
-  enrichFromReports(careerBotRoot, apps);
-  enrichFromScanHistory(careerBotRoot, apps);
+  enrichFromReports(cataBullRoot, apps);
+  enrichFromScanHistory(cataBullRoot, apps);
 
   return apps;
 }
@@ -299,8 +299,8 @@ function normalizeCompany(name) {
 }
 
 /** Parse pipeline.md and return pending, skipped, and expired offers. */
-export function parsePipeline(careerBotRoot) {
-  const content = asWorkspace(careerBotRoot).read('data/pipeline.md');
+export function parsePipeline(cataBullRoot) {
+  const content = asWorkspace(cataBullRoot).read('data/pipeline.md');
   if (content == null) return { pending: [], skipped: [], expired: [] };
 
   const pending = [];
@@ -362,9 +362,9 @@ export function parsePipeline(careerBotRoot) {
 }
 
 /** Load report summary (archetype, tldr, remote, comp) from a report file. */
-export function loadReportSummary(careerBotRoot, reportPath) {
+export function loadReportSummary(cataBullRoot, reportPath) {
   try {
-    const text = asWorkspace(careerBotRoot).read(reportPath);
+    const text = asWorkspace(cataBullRoot).read(reportPath);
     if (text == null) return { archetype: '', tldr: '', remote: '', comp: '' };
     let archetype = '', tldr = '', remote = '', comp = '';
 

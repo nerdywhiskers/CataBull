@@ -85,7 +85,7 @@ New offers added: N
   + {company} | {title} | {location}
   ...
 
-Run /careerbot pipeline to evaluate new offers.
+Run /catabull pipeline to evaluate new offers.
 ```
 
 ## careers_url policy

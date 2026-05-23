@@ -1,6 +1,6 @@
 # Article Digest -- Proof Points
 
-Compact proof points from portfolio projects. Read by CareerBot at evaluation time.
+Compact proof points from portfolio projects. Read by CataBull at evaluation time.
 
 ---
 

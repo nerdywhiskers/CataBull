@@ -9,12 +9,16 @@ import {
 } from '../lib/user-data.mjs';
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
 
-  app.get('/profiles', async () => ({
-    profiles: listProfiles(root),
-    active: getActiveProfileId(root),
-  }));
+  app.get('/profiles', async () => {
+    const profiles = listProfiles(root);
+    // Prefer the entry listProfiles marked active — this is the synthetic
+    // "current" id for a single-profile install that has no stored snapshot
+    // yet, so the client treats it as active (and won't try to switch to it).
+    const active = profiles.find(p => p.active)?.id ?? getActiveProfileId(root);
+    return { profiles, active };
+  });
 
   // Save the current on-disk user layer into .profiles/<id>. Used before
   // creating a new profile and before switching away from the active one.

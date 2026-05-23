@@ -1,7 +1,7 @@
 import { readGrouped, supersedeEntry, updateEntry } from '../lib/memory.mjs';
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
 
   app.get('/memory', async () => {
     return { files: readGrouped(root) };

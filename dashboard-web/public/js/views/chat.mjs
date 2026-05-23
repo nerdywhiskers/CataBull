@@ -26,11 +26,11 @@ let drawerVisible = false;
 let agentsReady = null;
 let lastOutputAt = 0;
 let rawBacklog = '';
-let currentView = localStorage.getItem('careerbot-terminal-view') || 'chat';
+let currentView = localStorage.getItem('catabull-terminal-view') || 'chat';
 let reconnectTimer = null;
-const DEFAULT_OPEN = localStorage.getItem('careerbot-terminal-open') !== 'false';
-const AGENT_STORAGE_KEY = 'careerbot-terminal-agent';
-const AGENT_SESSIONS_STORAGE_KEY = 'careerbot-chat-agent-sessions';
+const DEFAULT_OPEN = localStorage.getItem('catabull-terminal-open') !== 'false';
+const AGENT_STORAGE_KEY = 'catabull-terminal-agent';
+const AGENT_SESSIONS_STORAGE_KEY = 'catabull-chat-agent-sessions';
 
 const DEFAULT_COLS = 120;
 const DEFAULT_ROWS = 20;
@@ -319,7 +319,7 @@ function attachDrag(el, { markDragging } = {}) {
       // Drive the grid column width via a CSS variable on the dashboard
       // shell. The rail itself is `width: 100%` so it tracks the column.
       shell.style.setProperty('--rail-width', `${newW}px`);
-      try { localStorage.setItem('careerbot-rail-width', String(newW)); } catch {}
+      try { localStorage.setItem('catabull-rail-width', String(newW)); } catch {}
       syncMainOffset();
       if (fitAddon && currentView === 'raw') fitAddon.fit();
     };
@@ -341,7 +341,7 @@ function setupDragResize() {
 
 function applyViewMode(nextView) {
   currentView = nextView === 'raw' ? 'raw' : 'chat';
-  localStorage.setItem('careerbot-terminal-view', currentView);
+  localStorage.setItem('catabull-terminal-view', currentView);
 
   const terminalEl = document.getElementById('terminal');
   const chatEl = document.getElementById('chat-pane');
@@ -380,7 +380,7 @@ export async function show() {
   drawer.style.display = 'flex';
   drawer.classList.add('is-open');
   document.querySelector('.dashboard-shell')?.classList.remove('rail-hidden');
-  localStorage.setItem('careerbot-terminal-open', 'true');
+  localStorage.setItem('catabull-terminal-open', 'true');
   if (main) main.classList.add('with-drawer-right');
   drawerVisible = true;
 
@@ -389,7 +389,7 @@ export async function show() {
     // Restore the user's last drag-resize width (capped to 55vw so it can
     // never push the main column off-screen on smaller monitors).
     try {
-      const saved = parseInt(localStorage.getItem('careerbot-rail-width') || '0', 10);
+      const saved = parseInt(localStorage.getItem('catabull-rail-width') || '0', 10);
       const cap = Math.floor(window.innerWidth * 0.55);
       if (saved >= 280 && saved <= cap) {
         document.querySelector('.dashboard-shell')?.style.setProperty('--rail-width', `${saved}px`);
@@ -425,7 +425,7 @@ export function hide() {
     main.style.removeProperty('--drawer-offset');
   }
   disconnectSession();
-  localStorage.setItem('careerbot-terminal-open', 'false');
+  localStorage.setItem('catabull-terminal-open', 'false');
   drawerVisible = false;
 }
 
@@ -451,7 +451,7 @@ export async function runPrompt(text, {
   // already on screen by the time the user looks. Avoids the perceived
   // "click → wait → message flashes in" delay.
   //
-  // displayText is what the user sees in chat (e.g. `/careerbot evaluate
+  // displayText is what the user sees in chat (e.g. `/catabull evaluate
   // <url>`). text is what's sent to the agent (e.g. the multi-paragraph
   // inline expansion built for codex/opencode/gemini, which would be ugly
   // to render verbatim). When omitted, displayText defaults to text — that

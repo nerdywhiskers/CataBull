@@ -1,5 +1,5 @@
 #!/bin/bash
-# Double-click to launch CareerBot dashboard on macOS.
+# Double-click to launch CataBull dashboard on macOS.
 #
 # Two macOS gotchas this script defends against:
 #   1. Gatekeeper attaches `com.apple.quarantine` to every file in a downloaded

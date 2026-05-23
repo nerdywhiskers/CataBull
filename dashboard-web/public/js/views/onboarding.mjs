@@ -4,7 +4,7 @@ import { confirmModal } from '../components/confirm.mjs';
 import { renderMarkdown } from '../components/markdown.mjs';
 import { INDUSTRIES } from '../lib/industries.mjs';
 
-const SCAN_LIMIT_STORAGE_KEY = 'careerbot-scan-limit';
+const SCAN_LIMIT_STORAGE_KEY = 'catabull-scan-limit';
 let scanState = 'idle'; // idle | running | done | error | skipped
 let scanResultCount = 0;
 let scanError = '';
@@ -39,7 +39,7 @@ let selectedIndustries = [];
 let portalTitleKeywords = null;
 let settingsData = null;
 
-const AGENT_SETUP_DOC_URL = 'https://github.com/your-github-user/careerbot#supported-cli-agents';
+const AGENT_SETUP_DOC_URL = 'https://github.com/your-github-user/catabull#supported-cli-agents';
 const AGENT_INSTALL_HELP = {
   claude: {
     label: 'Claude Code',
@@ -131,7 +131,7 @@ function dots() {
 function renderWelcome() {
   return `
     <div class="onboarding-header">
-      <h1><span>Career</span>Bot</h1>
+      <h1><span>Cata</span>Bull</h1>
       <p>AI-powered job search pipeline. Let's get you set up.</p>
     </div>
     <div class="onboarding-step active">
@@ -187,7 +187,7 @@ function renderAgentStep() {
 
   const body = connected ? `
     <div class="onboarding-tip">A detected CLI agent is required before continuing. It powers CV parsing, archetype generation, tailoring, and full job evaluations.</div>
-    <p class="step-description">CareerBot uses a CLI agent to draft reports, refine your profile, and evaluate jobs. Pick the one you want as the default. The test button is optional and helps catch PATH or login issues early.</p>
+    <p class="step-description">CataBull uses a CLI agent to draft reports, refine your profile, and evaluate jobs. Pick the one you want as the default. The test button is optional and helps catch PATH or login issues early.</p>
     <div class="card" style="margin-bottom:16px">
       ${agentRows}
       <div style="display:flex;gap:8px;margin-top:4px">
@@ -198,7 +198,7 @@ function renderAgentStep() {
     </div>
     ${testBlock}
   ` : `
-    <p class="step-description">CareerBot needs one of these CLI agents on your PATH. Without an agent, reports and profile refinement won't work.</p>
+    <p class="step-description">CataBull needs one of these CLI agents on your PATH. Without an agent, reports and profile refinement won't work.</p>
     <div class="card" style="margin-bottom:16px;border-left:3px solid var(--red)">
       <p style="font-weight:600;margin-bottom:8px">✗ No agent detected</p>
       <p style="font-size:13px;color:var(--subtext);margin-bottom:8px">Install one of:</p>
@@ -635,7 +635,7 @@ function renderDone() {
     <div class="onboarding-step active">
       <div class="onboarding-done">
         <h2>You're all set!</h2>
-        <p>Your CareerBot pipeline is ready. Review your profile on the Profile tab, then start scanning portals and evaluating jobs.</p>
+        <p>Your CataBull pipeline is ready. Review your profile on the Profile tab, then start scanning portals and evaluating jobs.</p>
         <div class="done-actions">
           <button class="btn btn-primary" id="go-dashboard">Go to Dashboard</button>
         </div>
@@ -818,7 +818,7 @@ function bindEvents(container) {
         // Keep the chat panel in sync with the onboarding choice. The server
         // stores this in profile.yml, but the panel also reads this browser
         // preference and otherwise can keep an older/default agent selected.
-        try { localStorage.setItem('careerbot-terminal-agent', selectedAgent); } catch {}
+        try { localStorage.setItem('catabull-terminal-agent', selectedAgent); } catch {}
         try { await api.onboardingAgent(selectedAgent); } catch { /* non-blocking */ }
       }
       currentStep = STEPS.indexOf('cv');

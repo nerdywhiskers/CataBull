@@ -18,15 +18,15 @@ async function ensureNodePty() {
 }
 
 // Default timeout for one-shot agent runs from the chat view. Has to cover
-// real workloads: a `/careerbot deep` run hits WebSearch + writes a report,
-// a `/careerbot evaluate` reads several files and produces A-G scoring.
+// real workloads: a `/catabull deep` run hits WebSearch + writes a report,
+// a `/catabull evaluate` reads several files and produces A-G scoring.
 // Both routinely take 2-5 minutes; 10 minutes is a safe upper bound.
 export const DEFAULT_RUN_TIMEOUT_MS = 600_000;
 // Hard cap for client-supplied timeoutMs overrides on POST /terminal/run.
 export const MAX_RUN_TIMEOUT_MS = 1_800_000;
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
   // Re-detect on every request rather than caching at server start, so users
   // who install an agent mid-session can click "Re-check" and see it.
   app.get('/terminal/agents', async () => {

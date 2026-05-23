@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-pipeline.mjs — Health check for CareerBot pipeline integrity
+ * verify-pipeline.mjs — Health check for CataBull pipeline integrity
  *
  * Checks:
  * 1. All statuses are canonical (per states.yml)
@@ -18,19 +18,19 @@ import { readFileSync, readdirSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
-const CAREER_BOT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const CATA_BULL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // Support both layouts: data/applications.md (boilerplate) and applications.md (original)
-const APPS_FILE = existsSync(join(CAREER_BOT_ROOT, 'data/applications.md'))
-  ? join(CAREER_BOT_ROOT, 'data/applications.md')
-  : join(CAREER_BOT_ROOT, 'applications.md');
-const ADDITIONS_DIR = join(CAREER_BOT_ROOT, 'batch/tracker-additions');
-const REPORTS_DIR = join(CAREER_BOT_ROOT, 'reports');
-const STATES_FILE = existsSync(join(CAREER_BOT_ROOT, 'templates/states.yml'))
-  ? join(CAREER_BOT_ROOT, 'templates/states.yml')
-  : join(CAREER_BOT_ROOT, 'states.yml');
+const APPS_FILE = existsSync(join(CATA_BULL_ROOT, 'data/applications.md'))
+  ? join(CATA_BULL_ROOT, 'data/applications.md')
+  : join(CATA_BULL_ROOT, 'applications.md');
+const ADDITIONS_DIR = join(CATA_BULL_ROOT, 'batch/tracker-additions');
+const REPORTS_DIR = join(CATA_BULL_ROOT, 'reports');
+const STATES_FILE = existsSync(join(CATA_BULL_ROOT, 'templates/states.yml'))
+  ? join(CATA_BULL_ROOT, 'templates/states.yml')
+  : join(CATA_BULL_ROOT, 'states.yml');
 
 // Ensure required directories exist (fresh setup)
-mkdirSync(join(CAREER_BOT_ROOT, 'data'), { recursive: true });
+mkdirSync(join(CATA_BULL_ROOT, 'data'), { recursive: true });
 mkdirSync(REPORTS_DIR, { recursive: true });
 
 const CANONICAL_STATUSES = [
@@ -129,7 +129,7 @@ let brokenReports = 0;
 for (const e of entries) {
   const match = e.report.match(/\]\(([^)]+)\)/);
   if (!match) continue;
-  const reportPath = join(CAREER_BOT_ROOT, match[1]);
+  const reportPath = join(CATA_BULL_ROOT, match[1]);
   if (!existsSync(reportPath)) {
     error(`#${e.num}: Report not found: ${match[1]}`);
     brokenReports++;

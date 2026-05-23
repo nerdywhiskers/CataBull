@@ -1,4 +1,4 @@
-# CareerBot Batch Worker -- Full Evaluation + PDF + Tracker Line
+# CataBull Batch Worker -- Full Evaluation + PDF + Tracker Line
 
 You are a batch evaluation worker. You receive a single job offer and must produce:
 1. A full evaluation report (Blocks A-G)
