@@ -275,9 +275,11 @@ export default async function (app) {
     const selectedSites = normalizeList(sites).map(s => s.toLowerCase());
     const selectedIndustries = unique(normalizeList(industries).map(normalizeIndustry));
 
-    // Copy template if portals.yml doesn't exist
+    // Copy template if portals.yml doesn't exist. Fall back to the package
+    // root so a freshly scaffolded home workspace (which carries portals.yml.example
+    // but not templates/portals.example.yml) still gets a valid portals.yml.
     if (!existsSync(join(root, 'portals.yml'))) {
-      ensureFromTemplate(root, 'templates/portals.example.yml', 'portals.yml');
+      ensureFromTemplate(root, 'templates/portals.example.yml', 'portals.yml', app.packageRoot);
     }
 
     const portals = yaml.load(readFileSync(join(root, 'portals.yml'), 'utf-8')) || {};
