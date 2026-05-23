@@ -43,6 +43,45 @@
   margin: 0;
 }
 
+/* Tongue-in-cheek dictionary entry on the welcome screen. Left-aligned (like a
+   real dictionary) inside the otherwise-centered header, with a mauve accent. */
+.onboarding-define {
+  max-width: 440px;
+  margin: 18px auto 0;
+  padding: 14px 18px;
+  text-align: left;
+  background: var(--surface0);
+  border-left: 3px solid var(--mauve);
+  border-radius: var(--radius);
+}
+
+.define-headword {
+  margin: 0 0 5px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.define-pron,
+.define-pos {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--subtext0);
+}
+
+.define-meaning {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.define-example {
+  margin: 0;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--subtext);
+}
+
 /* Progress bar pinned to the bottom of the onboarding viewport. Each step
    becomes a labelled pill (dot + label) so users can see where they are
    and where they're going at a glance. */
