@@ -8,7 +8,7 @@
  * ephemeral memory dir. Skips system files, node_modules, .git, etc.
  *
  * Endpoints:
- *   GET  /backup           Download a careerbot-backup-{date}.zip
+ *   GET  /backup           Download a catabull-backup-{date}.zip
  *   POST /backup/restore   Multipart upload of a zip; extracts in-place
  */
 
@@ -81,7 +81,7 @@ function isInUserLayer(rel) {
 }
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
 
   app.get('/backup', async (req, reply) => {
     const zip = new JSZip();
@@ -100,15 +100,15 @@ export default async function (app) {
 
     // Embed a small manifest so the importer can sanity-check what it's
     // looking at (and so a future format bump is detectable).
-    zip.file('.careerbot-backup.json', JSON.stringify({
+    zip.file('.catabull-backup.json', JSON.stringify({
       version: 1,
       created_at: new Date().toISOString(),
-      app: 'careerbot',
+      app: 'catabull',
     }, null, 2));
 
     const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
     const date = new Date().toISOString().slice(0, 10);
-    const filename = `careerbot-backup-${date}.zip`;
+    const filename = `catabull-backup-${date}.zip`;
     return reply
       .header('Content-Type', 'application/zip')
       .header('Content-Disposition', `attachment; filename="${filename}"`)
@@ -129,12 +129,12 @@ export default async function (app) {
 
     // Sanity-check the manifest if present. Missing manifest is allowed —
     // someone may zip up these files manually — but mismatched app rejects.
-    const manifestEntry = zip.file('.careerbot-backup.json');
+    const manifestEntry = zip.file('.catabull-backup.json');
     if (manifestEntry) {
       try {
         const manifest = JSON.parse(await manifestEntry.async('string'));
-        if (manifest.app && manifest.app !== 'careerbot') {
-          return reply.code(400).send({ error: `Backup is from "${manifest.app}", not careerbot` });
+        if (manifest.app && manifest.app !== 'catabull') {
+          return reply.code(400).send({ error: `Backup is from "${manifest.app}", not catabull` });
         }
       } catch { /* corrupt manifest — keep going if user accepts */ }
     }
@@ -144,7 +144,7 @@ export default async function (app) {
 
     for (const [rel, entry] of Object.entries(zip.files)) {
       if (entry.dir) continue;
-      if (rel === '.careerbot-backup.json') continue;
+      if (rel === '.catabull-backup.json') continue;
       if (!isInUserLayer(rel)) {
         skipped.push({ path: rel, reason: 'outside user layer' });
         continue;

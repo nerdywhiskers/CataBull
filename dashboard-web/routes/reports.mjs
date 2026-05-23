@@ -40,7 +40,7 @@ function findArtifactsForReport(root, reportFilename) {
 }
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
 
   app.get('/reports', async () => {
     const dir = join(root, 'reports');

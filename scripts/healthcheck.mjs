@@ -107,7 +107,7 @@ async function probeUrl(url, { timeoutMs = FETCH_TIMEOUT_MS } = {}) {
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
-      headers: { 'User-Agent': 'careerbot-healthcheck/1.0' },
+      headers: { 'User-Agent': 'catabull-healthcheck/1.0' },
     });
     if (!res.ok) return { ok: false, status: res.status };
     const json = await res.json();

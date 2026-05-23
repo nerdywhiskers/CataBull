@@ -16,7 +16,7 @@ function renderAnalyticsTabs(activeKey) {
 export async function render(container, subTab) {
   const tab = subTab === 'memory' ? 'memory' : 'overview';
   const subtitle = tab === 'memory'
-    ? 'Patterns and notes CareerBot has saved across sessions.'
+    ? 'Patterns and notes CataBull has saved across sessions.'
     : 'Funnel, response rates, archetype performance, and follow-up cadence over time.';
   container.innerHTML = `
     <header class="section-header">

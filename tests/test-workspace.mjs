@@ -51,7 +51,7 @@ console.log('\nlib/workspace.mjs');
 
 // Each section creates its own scratch dir to keep tests independent.
 function withTempWorkspace(fn) {
-  const dir = mkdtempSync(join(tmpdir(), 'careerbot-ws-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'catabull-ws-test-'));
   const ws = new LocalWorkspace(dir);
   try {
     fn(ws, dir);
@@ -212,23 +212,23 @@ withTempWorkspace((ws, dir) => {
 
 console.log('\n7. defaultWorkspace resolution order');
 
-const originalEnv = process.env.CAREERBOT_WORKSPACE_ROOT;
+const originalEnv = process.env.CATABULL_WORKSPACE_ROOT;
 try {
   // Env var wins
-  process.env.CAREERBOT_WORKSPACE_ROOT = tmpdir();
+  process.env.CATABULL_WORKSPACE_ROOT = tmpdir();
   const fromEnv = defaultWorkspace('/nonexistent/fallback');
   assert(fromEnv.root === tmpdir() || fromEnv.root === tmpdir().replace(/\/$/, ''), 'env var overrides fallback');
 
   // No env, fallback wins
-  delete process.env.CAREERBOT_WORKSPACE_ROOT;
+  delete process.env.CATABULL_WORKSPACE_ROOT;
   const fromFallback = defaultWorkspace(tmpdir());
   assert(
     fromFallback.root === tmpdir() || fromFallback.root === tmpdir().replace(/\/$/, ''),
     'fallback used when env unset'
   );
 } finally {
-  if (originalEnv == null) delete process.env.CAREERBOT_WORKSPACE_ROOT;
-  else process.env.CAREERBOT_WORKSPACE_ROOT = originalEnv;
+  if (originalEnv == null) delete process.env.CATABULL_WORKSPACE_ROOT;
+  else process.env.CATABULL_WORKSPACE_ROOT = originalEnv;
 }
 
 // ── DONE ──────────────────────────────────────────────────────────────

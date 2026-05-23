@@ -2,7 +2,7 @@ import { readProfile, writeProfile, readProfileMarkdown, writeProfileMarkdown } 
 import { removeActiveUserData } from '../lib/user-data.mjs';
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
 
   app.get('/profile', async () => {
     const profile = readProfile(root);

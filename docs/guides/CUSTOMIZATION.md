@@ -51,7 +51,7 @@ The negotiation section provides frameworks for salary discussions. Replace the 
 
 ## Hooks (Optional)
 
-CareerBot can integrate with external systems via Claude Code hooks. Example hooks:
+CataBull can integrate with external systems via Claude Code hooks. Example hooks:
 
 ```json
 {
@@ -59,7 +59,7 @@ CareerBot can integrate with external systems via Claude Code hooks. Example hoo
     "SessionStart": [{
       "hooks": [{
         "type": "command",
-        "command": "echo 'CareerBot session started'"
+        "command": "echo 'CataBull session started'"
       }]
     }]
   }

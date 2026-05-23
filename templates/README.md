@@ -1,6 +1,6 @@
 # Templates
 
-System-layer template files used by CareerBot scripts and modes. Put user customizations in the user-layer files instead (see DATA_CONTRACT.md).
+System-layer template files used by CataBull scripts and modes. Put user customizations in the user-layer files instead (see DATA_CONTRACT.md).
 
 ## Files
 

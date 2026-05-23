@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * followup-cadence.mjs — Follow-up Cadence Tracker for CareerBot
+ * followup-cadence.mjs — Follow-up Cadence Tracker for CataBull
  *
  * Parses applications.md + follow-ups.md, calculates follow-up cadence
  * for active applications, extracts contacts, and flags overdue entries.
@@ -15,11 +15,11 @@ import { readFileSync, existsSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
-const CAREER_BOT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const APPS_FILE = existsSync(join(CAREER_BOT_ROOT, 'data/applications.md'))
-  ? join(CAREER_BOT_ROOT, 'data/applications.md')
-  : join(CAREER_BOT_ROOT, 'applications.md');
-const FOLLOWUPS_FILE = join(CAREER_BOT_ROOT, 'data/follow-ups.md');
+const CATA_BULL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const APPS_FILE = existsSync(join(CATA_BULL_ROOT, 'data/applications.md'))
+  ? join(CATA_BULL_ROOT, 'data/applications.md')
+  : join(CATA_BULL_ROOT, 'applications.md');
+const FOLLOWUPS_FILE = join(CATA_BULL_ROOT, 'data/follow-ups.md');
 
 
 // --- CLI args ---
@@ -148,7 +148,7 @@ function extractContacts(notes) {
 function resolveReportPath(reportField) {
   const match = reportField.match(/\]\(([^)]+)\)/);
   if (!match) return null;
-  const fullPath = join(CAREER_BOT_ROOT, match[1]);
+  const fullPath = join(CATA_BULL_ROOT, match[1]);
   return existsSync(fullPath) ? match[1] : null;
 }
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * cv-sync-check.mjs — Validates that the CareerBot setup is consistent.
+ * cv-sync-check.mjs — Validates that the CataBull setup is consistent.
  *
  * Checks:
  * 1. cv.md exists
@@ -82,7 +82,7 @@ if (existsSync(digestPath)) {
 }
 
 // Output results
-console.log('\n=== CareerBot sync check ===\n');
+console.log('\n=== CataBull sync check ===\n');
 
 if (errors.length === 0 && warnings.length === 0) {
   console.log('All checks passed.');

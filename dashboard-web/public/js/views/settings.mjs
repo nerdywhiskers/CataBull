@@ -2,7 +2,7 @@ import { api } from '../api.mjs';
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 
-const SCAN_LIMIT_KEY = 'careerbot-scan-limit';
+const SCAN_LIMIT_KEY = 'catabull-scan-limit';
 
 export async function render(container) {
   container.innerHTML = `
@@ -113,7 +113,7 @@ function renderSettings(container, settings, maintenance = {}) {
                   ${tailscaleModeOption('detect', 'Detect only', tailscaleMode)}
                   ${tailscaleModeOption('serve', 'Share with tailnet', tailscaleMode)}
                 </select>
-                <span class="settings-help">CareerBot still listens on localhost.</span>
+                <span class="settings-help">CataBull still listens on localhost.</span>
               </label>
               <div class="settings-field">
                 <div class="settings-field-top">
@@ -130,7 +130,7 @@ function renderSettings(container, settings, maintenance = {}) {
             <div class="settings-section-header">
               <div>
                 <h2>Application Updates</h2>
-                <p>Check the CareerBot repo and pull fast-forward updates into this install.</p>
+                <p>Check the CataBull repo and pull fast-forward updates into this install.</p>
               </div>
             </div>
             <div class="settings-grid settings-grid-compact">
@@ -143,7 +143,7 @@ function renderSettings(container, settings, maintenance = {}) {
                     <span class="toggle-thumb"></span>
                   </label>
                 </div>
-                <span class="settings-help">When enabled, CareerBot checks on launch and applies repo updates automatically when safe.</span>
+                <span class="settings-help">When enabled, CataBull checks on launch and applies repo updates automatically when safe.</span>
               </div>
               <div id="update-status-card" class="update-status-card">
                 <span><span class="spinner"></span> Checking update status</span>
@@ -396,12 +396,12 @@ function bindUpdateControls(container) {
             : (status.dirty
                 ? 'Local uncommitted changes block git pull — commit or stash first'
                 : 'No remote commits ahead of local'))
-        : 'Dev installs only: this is greyed out for npm-installed CareerBot';
+        : 'Dev installs only: this is greyed out for npm-installed CataBull';
     }
 
     const headline = !supported ? 'Updates unavailable'
       : available ? 'Update available'
-      : 'CareerBot is up to date';
+      : 'CataBull is up to date';
     const message = status.message || '';
     const versionLine = status.localVersion || status.remoteVersion
       ? `<span>Local v${esc(status.localVersion || 'unknown')}${status.remoteVersion ? ` · Remote v${esc(status.remoteVersion)}` : ''}</span>`
@@ -435,11 +435,11 @@ function bindUpdateControls(container) {
   applyBtn.addEventListener('click', async () => {
     applyBtn.disabled = true;
     if (gitPullBtn) gitPullBtn.disabled = true;
-    card.innerHTML = '<span><span class="spinner"></span> Running npm install -g github:your-github-user/careerbot (this can take a minute)</span>';
+    card.innerHTML = '<span><span class="spinner"></span> Running npm install -g github:your-github-user/catabull (this can take a minute)</span>';
     try {
       const result = await api.applyUpdate();
       card.innerHTML = `<strong>Update installed</strong><span>${esc(result.message || 'Restart dashboard to finish.')}</span>`;
-      toast(result.message || 'CareerBot updated. Restart dashboard to finish.');
+      toast(result.message || 'CataBull updated. Restart dashboard to finish.');
     } catch (err) {
       card.innerHTML = `<strong>Update failed</strong><span>${esc(err.message || 'Could not apply update')}</span>`;
       toast(err.message || 'Could not apply update', 'error');
@@ -455,7 +455,7 @@ function bindUpdateControls(container) {
       try {
         const result = await api.gitPullUpdate();
         card.innerHTML = `<strong>Pulled from git</strong><span>${esc(result.message || 'Restart dashboard to finish.')}</span>`;
-        toast(result.message || 'CareerBot updated via git pull. Restart dashboard to finish.');
+        toast(result.message || 'CataBull updated via git pull. Restart dashboard to finish.');
       } catch (err) {
         card.innerHTML = `<strong>Git pull failed</strong><span>${esc(err.message || 'Could not run git pull')}</span>`;
         toast(err.message || 'Could not run git pull', 'error');

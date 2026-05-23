@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 
 /**
- * bin/careerbot.mjs — global CLI entry (`npm install -g careerbot`).
+ * bin/catabull.mjs — global CLI entry (`npm install -g catabull`).
  *
  * Usage:
- *   careerbot              start the dashboard at http://localhost:3737
- *   careerbot doctor       run setup checks
- *   careerbot scan         run a portal scan
- *   careerbot scan-health  run a health check
- *   careerbot --help       show this help
+ *   catabull              start the dashboard at http://localhost:3737
+ *   catabull doctor       run setup checks
+ *   catabull scan         run a portal scan
+ *   catabull scan-health  run a health check
+ *   catabull --help       show this help
  *
- * On first run the CLI creates `~/.careerbot/` as the user's workspace
- * (or uses cwd / CAREERBOT_WORKSPACE_ROOT if either points at an existing
+ * On first run the CLI creates `~/.catabull/` as the user's workspace
+ * (or uses cwd / CATABULL_WORKSPACE_ROOT if either points at an existing
  * workspace).
  */
 
@@ -34,19 +34,19 @@ const COMMANDS = {
   verify: { script: 'verify-pipeline.mjs', label: 'Verify pipeline' },
 };
 
-const HELP = `careerbot — AI-powered job search dashboard
+const HELP = `catabull — AI-powered job search dashboard
 Usage:
-  careerbot                start the web dashboard (default)
-  careerbot setup          bootstrap first-run dependencies, then run doctor
-  careerbot doctor         validate setup
-  careerbot scan           run a portal scan (zero LLM tokens)
-  careerbot scan-health    health-check tracked companies
-  careerbot verify         pipeline integrity check
-  careerbot --version      print version
-  careerbot --help         this help
+  catabull                start the web dashboard (default)
+  catabull setup          bootstrap first-run dependencies, then run doctor
+  catabull doctor         validate setup
+  catabull scan           run a portal scan (zero LLM tokens)
+  catabull scan-health    health-check tracked companies
+  catabull verify         pipeline integrity check
+  catabull --version      print version
+  catabull --help         this help
 
 Environment:
-  CAREERBOT_WORKSPACE_ROOT  override workspace location (default ~/.careerbot/)
+  CATABULL_WORKSPACE_ROOT  override workspace location (default ~/.catabull/)
 `;
 
 function readVersion() {
@@ -84,16 +84,16 @@ async function main() {
   const ws = ensureWorkspace({ packageRoot: PACKAGE_ROOT });
 
   if (ws.created) {
-    console.log(`\nWelcome — fresh CareerBot install detected.`);
+    console.log(`\nWelcome — fresh CataBull install detected.`);
     console.log(`  Workspace created at: ${ws.root}`);
     if (ws.scaffold?.copied?.length) {
       console.log(`  Copied templates: ${ws.scaffold.copied.join(', ')}`);
     }
-    console.log(`  Override anytime via CAREERBOT_WORKSPACE_ROOT.\n`);
+    console.log(`  Override anytime via CATABULL_WORKSPACE_ROOT.\n`);
   } else if (ws.reason === 'cwd') {
     console.log(`Using workspace at cwd: ${ws.root}`);
   } else if (ws.reason === 'env') {
-    console.log(`Using workspace from CAREERBOT_WORKSPACE_ROOT: ${ws.root}`);
+    console.log(`Using workspace from CATABULL_WORKSPACE_ROOT: ${ws.root}`);
   } else if (ws.reason === 'home') {
     console.log(`Using workspace: ${ws.root}`);
   }
@@ -110,7 +110,7 @@ async function main() {
     }
   }
 
-  // Spawn the target script with CAREERBOT_WORKSPACE_ROOT set so any
+  // Spawn the target script with CATABULL_WORKSPACE_ROOT set so any
   // sub-process that re-resolves picks the same root. Inherit stdio so
   // the user sees output streaming live (dashboard logs, scan progress).
   const scriptPath = join(PACKAGE_ROOT, target.script);
@@ -118,7 +118,7 @@ async function main() {
     stdio: 'inherit',
     env: {
       ...process.env,
-      CAREERBOT_WORKSPACE_ROOT: ws.root,
+      CATABULL_WORKSPACE_ROOT: ws.root,
     },
   });
 

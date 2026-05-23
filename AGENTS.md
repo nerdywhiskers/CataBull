@@ -1,6 +1,6 @@
-# CareerBot -- AI Job Search Pipeline
+# CataBull -- AI Job Search Pipeline
 
-## What is CareerBot
+## What is CataBull
 
 AI-powered job search dashboard and automation built on Claude Code. Includes a web dashboard with integrated terminal, pipeline tracking, offer evaluation, CV generation, portal scanning, and batch processing.
 

@@ -18,7 +18,7 @@ const FETCH_TIMEOUT_MS = 8000;
 
 const HEADERS = {
   'Accept': 'application/json',
-  'User-Agent': 'Mozilla/5.0 (compatible; CareerBot/1.0)',
+  'User-Agent': 'Mozilla/5.0 (compatible; CataBull/1.0)',
 };
 
 function bambooSlug(company) {

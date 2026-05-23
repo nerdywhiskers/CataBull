@@ -1,6 +1,6 @@
 <div align="center">
 
-# CareerBot
+# CataBull
 
 Your local-first AI job search command center.
 
@@ -21,55 +21,55 @@ Your local-first AI job search command center.
 
 <img width="1937" height="1269" alt="image" src="https://github.com/user-attachments/assets/d3ad5bee-6a1b-4cc8-95ca-b0b240e1ab67" />
 
-Live site: [careerbot landing page](https://nerdywhiskers.github.io/CareerBot/)
+Live site: [catabull landing page](https://nerdywhiskers.github.io/CataBull/)
 
 </div>
 
-CareerBot is a local-first dashboard, scanner, evaluator, and tailored application bundle generator for serious job searches. It works with Claude Code, Codex, OpenCode, Gemini, Hermes, and OpenClaw, while keeping your CV, target list, reports, and application history on your machine.
+CataBull is a local-first dashboard, scanner, evaluator, and tailored application bundle generator for serious job searches. It works with Claude Code, Codex, OpenCode, Gemini, Hermes, and OpenClaw, while keeping your CV, target list, reports, and application history on your machine.
 
 ## Install
 
-**One-line install** - bootstraps Node 18+ via [`fnm`](https://github.com/Schniz/fnm) if you do not already have it, then installs CareerBot and runs first-run setup. No admin or sudo needed.
+**One-line install** - bootstraps Node 18+ via [`fnm`](https://github.com/Schniz/fnm) if you do not already have it, then installs CataBull and runs first-run setup. No admin or sudo needed.
 
 ```bash
 # macOS / Linux
-curl -fsSL https://nerdywhiskers.github.io/CareerBot/install.sh | bash
+curl -fsSL https://nerdywhiskers.github.io/CataBull/install.sh | bash
 ```
 
 ```powershell
 # Windows (PowerShell)
-irm https://nerdywhiskers.github.io/CareerBot/install.ps1 | iex
+irm https://nerdywhiskers.github.io/CataBull/install.ps1 | iex
 ```
 
-Then run `careerbot` and open <http://localhost:3737>. First run scaffolds a workspace at `~/.careerbot/` and installs Playwright Chromium into your user cache.
+Then run `catabull` and open <http://localhost:3737>. First run scaffolds a workspace at `~/.catabull/` and installs Playwright Chromium into your user cache.
 
 **Prefer to see what you are running?** If you already have Node 18+ installed:
 
 ```bash
-# One-shot - runs CareerBot without a permanent install
-npx github:nerdywhiskers/CareerBot
+# One-shot - runs CataBull without a permanent install
+npx github:nerdywhiskers/CataBull
 
 # Or install once and reuse
-npm install -g github:nerdywhiskers/CareerBot
-careerbot
+npm install -g github:nerdywhiskers/CataBull
+catabull
 ```
 
 The CLI also accepts subcommands:
 
 ```bash
-careerbot setup          # bootstrap first-run dependencies, then run doctor
-careerbot doctor         # validate setup
-careerbot scan           # zero-token portal scan
-careerbot scan-health    # health-check tracked companies
-careerbot verify         # pipeline integrity check
-careerbot --help
+catabull setup          # bootstrap first-run dependencies, then run doctor
+catabull doctor         # validate setup
+catabull scan           # zero-token portal scan
+catabull scan-health    # health-check tracked companies
+catabull verify         # pipeline integrity check
+catabull --help
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/nerdywhiskers/CareerBot.git
-cd CareerBot
+git clone https://github.com/nerdywhiskers/CataBull.git
+cd CataBull
 npm install
 npm run dashboard
 ```
@@ -115,7 +115,7 @@ Onboarding requires a working CLI agent on `PATH`; the wizard asks you to pick o
 ## Workspace Layout
 
 ```text
-~/.careerbot/
+~/.catabull/
 |-- cv.md                      Your CV in Markdown
 |-- config/profile.yml         Target roles, narrative, archetypes
 |-- modes/_profile.md          Adaptive framing rules
@@ -141,7 +141,7 @@ If you want your data versioned, fork this repo and repoint your local workspace
 
 ## Landing Page
 
-The marketing site lives on the [`marketing`](https://github.com/nerdywhiskers/CareerBot/tree/marketing) branch, kept separate from the application code on `main`. Every push to that branch auto-deploys to GitHub Pages via `.github/workflows/pages.yml` (which also lives on the `marketing` branch). The site is live at <https://nerdywhiskers.github.io/CareerBot/>.
+The marketing site lives on the [`marketing`](https://github.com/nerdywhiskers/CataBull/tree/marketing) branch, kept separate from the application code on `main`. Every push to that branch auto-deploys to GitHub Pages via `.github/workflows/pages.yml` (which also lives on the `marketing` branch). The site is live at <https://nerdywhiskers.github.io/CataBull/>.
 
 To work on it locally:
 
@@ -152,11 +152,11 @@ node marketing/preview.mjs   # serves marketing/ at http://localhost:8080
 
 ## Attribution
 
-CareerBot is an independent project derived from [career-ops](https://github.com/santifer/career-ops), created by Santiago Fernandez de Valderrama. The `career-ops` name and brand remain with their maintainer and are referenced here only for attribution and lineage. CareerBot is not affiliated with, sponsored by, or endorsed by career-ops. See the [career-ops Trademark Policy](https://github.com/santifer/career-ops/blob/main/TRADEMARK.md) for details.
+CataBull is an independent project derived from [career-ops](https://github.com/santifer/career-ops), created by Santiago Fernandez de Valderrama. The `career-ops` name and brand remain with their maintainer and are referenced here only for attribution and lineage. CataBull is not affiliated with, sponsored by, or endorsed by career-ops. See the [career-ops Trademark Policy](https://github.com/santifer/career-ops/blob/main/TRADEMARK.md) for details.
 
-The CareerBot name and brand are covered by the [CareerBot Trademark Policy](TRADEMARK.md), separate from the MIT-licensed code.
+The CataBull name and brand are covered by the [CataBull Trademark Policy](TRADEMARK.md), separate from the MIT-licensed code.
 
-CareerBot also credits [JobSpy](https://github.com/speedyapply/JobSpy), the Python job scraping library used as a reference for broader job-board discovery patterns.
+CataBull also credits [JobSpy](https://github.com/speedyapply/JobSpy), the Python job scraping library used as a reference for broader job-board discovery patterns.
 
 ## License
 

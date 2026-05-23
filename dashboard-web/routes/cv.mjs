@@ -129,7 +129,7 @@ export function listCvFiles(root) {
 }
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
 
   // List the master CV and any tailored variants saved under output/.
   app.get('/cv/list', async () => {

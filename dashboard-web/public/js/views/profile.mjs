@@ -327,7 +327,7 @@ function update(container) {
   container.querySelector('#new-profile-btn')?.addEventListener('click', async () => {
     const ok = await confirmModal({
       title: 'Create a new profile?',
-      body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:8px">CareerBot will save the current profile as a snapshot, clear the active workspace, and reload onboarding for a fresh profile.</p><p style="font-size:13px;color:var(--subtext0)">Your existing CV, profile, portals, reports, and applications stay stored under Profiles.</p>`,
+      body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:8px">CataBull will save the current profile as a snapshot, clear the active workspace, and reload onboarding for a fresh profile.</p><p style="font-size:13px;color:var(--subtext0)">Your existing CV, profile, portals, reports, and applications stay stored under Profiles.</p>`,
       confirmText: 'Save current and start new',
     });
     if (!ok) return;
@@ -347,7 +347,7 @@ function update(container) {
     const target = storedProfiles.find(p => p.id === selected);
     const ok = await confirmModal({
       title: `Switch to ${esc(target?.label || selected)}?`,
-      body: `<p style="font-size:14px;color:var(--subtext)">CareerBot will save the current active profile, restore the selected profile, and reload the dashboard.</p>`,
+      body: `<p style="font-size:14px;color:var(--subtext)">CataBull will save the current active profile, restore the selected profile, and reload the dashboard.</p>`,
       confirmText: 'Switch profile',
     });
     if (!ok) return;

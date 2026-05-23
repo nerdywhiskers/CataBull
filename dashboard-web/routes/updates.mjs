@@ -1,7 +1,7 @@
 import { applyGitPull, applyUpdate, checkForUpdates, getUpdateStatus } from '../../lib/update-manager.mjs';
 
 export default async function (app) {
-  const packageRoot = app.packageRoot || app.careerBotRoot;
+  const packageRoot = app.packageRoot || app.cataBullRoot;
 
   app.get('/updates/status', async () => getUpdateStatus(packageRoot));
 

@@ -195,7 +195,7 @@ export function sanitizeCandidates(raw, { existingNames = new Set(), target = 25
 }
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
 
   app.get('/onboarding/status', async () => {
     const steps = {
@@ -507,7 +507,7 @@ export default async function (app) {
     // The verifier handles URL discovery per-candidate so we never save
     // an invented slug.
     const proposerPrompt = [
-      `You are proposing job-portal candidates for a CareerBot user. Read cv.md and config/profile.yml, then output a JSON array of up to ${target} companies the user should track.`,
+      `You are proposing job-portal candidates for a CataBull user. Read cv.md and config/profile.yml, then output a JSON array of up to ${target} companies the user should track.`,
       '',
       'Selection criteria, in priority order:',
       `1. The company plausibly hires for ${targetRoles.length ? `the user's target roles (${targetRoles.slice(0, 5).join(', ')})` : 'the user\'s target roles'} on a recurring basis. Match the company's typical job mix to the role mix — don't propose AI-infra or pure SaaS firms for creative/design candidates.`,

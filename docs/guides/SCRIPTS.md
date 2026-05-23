@@ -6,11 +6,11 @@ Root `.mjs` files are compatibility wrappers. The implementations live in `scrip
 
 | Command | Script | Purpose |
 |---------|--------|---------|
-| `careerbot` / `npm run dashboard` | `dashboard-web/server.mjs` | Launch the web dashboard (primary entry point) |
-| `careerbot doctor` / `npm run doctor` | `doctor.mjs` | Validate setup prerequisites |
-| `careerbot scan` / `npm run scan` | `scan.mjs` | Zero-token portal scanner |
-| `careerbot scan-health` / `npm run scan-health` | `scan-health.mjs` | Health-check tracked companies (W1) |
-| `careerbot verify` / `npm run verify` | `verify-pipeline.mjs` | Check pipeline data integrity |
+| `catabull` / `npm run dashboard` | `dashboard-web/server.mjs` | Launch the web dashboard (primary entry point) |
+| `catabull doctor` / `npm run doctor` | `doctor.mjs` | Validate setup prerequisites |
+| `catabull scan` / `npm run scan` | `scan.mjs` | Zero-token portal scanner |
+| `catabull scan-health` / `npm run scan-health` | `scan-health.mjs` | Health-check tracked companies (W1) |
+| `catabull verify` / `npm run verify` | `verify-pipeline.mjs` | Check pipeline data integrity |
 | `npm run normalize` | `normalize-statuses.mjs` | Fix non-canonical statuses |
 | `npm run dedup` | `dedup-tracker.mjs` | Remove duplicate tracker entries |
 | `npm run merge` | `merge-tracker.mjs` | Merge batch TSVs into applications.md |
@@ -108,7 +108,7 @@ npm run pdf -- input.html output.pdf --format=a4        # A4 (default)
 
 ## sync-check
 
-Validates that the CareerBot setup is internally consistent: `cv.md` exists and is not too short, `config/profile.yml` exists with required fields, no hardcoded metrics in `modes/_shared.md` or `batch/batch-prompt.md`, and `article-digest.md` freshness (warns if older than 30 days).
+Validates that the CataBull setup is internally consistent: `cv.md` exists and is not too short, `config/profile.yml` exists with required fields, no hardcoded metrics in `modes/_shared.md` or `batch/batch-prompt.md`, and `article-digest.md` freshness (warns if older than 30 days).
 
 ```bash
 npm run sync-check
@@ -162,9 +162,9 @@ npm run scan-health
 
 These are invoked directly by modes or the dashboard, not as top-level commands:
 
-- `analyze-patterns.mjs` — rejection pattern analysis (JSON output), used by `/careerbot patterns`
-- `followup-cadence.mjs` — follow-up timing calculator (JSON output), used by `/careerbot followup`
-- `bin/careerbot.mjs` — global CLI entry shim (used by `npm install -g github:your-github-user/careerbot`)
+- `analyze-patterns.mjs` — rejection pattern analysis (JSON output), used by `/catabull patterns`
+- `followup-cadence.mjs` — follow-up timing calculator (JSON output), used by `/catabull followup`
+- `bin/catabull.mjs` — global CLI entry shim (used by `npm install -g github:your-github-user/catabull`)
 
 ## Test scripts
 

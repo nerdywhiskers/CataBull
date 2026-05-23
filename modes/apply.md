@@ -99,7 +99,7 @@ Notes:
 If the candidate confirms they submitted the application:
 1. Update status in `applications.md` from "Evaluated" to "Applied"
 2. Update Section H of the report with final answers
-3. Suggest next step: `/careerbot outreach` for LinkedIn outreach
+3. Suggest next step: `/catabull outreach` for LinkedIn outreach
 
 ## Step 7 -- Write Memory (max 1 entry)
 

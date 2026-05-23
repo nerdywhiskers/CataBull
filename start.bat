@@ -1,5 +1,5 @@
 @echo off
-title CareerBot dashboard
+title CataBull dashboard
 where node >nul 2>nul
 if %errorlevel% neq 0 (
     echo.

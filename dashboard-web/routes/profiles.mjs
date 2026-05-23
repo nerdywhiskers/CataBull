@@ -9,7 +9,7 @@ import {
 } from '../lib/user-data.mjs';
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
 
   app.get('/profiles', async () => ({
     profiles: listProfiles(root),

@@ -4,7 +4,7 @@
  * test-resolver.mjs — Unit tests for lib/workspace-resolver.mjs (PR 1.8).
  *
  * Uses temp dirs to simulate fresh-install / cwd-is-workspace / env-override
- * scenarios without touching the user's real ~/.careerbot/.
+ * scenarios without touching the user's real ~/.catabull/.
  */
 
 import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync } from 'fs';
@@ -39,7 +39,7 @@ const {
 console.log('\nlib/workspace-resolver.mjs');
 
 function withTemp(fn) {
-  const dir = mkdtempSync(join(tmpdir(), 'careerbot-resolver-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'catabull-resolver-test-'));
   try { return fn(dir); }
   finally { try { rmSync(dir, { recursive: true, force: true }); } catch {} }
 }
@@ -93,7 +93,7 @@ withTemp((envDir) => {
   withTemp((cwdDir) => {
     withTemp((homeDir) => {
       const r = resolveWorkspaceRoot({
-        env: { CAREERBOT_WORKSPACE_ROOT: envDir },
+        env: { CATABULL_WORKSPACE_ROOT: envDir },
         cwd: cwdDir,
         home: homeDir,
         autoCreate: false,
@@ -109,7 +109,7 @@ withTemp((cwdDir) => {
   withTemp((homeDir) => {
     // Empty env var should NOT win
     const r = resolveWorkspaceRoot({
-      env: { CAREERBOT_WORKSPACE_ROOT: '   ' },
+      env: { CATABULL_WORKSPACE_ROOT: '   ' },
       cwd: cwdDir,
       home: homeDir,
       autoCreate: false,
@@ -147,7 +147,7 @@ withTemp((cwdDir) => {
       autoCreate: false,
     });
     assert(r.reason === 'home', 'falls through to home');
-    assert(r.root === join(homeDir, '.careerbot'), 'home subdir is .careerbot');
+    assert(r.root === join(homeDir, '.catabull'), 'home subdir is .catabull');
   });
 });
 
@@ -156,7 +156,7 @@ withTemp((cwdDir) => {
 console.log('\n4. resolveWorkspaceRoot — home auto-create');
 
 withTemp((homeDir) => {
-  const target = join(homeDir, '.careerbot');
+  const target = join(homeDir, '.catabull');
   assert(!existsSync(target), 'home subdir starts missing');
   const r = resolveWorkspaceRoot({
     env: {},
@@ -187,7 +187,7 @@ withTemp((homeDir) => {
   });
   assert(r.reason === 'home', 'home reason still set');
   assert(r.created === false, 'created false when autoCreate disabled');
-  assert(!existsSync(join(homeDir, '.careerbot')), 'home subdir NOT created');
+  assert(!existsSync(join(homeDir, '.catabull')), 'home subdir NOT created');
 });
 
 // ── 5. resolveWorkspaceRoot — project fallback ────────────────────────
@@ -304,9 +304,9 @@ withTemp((pkgDir) => {
       cwd: tmpdir(),
       home: homeDir,
     });
-    assert(r.created === true, 'fresh ~/.careerbot/ created');
+    assert(r.created === true, 'fresh ~/.catabull/ created');
     assert(r.scaffold && r.scaffold.copied.length > 0, 'templates copied to fresh workspace');
-    assert(existsSync(join(homeDir, '.careerbot', 'portals.yml.example')), 'sample portals file landed');
+    assert(existsSync(join(homeDir, '.catabull', 'portals.yml.example')), 'sample portals file landed');
 
     // Second call doesn't re-scaffold
     const r2 = ensureWorkspace({

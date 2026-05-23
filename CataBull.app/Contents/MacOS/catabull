@@ -1,13 +1,13 @@
 #!/bin/bash
-# CareerBot.app launcher.
+# CataBull.app launcher.
 #
-# This bundle exists so macOS Gatekeeper treats CareerBot as a proper app —
+# This bundle exists so macOS Gatekeeper treats CataBull as a proper app —
 # one-time "Open" prompt the first time, no prompt afterwards. The actual
 # work is delegated to start.command in the project root, run inside a
 # visible Terminal window so users see installation progress and errors.
 
 # Resolve project root: this script lives at
-#   <project-root>/CareerBot.app/Contents/MacOS/careerbot
+#   <project-root>/CataBull.app/Contents/MacOS/catabull
 # so the project root is three levels up.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"

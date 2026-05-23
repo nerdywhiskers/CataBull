@@ -16,7 +16,7 @@ import { readProfile } from '../lib/writers.mjs';
 import { asWorkspace } from '../../lib/workspace.mjs';
 
 export default async function (app) {
-  const root = app.careerBotRoot;
+  const root = app.cataBullRoot;
 
   app.post('/tailor', async (req, reply) => {
     const { company, role, url, jd } = req.body || {};

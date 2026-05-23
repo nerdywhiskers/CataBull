@@ -1,9 +1,9 @@
 {
-  "name": "careerbot",
+  "name": "catabull",
   "version": "1.4.1",
   "description": "AI-powered job search pipeline — local-first dashboard, scanner, evaluator, and tailored application bundles built on Claude Code / Codex / OpenCode / Gemini / Hermes / OpenClaw",
   "bin": {
-    "careerbot": "bin/careerbot.mjs"
+    "catabull": "bin/catabull.mjs"
   },
   "files": [
     "bin/",
@@ -64,7 +64,7 @@
     "cv",
     "cli"
   ],
-  "author": "CareerBot contributors",
+  "author": "CataBull contributors",
   "license": "MIT",
   "dependencies": {
     "@fastify/multipart": "^10.0.0",

@@ -190,7 +190,7 @@ async function safeFetch(url, opts = {}) {
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
-      headers: { 'User-Agent': 'careerbot-healthcheck/1.0' },
+      headers: { 'User-Agent': 'catabull-healthcheck/1.0' },
     });
     if (!res.ok) return { ok: false, status: res.status };
     const text = await res.text();
