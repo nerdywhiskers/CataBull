@@ -131,7 +131,7 @@ function dots() {
 function renderWelcome() {
   return `
     <div class="onboarding-header">
-      <h1><span>Career</span>Bot</h1>
+      <h1><span>Cata</span>Bull</h1>
       <p>AI-powered job search pipeline. Let's get you set up.</p>
     </div>
     <div class="onboarding-step active">
