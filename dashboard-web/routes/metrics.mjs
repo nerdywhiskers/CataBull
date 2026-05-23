@@ -7,7 +7,12 @@ export default async function (app) {
   const root = app.cataBullRoot;
 
   function runJsonScript(scriptName, args = []) {
-    return spawnWithTimeout(join(root, scriptName), args, { cwd: root, timeoutMs: 300_000 })
+    // Scripts live in the package; point them at the user's workspace via env.
+    return spawnWithTimeout(join(app.packageRoot, scriptName), args, {
+      cwd: root,
+      timeoutMs: 300_000,
+      env: { ...process.env, CATABULL_WORKSPACE_ROOT: root },
+    })
       .then(result => {
         try {
           return JSON.parse(result.stdout || '{}');

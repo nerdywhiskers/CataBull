@@ -21,12 +21,17 @@ function parseLivenessOutput(stdout) {
 
 export default async function (app) {
   const root = app.cataBullRoot;
+  // Helper scripts live in the package, not the user's workspace (the two
+  // differ in a ~/.catabull home install). Launch from packageRoot and tell
+  // the script which workspace to operate on via CATABULL_WORKSPACE_ROOT.
+  const packageRoot = app.packageRoot;
+  const scriptEnv = { ...process.env, CATABULL_WORKSPACE_ROOT: root };
 
   // Manual scan (legacy endpoint)
   app.post('/actions/scan', async (req) => {
     const dryRun = req.body?.dryRun || false;
     const extraArgs = dryRun ? ['--dry-run'] : [];
-    return runNodeScript(join(root, 'scan.mjs'), extraArgs, { cwd: root, timeoutMs: 120000 });
+    return runNodeScript(join(packageRoot, 'scan.mjs'), extraArgs, { cwd: root, timeoutMs: 120000, env: scriptEnv });
   });
 
   // Scan scheduler endpoints
@@ -56,7 +61,7 @@ export default async function (app) {
     const limit = parseInt(req.body?.limit, 10);
     const args = ['--dry-run', '--json', '--diagnose'];
     if (Number.isFinite(limit) && limit > 0) args.push('--limit', String(limit));
-    const result = await runNodeScript(join(root, 'scan.mjs'), args, { cwd: root, timeoutMs: 300000 });
+    const result = await runNodeScript(join(packageRoot, 'scan.mjs'), args, { cwd: root, timeoutMs: 300000, env: scriptEnv });
     if (result.exitCode !== 0) {
       return { success: false, error: result.stderr || result.stdout || 'Scan diagnostics failed' };
     }
@@ -73,7 +78,7 @@ export default async function (app) {
     const urls = req.body?.urls;
     if (!urls || !urls.length) return reply.code(400).send({ error: 'urls array is required' });
 
-    const result = await runNodeScript(join(root, 'check-liveness.mjs'), urls, { cwd: root, timeoutMs: 300000 });
+    const result = await runNodeScript(join(packageRoot, 'check-liveness.mjs'), urls, { cwd: root, timeoutMs: 300000, env: scriptEnv });
     if (result.exitCode === -1) return { results: [], error: 'Timed out' };
     if (result.exitCode === -2) return { results: [], error: result.stderr.trim() };
     return { results: parseLivenessOutput(result.stdout + result.stderr) };
@@ -95,7 +100,7 @@ export default async function (app) {
 
     const urls = pending.map(p => p.url);
 
-    const result = await runNodeScript(join(root, 'check-liveness.mjs'), urls, { cwd: root, timeoutMs: 600000 });
+    const result = await runNodeScript(join(packageRoot, 'check-liveness.mjs'), urls, { cwd: root, timeoutMs: 600000, env: scriptEnv });
     if (result.exitCode === -1) return { checked: 0, expired: 0, error: 'Timed out' };
     if (result.exitCode === -2) return { checked: 0, expired: 0, error: result.stderr.trim() };
 

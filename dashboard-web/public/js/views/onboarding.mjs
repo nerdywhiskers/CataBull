@@ -131,8 +131,16 @@ function dots() {
 function renderWelcome() {
   return `
     <div class="onboarding-header">
-      <h1><span>Cata</span>Bull</h1>
-      <p>AI-powered job search pipeline. Let's get you set up.</p>
+      <div class="onboarding-brand">
+        <img class="onboarding-logo" src="/CataBull-logo.svg" alt="" width="36" height="36" />
+        <h1><span>Cata</span>Bull</h1>
+      </div>
+      <h2 class="onboarding-subtitle">AI-powered job search pipeline. Let's get you set up.</h2>
+      <div class="onboarding-define">
+        <p class="define-headword">CataBull <span class="define-pron">/ˈkat·ə·bool/</span> <span class="define-pos">verb</span></p>
+        <p class="define-meaning">to catapult oneself into a new and better job.</p>
+        <p class="define-example">"After two years stuck, she CataBulled into a team she loves."</p>
+      </div>
     </div>
     <div class="onboarding-step active">
       <p class="step-description" style="font-size:15px;line-height:1.6">

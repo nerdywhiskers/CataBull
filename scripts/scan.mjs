@@ -19,6 +19,7 @@
 import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
+import { defaultWorkspace } from '../lib/workspace.mjs';
 import yaml from 'js-yaml';
 import { resolveProvider } from '../scan/providers/index.mjs';
 import { disposeBrowser as disposeWebfetchBrowser } from '../scan/providers/webfetch.mjs';
@@ -39,7 +40,10 @@ const parseYaml = yaml.load;
 // Resolve all data paths relative to the script location, not cwd. Otherwise
 // running `node /abs/path/to/scan.mjs` from a different working directory
 // would silently read/write the wrong files.
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+// Data root = the user's workspace. CATABULL_WORKSPACE_ROOT (set by the CLI and
+// the dashboard when it spawns scripts) wins; otherwise fall back to the package
+// dir so a direct run from a git clone keeps working.
+const ROOT = defaultWorkspace(resolve(dirname(fileURLToPath(import.meta.url)), '..')).root;
 const PORTALS_PATH = join(ROOT, 'portals.yml');
 const PROFILE_PATH = join(ROOT, 'config/profile.yml');
 const SCAN_HISTORY_PATH = join(ROOT, 'data/scan-history.tsv');

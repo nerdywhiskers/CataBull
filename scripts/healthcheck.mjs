@@ -27,11 +27,15 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { spawn } from 'child_process';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
+import { defaultWorkspace } from '../lib/workspace.mjs';
 import yaml from 'js-yaml';
 import { probeWithNetworkCapture, disposeBrowser } from './healthcheck-phase2.mjs';
 import { fetchJobspyForCompany } from '../scan/providers/jobspy.mjs';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+// Data root = the user's workspace. CATABULL_WORKSPACE_ROOT (set by the CLI and
+// the dashboard when it spawns scripts) wins; otherwise fall back to the package
+// dir so a direct run from a git clone keeps working.
+const ROOT = defaultWorkspace(resolve(dirname(fileURLToPath(import.meta.url)), '..')).root;
 const PORTALS_PATH = join(ROOT, 'portals.yml');
 const HEALTH_PATH = join(ROOT, 'data', 'scan-health.json');
 const PROPOSALS_PATH = join(ROOT, 'data', 'healthcheck-proposals.json');

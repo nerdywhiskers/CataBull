@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { startScheduler } from './lib/scheduler.mjs';
 import { DEFAULT_RUN_TIMEOUT_MS, MAX_RUN_TIMEOUT_MS } from './routes/terminal.mjs';
 import { defaultWorkspace } from '../lib/workspace.mjs';
-import { ensureWorkspace } from '../lib/workspace-resolver.mjs';
+import { ensureWorkspace, syncSystemLayer } from '../lib/workspace-resolver.mjs';
 import { registerSecurity, logSessionToken } from './lib/security.mjs';
 import { loadEnvFile } from '../lib/load-env.mjs';
 import { startTailscaleServe } from '../lib/tailscale.mjs';
@@ -34,6 +34,11 @@ const resolved = ensureWorkspace({
 });
 const workspace = defaultWorkspace(resolved.root);
 const CATA_BULL_ROOT = workspace.root;
+
+// In a home install the agent runs with cwd = workspace, but its system files
+// (modes/*.md, cv templates, the /catabull skill) ship in the package. Mirror
+// them into the workspace so agent workflows resolve. No-op in a source-tree run.
+const systemSync = syncSystemLayer(PROJECT_ROOT, CATA_BULL_ROOT);
 
 // Load .env from the workspace before any route uses process.env.
 // Shell-set vars always win — this is just for users who put secrets
@@ -98,6 +103,9 @@ app.listen({ port: PORT, host: '127.0.0.1' }, (err) => {
     if (resolved.scaffold?.copied?.length) {
       console.log(`  ↳ Templates copied: ${resolved.scaffold.copied.join(', ')}`);
     }
+  }
+  if (systemSync.synced.length) {
+    console.log(`  ↳ System layer synced into workspace (${systemSync.synced.length} items: modes, templates, skill).`);
   }
   // Surface the agent timeout so a stale running server is obvious at a
   // glance — e.g. if you pulled a timeout change but didn't restart, the
