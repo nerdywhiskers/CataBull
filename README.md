@@ -139,22 +139,9 @@ Start at [docs/README.md](docs/README.md) for the doc index. Highlights:
 
 If you want your data versioned, fork this repo and repoint your local workspace at the fork. Dashboard works identically with or without a fork; your data is on disk either way.
 
-## Landing Page
-
-The marketing site lives on the [`marketing`](https://github.com/nerdywhiskers/CataBull/tree/marketing) branch, kept separate from the application code on `main`. Every push to that branch auto-deploys to GitHub Pages via `.github/workflows/pages.yml` (which also lives on the `marketing` branch). The site is live at <https://nerdywhiskers.github.io/CataBull/>.
-
-To work on it locally:
-
-```bash
-git switch marketing
-node marketing/preview.mjs   # serves marketing/ at http://localhost:8080
-```
-
 ## Attribution
 
-CataBull is an independent project derived from [career-ops](https://github.com/santifer/career-ops), created by Santiago Fernandez de Valderrama. The `career-ops` name and brand remain with their maintainer and are referenced here only for attribution and lineage. CataBull is not affiliated with, sponsored by, or endorsed by career-ops. See the [career-ops Trademark Policy](https://github.com/santifer/career-ops/blob/main/TRADEMARK.md) for details.
-
-The CataBull name and brand are covered by the [CataBull Trademark Policy](TRADEMARK.md), separate from the MIT-licensed code.
+CataBull is an independent project derived from [career-ops](https://github.com/santifer/career-ops), created by Santiago Fernandez de Valderrama. CataBull is not affiliated with, sponsored by, or endorsed by career-ops.
 
 CataBull also credits [JobSpy](https://github.com/speedyapply/JobSpy), the Python job scraping library used as a reference for broader job-board discovery patterns.
 
