@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CareerBot Architecture Flowchart</title>
-  <meta name="description" content="Interactive CareerBot architecture flowchart for users, contributors, and agents picking up the project." />
+  <title>CataBull Architecture Flowchart</title>
+  <meta name="description" content="Interactive CataBull architecture flowchart for users, contributors, and agents picking up the project." />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,15 +14,15 @@
 <body class="architecture-page">
 <header class="nav">
   <div class="container nav-inner">
-    <a href="./" class="brand" aria-label="CareerBot">
-      <img src="CareerBot-logo.svg" alt="" width="32" height="32" class="brand-logo" />
-      <span>Career<span class="brand-accent">Bot</span></span>
+    <a href="./" class="brand" aria-label="CataBull">
+      <img src="CataBull-logo.svg" alt="" width="32" height="32" class="brand-logo" />
+      <span>Cata<span class="brand-accent">Bull</span></span>
     </a>
     <nav class="nav-links">
       <a href="./#features">Features</a>
       <a href="./#how-it-works">How it works</a>
       <a href="architecture.html" aria-current="page">Architecture</a>
-      <a href="https://github.com/your-github-user/careerbot" rel="noopener">GitHub</a>
+      <a href="https://github.com/your-github-user/catabull" rel="noopener">GitHub</a>
     </nav>
     <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" type="button">
       <svg id="icon-dark" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 8.5a5.5 5.5 0 1 1-6-6 4.5 4.5 0 0 0 6 6z"/></svg>
@@ -35,7 +35,7 @@
   <section class="architecture-hero">
     <div class="container architecture-hero-inner">
       <span class="kicker">System map</span>
-      <h1>How CareerBot actually works.</h1>
+      <h1>How CataBull actually works.</h1>
       <p class="lede">
         A guided flowchart for the local dashboard, scanner, agent modes, pipeline, data contract, and resume generation loop.
       </p>
@@ -63,13 +63,13 @@
       </div>
 
       <div class="flow-shell">
-        <div class="flow-grid" aria-label="CareerBot architecture flow">
+        <div class="flow-grid" aria-label="CataBull architecture flow">
           <section class="flow-lane">
             <div class="lane-heading">
               <span class="lane-number">01</span>
               <h3>Start</h3>
             </div>
-            <button class="flow-node active" type="button" data-flow-node data-node-id="entry" data-tip="The dashboard and CLI both resolve a workspace before anything else runs." data-title="Entry points" data-summary="Users start through the global careerbot CLI, npm run dashboard, or the static install scripts. The local Fastify dashboard runs at localhost:3737 and becomes the main control surface." data-files="bin/careerbot.mjs, start.mjs, dashboard-web/server.mjs, marketing/install.sh, marketing/install.ps1" data-risks="Keep install scripts, package bin entries, and dashboard startup paths aligned. A broken entrypoint makes the project feel broken even if the internals are fine.">
+            <button class="flow-node active" type="button" data-flow-node data-node-id="entry" data-tip="The dashboard and CLI both resolve a workspace before anything else runs." data-title="Entry points" data-summary="Users start through the global catabull CLI, npm run dashboard, or the static install scripts. The local Fastify dashboard runs at localhost:3737 and becomes the main control surface." data-files="bin/catabull.mjs, start.mjs, dashboard-web/server.mjs, marketing/install.sh, marketing/install.ps1" data-risks="Keep install scripts, package bin entries, and dashboard startup paths aligned. A broken entrypoint makes the project feel broken even if the internals are fine.">
               <span class="node-kicker">CLI + dashboard</span>
               <strong>Entry points</strong>
               <small>Install, launch, onboard</small>
@@ -130,7 +130,7 @@
               <span class="lane-number">04</span>
               <h3>Generate</h3>
             </div>
-            <button class="flow-node" type="button" data-flow-node data-node-id="agent" data-tip="CareerBot is agent-ready: the selected CLI is launched as a subprocess, with project modes as its playbook." data-title="Agent layer" data-summary="Interactive chat and headless tasks both spawn the user's chosen agent. The dashboard wraps CLI sessions, resumes conversations, and routes mode-specific work through prompt files." data-files="dashboard-web/lib/agents.mjs, dashboard-web/routes/terminal.mjs, dashboard-web/public/js/views/chat.mjs, modes/*.md" data-risks="Each agent CLI has different flags. Keep launch arguments tested so chat, headless tailor, and evaluation flows do not drift apart.">
+            <button class="flow-node" type="button" data-flow-node data-node-id="agent" data-tip="CataBull is agent-ready: the selected CLI is launched as a subprocess, with project modes as its playbook." data-title="Agent layer" data-summary="Interactive chat and headless tasks both spawn the user's chosen agent. The dashboard wraps CLI sessions, resumes conversations, and routes mode-specific work through prompt files." data-files="dashboard-web/lib/agents.mjs, dashboard-web/routes/terminal.mjs, dashboard-web/public/js/views/chat.mjs, modes/*.md" data-risks="Each agent CLI has different flags. Keep launch arguments tested so chat, headless tailor, and evaluation flows do not drift apart.">
               <span class="node-kicker">Claude, Codex, OpenCode, Gemini</span>
               <strong>Agent layer</strong>
               <small>Interactive + headless</small>
@@ -152,12 +152,12 @@
               <span class="lane-number">05</span>
               <h3>Persist</h3>
             </div>
-            <button class="flow-node" type="button" data-flow-node data-node-id="workspace" data-tip="The workspace resolver lets the npm package and source checkout behave consistently." data-title="Workspace resolver" data-summary="CareerBot resolves user data through CAREERBOT_WORKSPACE_ROOT, the current directory when it has markers, the project tree, or ~/.careerbot for installed CLI usage." data-files="lib/workspace-resolver.mjs, lib/workspace.mjs, dashboard-web/server.mjs, bin/careerbot.mjs" data-risks="Every route and script should resolve through the same workspace rules so data does not split across multiple directories.">
+            <button class="flow-node" type="button" data-flow-node data-node-id="workspace" data-tip="The workspace resolver lets the npm package and source checkout behave consistently." data-title="Workspace resolver" data-summary="CataBull resolves user data through CATABULL_WORKSPACE_ROOT, the current directory when it has markers, the project tree, or ~/.catabull for installed CLI usage." data-files="lib/workspace-resolver.mjs, lib/workspace.mjs, dashboard-web/server.mjs, bin/catabull.mjs" data-risks="Every route and script should resolve through the same workspace rules so data does not split across multiple directories.">
               <span class="node-kicker">Local storage</span>
               <strong>Workspace resolver</strong>
               <small>Where data lives</small>
             </button>
-            <button class="flow-node" type="button" data-flow-node data-node-id="data" data-tip="CareerBot intentionally uses human-editable files instead of a database." data-title="Markdown data model" data-summary="The app stores profile, pipeline, reports, applications, scan history, memory, and generated output as markdown, YAML, TSV, and files on disk." data-files="data/*, reports/*, output/*, memory/*, config/profile.yml, portals.yml" data-risks="Respect the data contract: user layer is never auto-updated, while system layer can ship improvements.">
+            <button class="flow-node" type="button" data-flow-node data-node-id="data" data-tip="CataBull intentionally uses human-editable files instead of a database." data-title="Markdown data model" data-summary="The app stores profile, pipeline, reports, applications, scan history, memory, and generated output as markdown, YAML, TSV, and files on disk." data-files="data/*, reports/*, output/*, memory/*, config/profile.yml, portals.yml" data-risks="Respect the data contract: user layer is never auto-updated, while system layer can ship improvements.">
               <span class="node-kicker">No database</span>
               <strong>Markdown data model</strong>
               <small>YAML, MD, TSV, files</small>
@@ -195,11 +195,11 @@
         <aside class="flow-inspector" aria-live="polite">
           <span class="inspector-label">Selected node</span>
           <h3 id="inspector-title">Entry points</h3>
-          <p id="inspector-summary">Users start through the global careerbot CLI, npm run dashboard, or the static install scripts. The local Fastify dashboard runs at localhost:3737 and becomes the main control surface.</p>
+          <p id="inspector-summary">Users start through the global catabull CLI, npm run dashboard, or the static install scripts. The local Fastify dashboard runs at localhost:3737 and becomes the main control surface.</p>
           <dl class="inspector-meta">
             <div>
               <dt>Key files</dt>
-              <dd id="inspector-files">bin/careerbot.mjs, start.mjs, dashboard-web/server.mjs, marketing/install.sh, marketing/install.ps1</dd>
+              <dd id="inspector-files">bin/catabull.mjs, start.mjs, dashboard-web/server.mjs, marketing/install.sh, marketing/install.ps1</dd>
             </div>
             <div>
               <dt>Watch out for</dt>
@@ -245,7 +245,7 @@
       </div>
       <pre class="agent-json"><code>{
   "project": {
-    "name": "CareerBot",
+    "name": "CataBull",
     "purpose": "Local-first AI job search dashboard and automation system for finding real roles, evaluating fit, generating tailored resumes, and tracking the pipeline.",
     "runtime": "Node.js 18+, Fastify, vanilla JavaScript, Playwright, markdown/YAML/TSV data files",
     "dashboard_url": "http://localhost:3737",
@@ -366,11 +366,11 @@
 
 <footer class="footer">
   <div class="container footer-inner">
-    <span class="footer-brand">CareerBot architecture map</span>
+    <span class="footer-brand">CataBull architecture map</span>
     <span class="footer-links">
       <a href="./">Marketing home</a>
-      <a href="https://github.com/your-github-user/careerbot">GitHub</a>
-      <a href="https://github.com/your-github-user/careerbot/blob/main/docs/design/ARCHITECTURE.md">Architecture docs</a>
+      <a href="https://github.com/your-github-user/catabull">GitHub</a>
+      <a href="https://github.com/your-github-user/catabull/blob/main/docs/design/ARCHITECTURE.md">Architecture docs</a>
     </span>
   </div>
 </footer>
@@ -379,7 +379,7 @@
   const root = document.documentElement;
   const dark = document.getElementById('icon-dark');
   const light = document.getElementById('icon-light');
-  const saved = localStorage.getItem('careerbot-marketing-theme') || 'dark';
+  const saved = localStorage.getItem('catabull-marketing-theme') || 'dark';
   root.setAttribute('data-theme', saved);
   if (saved === 'light') {
     dark.style.display = 'none';
@@ -390,7 +390,7 @@
     const cur = root.getAttribute('data-theme');
     const next = cur === 'dark' ? 'light' : 'dark';
     root.setAttribute('data-theme', next);
-    localStorage.setItem('careerbot-marketing-theme', next);
+    localStorage.setItem('catabull-marketing-theme', next);
     dark.style.display = next === 'dark' ? 'block' : 'none';
     light.style.display = next === 'light' ? 'block' : 'none';
   });

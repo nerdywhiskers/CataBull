@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
 #
-# CareerBot installer for macOS and Linux.
+# CataBull installer for macOS and Linux.
 #
 # Usage:
-#   curl -fsSL https://your-github-user.github.io/careerbot/install.sh | bash
+#   curl -fsSL https://your-github-user.github.io/catabull/install.sh | bash
 #
 # What it does:
 #   1. Detect Node 18+. If missing, install fnm + Node 22 (no admin needed).
-#   2. npm install -g github:your-github-user/careerbot
-#   3. careerbot setup  (installs Playwright Chromium into user cache)
+#   2. npm install -g github:your-github-user/catabull
+#   3. catabull setup  (installs Playwright Chromium into user cache)
 #
 # Environment overrides:
-#   CAREERBOT_REPO       — github:<owner>/<repo> source (default: your-github-user/careerbot)
-#   CAREERBOT_NODE_MAJOR — Node major version to install if missing (default: 22)
-#   CAREERBOT_SKIP_SETUP — set to 1 to skip the post-install `careerbot setup` step
+#   CATABULL_REPO       — github:<owner>/<repo> source (default: your-github-user/catabull)
+#   CATABULL_NODE_MAJOR — Node major version to install if missing (default: 22)
+#   CATABULL_SKIP_SETUP — set to 1 to skip the post-install `catabull setup` step
 
 set -euo pipefail
 
-REPO="${CAREERBOT_REPO:-your-github-user/careerbot}"
+REPO="${CATABULL_REPO:-your-github-user/catabull}"
 MIN_NODE_MAJOR=18
-NODE_MAJOR="${CAREERBOT_NODE_MAJOR:-22}"
+NODE_MAJOR="${CATABULL_NODE_MAJOR:-22}"
 
 # ANSI helpers — only if stdout is a TTY (skip during `| less`, etc.)
 if [ -t 1 ]; then
@@ -33,7 +33,7 @@ hint() { printf '%s%s%s\n' "$DIM"  "$1" "$RESET"; }
 warn() { printf '%s%s%s\n' "$YELLOW" "$1" "$RESET" >&2; }
 fail() { printf '%s%s%s\n' "$RED"  "$1" "$RESET" >&2; exit 1; }
 
-say "CareerBot installer"
+say "CataBull installer"
 hint "Source: github:$REPO"
 echo
 
@@ -50,7 +50,7 @@ if command -v node >/dev/null 2>&1; then
     say "✓ Node $current_v detected"
     have_node=1
   else
-    hint "Node $current_v detected, but CareerBot needs >= v$MIN_NODE_MAJOR"
+    hint "Node $current_v detected, but CataBull needs >= v$MIN_NODE_MAJOR"
   fi
 fi
 
@@ -88,16 +88,16 @@ if [ "$have_node" -eq 0 ]; then
   say "✓ Node $(node -v) ready"
 fi
 
-# --- 3. Install careerbot globally from GitHub ---
-say "→ Installing careerbot from github:$REPO"
+# --- 3. Install catabull globally from GitHub ---
+say "→ Installing catabull from github:$REPO"
 npm install -g "github:$REPO" >/dev/null
-command -v careerbot >/dev/null 2>&1 || fail "careerbot installed but not on PATH. You may need to add the npm global bin to your PATH and re-open your terminal."
-say "✓ careerbot $(careerbot --version 2>/dev/null || echo 'installed')"
+command -v catabull >/dev/null 2>&1 || fail "catabull installed but not on PATH. You may need to add the npm global bin to your PATH and re-open your terminal."
+say "✓ catabull $(catabull --version 2>/dev/null || echo 'installed')"
 
 # --- 4. Optional: install uv for JobSpy (Deep Scan Level 4) ---
 # uv is Astral's single-binary Python manager. Same UX as fnm for Node:
 # no admin, no system Python pollution. Skip if uv or python3 already exists.
-if [ "${CAREERBOT_SKIP_JOBSPY:-0}" != "1" ]; then
+if [ "${CATABULL_SKIP_JOBSPY:-0}" != "1" ]; then
   if ! command -v uv >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
     say "→ Installing uv (Python runner for JobSpy aggregator scans)"
     if curl -fsSL https://astral.sh/uv/install.sh | sh >/dev/null 2>&1; then
@@ -114,18 +114,18 @@ if [ "${CAREERBOT_SKIP_JOBSPY:-0}" != "1" ]; then
 fi
 
 # --- 5. Run first-run setup (Playwright Chromium etc.) ---
-if [ "${CAREERBOT_SKIP_SETUP:-0}" != "1" ]; then
+if [ "${CATABULL_SKIP_SETUP:-0}" != "1" ]; then
   say "→ Running first-run setup (downloads Playwright Chromium on first install)"
-  careerbot setup || warn "Setup reported issues — try 'careerbot doctor' to debug."
+  catabull setup || warn "Setup reported issues — try 'catabull doctor' to debug."
 fi
 
 # --- 5. Done ---
 echo
-say "✓ CareerBot installed"
+say "✓ CataBull installed"
 echo
-echo "  Start the dashboard:   ${BOLD}careerbot${RESET}"
+echo "  Start the dashboard:   ${BOLD}catabull${RESET}"
 echo "  Then open:             http://localhost:3737"
 echo
 if [ "$have_node" -eq 0 ]; then
-  hint "If 'careerbot' isn't found in a fresh terminal, run:  exec \$SHELL -l"
+  hint "If 'catabull' isn't found in a fresh terminal, run:  exec \$SHELL -l"
 fi

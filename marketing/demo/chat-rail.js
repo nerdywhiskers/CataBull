@@ -21,7 +21,7 @@
             <svg width="22" height="19" viewBox="0 0 22 19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="16" height="13" rx="3"/><circle cx="8" cy="9.5" r="1.2" fill="currentColor"/><circle cx="14" cy="9.5" r="1.2" fill="currentColor"/><path d="M11 1v2"/></svg>
           </span>
           <div class="rail-brand-text">
-            <span class="rail-brand-name">CareerBot AI</span>
+            <span class="rail-brand-name">CataBull AI</span>
             <select class="terminal-header-agent" title="Switch agent (no-op in demo)" data-noop>
               <option>Claude</option>
               <option>OpenCode</option>
@@ -46,7 +46,7 @@
             </div>
           </div>
           <div class="chat-composer">
-            <textarea class="form-textarea chat-composer-input" placeholder="Ask CareerBot something or type /careerbot to show a list of commands" data-noop></textarea>
+            <textarea class="form-textarea chat-composer-input" placeholder="Ask CataBull something or type /catabull to show a list of commands" data-noop></textarea>
             <div class="chat-composer-actions">
               <button class="btn btn-ghost btn-sm" type="button" data-noop>Settings</button>
               <button class="btn btn-ghost btn-sm" type="button" data-noop>History</button>

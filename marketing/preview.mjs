@@ -108,7 +108,7 @@ function openInBrowser(url) {
 
 server.listen(PORT, '127.0.0.1', () => {
   const url = `http://localhost:${PORT}`;
-  console.log(`\n  CareerBot landing page preview`);
+  console.log(`\n  CataBull landing page preview`);
   console.log(`  Serving:  ${ROOT}`);
   console.log(`  URL:      ${url}`);
   console.log(`  Stop:     Ctrl+C\n`);

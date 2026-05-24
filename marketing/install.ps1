@@ -1,23 +1,23 @@
-# CareerBot installer for Windows (PowerShell 5.1+).
+# CataBull installer for Windows (PowerShell 5.1+).
 #
 # Usage:
-#   irm https://your-github-user.github.io/careerbot/install.ps1 | iex
+#   irm https://your-github-user.github.io/catabull/install.ps1 | iex
 #
 # What it does:
 #   1. Detect Node 18+. If missing, install fnm + Node 22 (no admin needed).
-#   2. npm install -g github:your-github-user/careerbot
-#   3. careerbot setup  (installs Playwright Chromium into user cache)
+#   2. npm install -g github:your-github-user/catabull
+#   3. catabull setup  (installs Playwright Chromium into user cache)
 #
 # Environment overrides:
-#   $env:CAREERBOT_REPO       -- github:<owner>/<repo> source
-#   $env:CAREERBOT_NODE_MAJOR -- Node major version to install if missing
-#   $env:CAREERBOT_SKIP_SETUP -- set to '1' to skip the post-install setup
+#   $env:CATABULL_REPO       -- github:<owner>/<repo> source
+#   $env:CATABULL_NODE_MAJOR -- Node major version to install if missing
+#   $env:CATABULL_SKIP_SETUP -- set to '1' to skip the post-install setup
 
 $ErrorActionPreference = 'Stop'
 
-$Repo          = if ($env:CAREERBOT_REPO)       { $env:CAREERBOT_REPO }       else { 'your-github-user/careerbot' }
+$Repo          = if ($env:CATABULL_REPO)       { $env:CATABULL_REPO }       else { 'your-github-user/catabull' }
 $MinNodeMajor  = 18
-$NodeMajor     = if ($env:CAREERBOT_NODE_MAJOR) { [int]$env:CAREERBOT_NODE_MAJOR } else { 22 }
+$NodeMajor     = if ($env:CATABULL_NODE_MAJOR) { [int]$env:CATABULL_NODE_MAJOR } else { 22 }
 $FnmInstallDir = Join-Path $env:LOCALAPPDATA 'fnm'
 
 function Say  ([string]$msg) { Write-Host $msg -ForegroundColor White }
@@ -25,7 +25,7 @@ function Hint ([string]$msg) { Write-Host $msg -ForegroundColor DarkGray }
 function Warn ([string]$msg) { Write-Host $msg -ForegroundColor Yellow }
 function Fail ([string]$msg) { Write-Host $msg -ForegroundColor Red; exit 1 }
 
-Say  "CareerBot installer"
+Say  "CataBull installer"
 Hint "Source: github:$Repo"
 Write-Host ''
 
@@ -51,7 +51,7 @@ if ($nodeCmd) {
         Say "OK Node $nodeVer detected"
         $haveNode = $true
       } else {
-        Hint "Node $nodeVer detected, but CareerBot needs >= v$MinNodeMajor"
+        Hint "Node $nodeVer detected, but CataBull needs >= v$MinNodeMajor"
       }
     }
   } catch {
@@ -70,7 +70,7 @@ if (-not $haveNode) {
     # themselves (rare enough not to special-case yet).
     $asset   = 'fnm-windows.zip'
     $release = 'https://github.com/Schniz/fnm/releases/latest/download'
-    $zipPath = Join-Path $env:TEMP "fnm-careerbot.zip"
+    $zipPath = Join-Path $env:TEMP "fnm-catabull.zip"
 
     Invoke-WebRequest -UseBasicParsing -Uri "$release/$asset" -OutFile $zipPath
     New-Item -ItemType Directory -Force -Path $FnmInstallDir | Out-Null
@@ -103,18 +103,18 @@ if (-not $haveNode) {
   Say "OK Node $(& node -v) ready"
 }
 
-# --- 3. Install careerbot globally from GitHub ---
-Say "-> Installing careerbot from github:$Repo"
+# --- 3. Install catabull globally from GitHub ---
+Say "-> Installing catabull from github:$Repo"
 & npm install -g "github:$Repo" | Out-Null
 
-$careerbotCmd = Get-Command careerbot -ErrorAction SilentlyContinue
-if (-not $careerbotCmd) { Fail "careerbot installed but not on PATH. Try restarting PowerShell, then run 'careerbot'." }
+$catabullCmd = Get-Command catabull -ErrorAction SilentlyContinue
+if (-not $catabullCmd) { Fail "catabull installed but not on PATH. Try restarting PowerShell, then run 'catabull'." }
 
-try { $cbVer = & careerbot --version } catch { $cbVer = 'installed' }
-Say "OK careerbot $cbVer"
+try { $cbVer = & catabull --version } catch { $cbVer = 'installed' }
+Say "OK catabull $cbVer"
 
 # --- 4. Optional: install uv for JobSpy (Deep Scan Level 4) ---
-if ($env:CAREERBOT_SKIP_JOBSPY -ne '1') {
+if ($env:CATABULL_SKIP_JOBSPY -ne '1') {
   $uvCmd = Get-Command uv -ErrorAction SilentlyContinue
   $pyCmd = Get-Command python -ErrorAction SilentlyContinue
   $py3Cmd = Get-Command python3 -ErrorAction SilentlyContinue
@@ -136,22 +136,22 @@ if ($env:CAREERBOT_SKIP_JOBSPY -ne '1') {
 }
 
 # --- 5. Run first-run setup ---
-if ($env:CAREERBOT_SKIP_SETUP -ne '1') {
+if ($env:CATABULL_SKIP_SETUP -ne '1') {
   Say "-> Running first-run setup (downloads Playwright Chromium on first install)"
   try {
-    & careerbot setup
+    & catabull setup
   } catch {
-    Warn "Setup reported issues -- try 'careerbot doctor' to debug."
+    Warn "Setup reported issues -- try 'catabull doctor' to debug."
   }
 }
 
 # --- 5. Done ---
 Write-Host ''
-Say "OK CareerBot installed"
+Say "OK CataBull installed"
 Write-Host ''
-Write-Host "  Start the dashboard:   " -NoNewline; Write-Host "careerbot" -ForegroundColor Cyan
+Write-Host "  Start the dashboard:   " -NoNewline; Write-Host "catabull" -ForegroundColor Cyan
 Write-Host "  Then open:             http://localhost:3737"
 Write-Host ''
 if (-not $haveNode) {
-  Hint "If 'careerbot' isn't found in a new PowerShell window, close and reopen it once to pick up the updated PATH."
+  Hint "If 'catabull' isn't found in a new PowerShell window, close and reopen it once to pick up the updated PATH."
 }

@@ -51,8 +51,8 @@
       </div>
       <nav class="nav">
         <a class="nav-brand" href="index.html">
-          <img src="../CareerBot-logo.svg" alt="" width="28" height="28" class="nav-brand-logo" />
-          <span class="nav-brand-text">Career<span class="nav-brand-accent">Bot</span></span>
+          <img src="../CataBull-logo.svg" alt="" width="28" height="28" class="nav-brand-logo" />
+          <span class="nav-brand-text">Cata<span class="nav-brand-accent">Bull</span></span>
           <span class="demo-badge">DEMO</span>
         </a>
         <div class="nav-tabs">${tabHtml}</div>
@@ -78,7 +78,7 @@
 
     // Theme toggle wired here so each page picks up the user's choice.
     const root = document.documentElement;
-    const stored = localStorage.getItem('careerbot-demo-theme') || 'dark';
+    const stored = localStorage.getItem('catabull-demo-theme') || 'dark';
     root.setAttribute('data-theme', stored);
     const dark = document.getElementById('demo-icon-dark');
     const light = document.getElementById('demo-icon-light');
@@ -87,7 +87,7 @@
       const cur = root.getAttribute('data-theme');
       const next = cur === 'dark' ? 'light' : 'dark';
       root.setAttribute('data-theme', next);
-      localStorage.setItem('careerbot-demo-theme', next);
+      localStorage.setItem('catabull-demo-theme', next);
       dark.style.display = next === 'dark' ? 'block' : 'none';
       light.style.display = next === 'light' ? 'block' : 'none';
     });
