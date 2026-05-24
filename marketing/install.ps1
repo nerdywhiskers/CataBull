@@ -1,11 +1,11 @@
 # CataBull installer for Windows (PowerShell 5.1+).
 #
 # Usage:
-#   irm https://your-github-user.github.io/catabull/install.ps1 | iex
+#   irm https://nerdywhiskers.github.io/CataBull/install.ps1 | iex
 #
 # What it does:
 #   1. Detect Node 18+. If missing, install fnm + Node 22 (no admin needed).
-#   2. npm install -g github:your-github-user/catabull
+#   2. npm install -g github:nerdywhiskers/CataBull
 #   3. catabull setup  (installs Playwright Chromium into user cache)
 #
 # Environment overrides:
@@ -15,7 +15,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-$Repo          = if ($env:CATABULL_REPO)       { $env:CATABULL_REPO }       else { 'your-github-user/catabull' }
+$Repo          = if ($env:CATABULL_REPO)       { $env:CATABULL_REPO }       else { 'nerdywhiskers/CataBull' }
 $MinNodeMajor  = 18
 $NodeMajor     = if ($env:CATABULL_NODE_MAJOR) { [int]$env:CATABULL_NODE_MAJOR } else { 22 }
 $FnmInstallDir = Join-Path $env:LOCALAPPDATA 'fnm'

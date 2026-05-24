@@ -3,21 +3,21 @@
 # CataBull installer for macOS and Linux.
 #
 # Usage:
-#   curl -fsSL https://your-github-user.github.io/catabull/install.sh | bash
+#   curl -fsSL https://nerdywhiskers.github.io/CataBull/install.sh | bash
 #
 # What it does:
 #   1. Detect Node 18+. If missing, install fnm + Node 22 (no admin needed).
-#   2. npm install -g github:your-github-user/catabull
+#   2. npm install -g github:nerdywhiskers/CataBull
 #   3. catabull setup  (installs Playwright Chromium into user cache)
 #
 # Environment overrides:
-#   CATABULL_REPO       — github:<owner>/<repo> source (default: your-github-user/catabull)
+#   CATABULL_REPO       — github:<owner>/<repo> source (default: nerdywhiskers/CataBull)
 #   CATABULL_NODE_MAJOR — Node major version to install if missing (default: 22)
 #   CATABULL_SKIP_SETUP — set to 1 to skip the post-install `catabull setup` step
 
 set -euo pipefail
 
-REPO="${CATABULL_REPO:-your-github-user/catabull}"
+REPO="${CATABULL_REPO:-nerdywhiskers/CataBull}"
 MIN_NODE_MAJOR=18
 NODE_MAJOR="${CATABULL_NODE_MAJOR:-22}"
 
