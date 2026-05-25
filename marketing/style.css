@@ -319,6 +319,22 @@ p { margin: 0 0 12px 0; color: var(--subtext); }
 .copy-btn.copied { color: var(--green); border-color: var(--green); background: rgba(63, 211, 161, 0.08); }
 .install-note { font-size: 13px; color: var(--subtext0); margin: 0 0 28px 0; }
 .install-note code { font-size: 12px; }
+.hero-define {
+  max-width: 440px;
+  margin: 6px auto 34px;
+  padding: 14px 18px 18px;
+  text-align: left;
+  background: var(--surface0);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--mauve);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+}
+.hero-define .define-headword { margin: 0 0 5px; font-size: 15px; font-weight: 700; color: var(--text); }
+.hero-define .define-pron,
+.hero-define .define-pos { font-weight: 400; font-style: italic; color: var(--subtext0); }
+.hero-define .define-meaning { margin: 0 0 6px; font-size: 14px; color: var(--text); }
+.hero-define .define-example { margin: 0; font-size: 13px; font-style: italic; color: var(--subtext); }
 @media (max-width: 620px) {
   .install-tablist { gap: 18px; margin-bottom: 18px; }
   .install-tab { font-size: 12px; }
