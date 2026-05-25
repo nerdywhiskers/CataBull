@@ -19,7 +19,7 @@ Your local-first AI job search command center.
 [![Hermes](https://img.shields.io/badge/Hermes-Nous%20Research-FFD21E?logo=huggingface&logoColor=black)](https://github.com/NousResearch/hermes-agent)
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-agent%20CLI-F97316)](https://docs.openclaw.ai/install/index)
 
-<img width="1937" height="1269" alt="image" src="https://github.com/user-attachments/assets/d3ad5bee-6a1b-4cc8-95ca-b0b240e1ab67" />
+<img alt="CataBull dashboard — Discover view" src="docs/dashboard.png" width="900" />
 
 Live site: [catabull landing page](https://nerdywhiskers.github.io/CataBull/)
 
@@ -29,7 +29,7 @@ CataBull is a local-first dashboard, scanner, evaluator, and tailored applicatio
 
 ## Install
 
-**One-line install** - bootstraps Node 18+ via [`fnm`](https://github.com/Schniz/fnm) if you do not already have it, then installs CataBull and runs first-run setup. No admin or sudo needed.
+**One-line install** - run the command in the terminal, which bootstraps Node 18+ via [`fnm`](https://github.com/Schniz/fnm) if you do not already have it, then installs CataBull and runs first-run setup. 
 
 ```bash
 # macOS / Linux
@@ -76,9 +76,9 @@ npm run dashboard
 
 Workspace defaults to the cloned directory so your data stays where the code is.
 
-## Supported CLI Agents
+## Supported CLI Agents (Pre-requisite)
 
-Onboarding requires a working CLI agent on `PATH`; the wizard asks you to pick one and run a quick test before continuing.
+Onboarding requires a working CLI agent on `PATH`; the wizard asks you to pick one and optionally run a quick test before continuing. Tip: You can also ask your agent to install CataBull for you and serve it on your local network. Tailscale support is included. 
 
 | Agent | Install hint |
 | --- | --- |

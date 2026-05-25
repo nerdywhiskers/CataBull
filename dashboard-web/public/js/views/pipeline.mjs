@@ -510,7 +510,7 @@ function bindFilterPopover(container) {
 }
 
 function renderPending(pageItems = null) {
-  if (!pending.length) return `<div class="empty-state"><h3>No pending jobs</h3><p>Run a scan from the Portals tab to discover new roles.</p></div>`;
+  if (!pending.length) return `<div class="empty-state"><h3>No pending jobs</h3><p>Run a scan to discover new roles, or paste a job description in the chat.</p></div>`;
 
   const baseFiltered = showTopMatchOnly ? pending.filter(p => p.relevance >= 4) : pending;
   const fullFiltered = baseFiltered.filter(p => matchesSearch(p)).filter(matchesPendingFilter);
