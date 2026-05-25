@@ -286,7 +286,7 @@ function renderEmptyState() {
     return `
       <div class="empty-state">
         <h3>No pending roles yet</h3>
-        <p>Run a scan from the <a href="#/portals">Portals</a> tab to discover roles. Onboarding's verified discovery seeds your <code>portals.yml</code>; the scan then populates this view.</p>
+        <p>Run a scan or a Deep scan to discover roles.</p>
       </div>
     `;
   }
