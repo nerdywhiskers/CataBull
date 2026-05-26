@@ -5,6 +5,10 @@
   "bin": {
     "catabull": "bin/catabull.mjs"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nerdywhiskers/CataBull.git"
+  },
   "files": [
     "bin/",
     "lib/",
