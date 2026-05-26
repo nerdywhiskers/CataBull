@@ -8,10 +8,9 @@ export const SUPPORTED_AGENTS = ['claude', 'codex', 'opencode', 'gemini', 'herme
 // Which agents support resuming the previous one-shot conversation. claude
 // and opencode take a sticky --session-id / --session uuid (we control the
 // id, fresh uuid = new chat). codex exec resumes via `exec resume --last`.
-// gemini's -p mode has no equivalent yet. hermes and openclaw default to false until
-// their per-tool session story is confirmed against a real `--help` capture
-// (neither binary is on a typical dev install yet — see the TODO markers
-// below).
+// gemini's -p mode has no equivalent yet. hermes exposes --resume / --continue
+// on `chat`; openclaw has --session-id / --session-key on `agent`. Both stay
+// false here until the dashboard chooses a resume policy and threads ids in.
 export const AGENT_CONTINUATION_SUPPORT = {
   claude: true,
   codex: true,
@@ -119,7 +118,12 @@ export function detectAgents() {
   return detectAgentsDetailed().map(agent => agent.name);
 }
 
-export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId = null, continueSession = false } = {}) {
+// `promptVia` tells runAgentPrint how to deliver the prompt:
+//   - 'stdin' (default): write the prompt to the child's stdin and close it.
+//   - 'argv': prompt is already embedded in `args` (via a flag like
+//     `-q`/`--message`). runAgentPrint must NOT write stdin in that case
+//     — these CLIs don't read prompts from stdin and will hang or error.
+export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId = null, continueSession = false, prompt = '' } = {}) {
   if (agentName === 'claude') {
     const args = ['-p', '--output-format', 'text'];
     // claude -p without flags defaults to continuing the most-recent session
@@ -127,7 +131,7 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     // conversations on demand (Reset → new uuid → fresh session).
     if (sessionId) args.push('--session-id', sessionId);
     if (allowEdits) args.push('--permission-mode', 'acceptEdits');
-    return { args, env: process.env };
+    return { args, env: process.env, promptVia: 'stdin' };
   }
 
   if (agentName === 'codex') {
@@ -147,7 +151,7 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     // flag. "-" makes the resumed turn read the prompt from stdin, matching
     // the fresh `codex exec` path below.
     if (continueSession) args.push('resume', '--last', '-');
-    return { args, env: process.env };
+    return { args, env: process.env, promptVia: 'stdin' };
   }
 
   if (agentName === 'opencode') {
@@ -158,7 +162,7 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     // — fine for a single-user dashboard. Reset = drop the seen flag so
     // the next call omits --continue and a new session is created.
     if (continueSession) args.push('--continue');
-    return { args, env: opencodeEnv(root) };
+    return { args, env: opencodeEnv(root), promptVia: 'stdin' };
   }
 
   if (agentName === 'gemini') {
@@ -174,27 +178,51 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     // (profile.yml, modes/_profile.md) during generation. Read-only steps
     // don't pass allowEdits and stay approval-gated.
     if (allowEdits) args.push('--yolo');
-    return { args, env: process.env };
+    return { args, env: process.env, promptVia: 'stdin' };
   }
 
   if (agentName === 'hermes') {
-    // Confirmed shape: `hermes --yolo` with the prompt on stdin. The
-    // `--yolo` flag is hermes's one-shot/non-interactive trigger; bare
-    // `hermes` enters the REPL (handled by agentPtyConfig's default
-    // branch). If --yolo turns out to expect inline argv prompts
-    // instead of stdin, runAgentPrint's stdin-write needs revisiting.
-    return { args: ['--yolo'], env: process.env };
+    // Verified against hermes --help on a real install:
+    //   - `hermes chat -q <prompt>` is the one-shot/non-interactive path
+    //     (`-q/--query` takes the prompt inline; subcommand is required).
+    //   - `-Q/--quiet` suppresses banner/spinner so we get clean output.
+    //   - `--yolo` bypasses approval prompts (needed when allowEdits-ish
+    //     workflows touch the FS).
+    // hermes does not read prompts from stdin in this mode, so promptVia
+    // must be 'argv' — runAgentPrint will close stdin without writing.
+    return {
+      args: ['chat', '-q', prompt, '-Q', '--yolo'],
+      env: process.env,
+      promptVia: 'argv',
+    };
   }
 
   if (agentName === 'openclaw') {
-    // Confirmed shape: `openclaw agent --agent` for one-shot. Note that
-    // openclaw splits subcommands by mode — `chat` for the rail's
-    // interactive REPL (see agentPtyConfig), `agent` for programmatic
-    // one-shot use. The `--agent` flag may also accept a persona name
-    // (`--agent <name>`); without a value the binary should use its
-    // default. If a real install reports "missing value for --agent",
-    // append the user's preferred persona here.
-    return { args: ['agent', '--agent'], env: process.env };
+    // Verified against `openclaw agent --help` and live runs on a real
+    // install:
+    //   - `openclaw agent` runs one agent turn via the Gateway, using the
+    //     user's configured auth profile (openai-codex, anthropic, etc.).
+    //   - A target session must be picked. `--agent main` targets the
+    //     default agent openclaw bootstraps on first install (visible as
+    //     "main (default)" in `openclaw agents list`). Users who renamed
+    //     or removed it will need to adjust here.
+    //   - `--message` carries the prompt inline (no stdin path exists).
+    //   - `--no-color` keeps stdout ANSI-free.
+    //   - `--json` is required: the default (human) output path stalls
+    //     without a TTY and produced no stdout in 90+ seconds in
+    //     headless tests. `--json` emits a structured envelope quickly
+    //     and reliably. The envelope is unwrapped in runAgentPrint
+    //     (see unwrapOpenclawReply) so downstream callers see only the
+    //     assistant's reply text, matching every other agent.
+    //   - `--local` is NOT used: per --help it requires raw provider API
+    //     keys in the shell env, bypassing openclaw's own config. Gateway
+    //     mode is the documented normal path. (The previous `--agent`
+    //     with no value was a bug — `--agent <id>` requires a value.)
+    return {
+      args: ['--no-color', 'agent', '--agent', 'main', '--message', prompt, '--json'],
+      env: process.env,
+      promptVia: 'argv',
+    };
   }
 
   return null;
@@ -262,6 +290,28 @@ export function testAgentCommand(name, root = process.cwd()) {
   }
 }
 
+// Pull the assistant's reply out of openclaw's `--json` envelope so
+// callers see plain reply text — same shape every other agent returns.
+// Envelope shape (verified live):
+//   { runId, status, result: { payloads: [{text, mediaUrl}], meta: {...} } }
+// `result.payloads[0].text` is the published reply path. We fall back to
+// `meta.agentMeta.execution.finalAssistantVisibleText` for robustness,
+// and finally to the raw stdout if the envelope can't be parsed (so a
+// future schema bump fails open rather than silently dropping output).
+function unwrapOpenclawReply(raw) {
+  if (!raw) return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    const fromPayload = parsed?.result?.payloads?.[0]?.text;
+    if (typeof fromPayload === 'string' && fromPayload.length) return fromPayload;
+    const fromMeta = parsed?.result?.meta?.agentMeta?.execution?.finalAssistantVisibleText;
+    if (typeof fromMeta === 'string' && fromMeta.length) return fromMeta;
+    return raw;
+  } catch {
+    return raw;
+  }
+}
+
 export function runAgentPrint(agentName, prompt, root, {
   timeoutMs = 120_000,
   allowEdits = false,
@@ -271,7 +321,7 @@ export function runAgentPrint(agentName, prompt, root, {
 } = {}) {
   return new Promise((resolve, reject) => {
     const command = resolveAgentCommand(agentName);
-    const plan = agentPrintArgs(agentName, root, { allowEdits, continueSession, sessionId });
+    const plan = agentPrintArgs(agentName, root, { allowEdits, continueSession, sessionId, prompt });
 
     const fail = (payload) => {
       if (rejectOnError) reject(new Error(payload.error));
@@ -310,8 +360,9 @@ export function runAgentPrint(agentName, prompt, root, {
     proc.stderr.on('data', data => { stderr += data; });
     proc.on('error', error => finish({ ok: false, error: error.message || `Failed to start ${agentName}` }));
     proc.on('close', code => {
-      const output = (stdout || '').trim();
+      let output = (stdout || '').trim();
       const error = (stderr || '').trim();
+      if (agentName === 'openclaw') output = unwrapOpenclawReply(output);
       if (code === 0) return finish({ ok: true, output: output || error || 'No output returned.' });
       return finish({ ok: false, error: error || output || `${agentName} exited with code ${code}` });
     });
@@ -323,8 +374,15 @@ export function runAgentPrint(agentName, prompt, root, {
     }, timeoutMs);
 
     try {
-      proc.stdin.write(prompt);
-      proc.stdin.end();
+      if (plan.promptVia === 'argv') {
+        // Prompt is already in argv (hermes -q, openclaw --message).
+        // These CLIs don't read stdin in one-shot mode; closing stdin
+        // immediately avoids any chance of them blocking on EOF.
+        proc.stdin.end();
+      } else {
+        proc.stdin.write(prompt);
+        proc.stdin.end();
+      }
     } catch (error) {
       finish({ ok: false, error: error.message || `Failed to send prompt to ${agentName}` });
     }
