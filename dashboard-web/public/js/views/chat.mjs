@@ -468,13 +468,14 @@ export async function runPrompt(text, {
 
   if (currentView === 'chat') {
     showWorkingMessage(`${currentAgent} is working`, currentAgent);
-    // claude is the only CLI whose --session-id <uuid> creates the session
-    // on first use, so we can drive it with a sticky uuid (Reset rotates it).
-    // codex and opencode resume the most recent session globally. For those
-    // agents we just track "have we seen one turn yet?" and Reset drops the
-    // flag so the next turn creates a new session by omitting continuation.
+    // claude and openclaw are the CLIs whose explicit session ids create the
+    // session on first use, so we can drive them with a sticky uuid (Reset
+    // rotates it). codex, hermes, and opencode resume the most recent session
+    // globally. For those agents we just track "have we seen one turn yet?"
+    // and Reset drops the flag so the next turn creates a new session by
+    // omitting continuation.
     const supportsContinuation = agentSupportsContinuation(currentAgent);
-    const usesStickySession = currentAgent === 'claude';
+    const usesStickySession = currentAgent === 'claude' || currentAgent === 'openclaw';
     const continueSession = supportsContinuation && !usesStickySession && Boolean(agentSessions[currentAgent]);
 
     // Run the agent with the current session-id. On session-conflict
