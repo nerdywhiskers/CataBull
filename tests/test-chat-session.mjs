@@ -100,18 +100,65 @@ const { agentPrintArgs } = await import(
 
 const codexFresh = agentPrintArgs('codex', ROOT, { continueSession: false });
 assert(
-  JSON.stringify(codexFresh.args) === JSON.stringify(['exec']),
+  JSON.stringify(codexFresh.args) === JSON.stringify(['exec', '--skip-git-repo-check']),
   'fresh Codex turn uses codex exec',
 );
 
 const codexContinued = agentPrintArgs('codex', ROOT, { continueSession: true });
 assert(
-  JSON.stringify(codexContinued.args) === JSON.stringify(['exec', 'resume', '--last', '-']),
+  JSON.stringify(codexContinued.args) === JSON.stringify(['exec', '--skip-git-repo-check', 'resume', '--last', '-']),
   'continued Codex turn uses codex exec resume --last -',
 );
 assert(
   !codexContinued.args.includes('--continue'),
   'continued Codex turn does not use removed --continue flag',
+);
+
+console.log('\n4. Hermes chat-panel continuation args');
+
+const hermesFresh = agentPrintArgs('hermes', ROOT, {
+  prompt: 'hello',
+  continueSession: false,
+});
+assert(
+  JSON.stringify(hermesFresh.args) === JSON.stringify(['chat', '-q', 'hello', '-Q', '--yolo']),
+  'fresh Hermes turn does not resume prior context',
+);
+
+const hermesContinued = agentPrintArgs('hermes', ROOT, {
+  prompt: 'follow up',
+  continueSession: true,
+});
+assert(
+  JSON.stringify(hermesContinued.args) === JSON.stringify(['chat', '--continue', '-q', 'follow up', '-Q', '--yolo']),
+  'continued Hermes turn uses --continue',
+);
+
+console.log('\n5. OpenClaw chat-panel session args');
+
+const openclawFresh = agentPrintArgs('openclaw', ROOT, {
+  prompt: 'status',
+  sessionId: null,
+});
+assert(
+  JSON.stringify(openclawFresh.args) === JSON.stringify(['--no-color', 'agent', '--agent', 'main', '--message', 'status', '--json']),
+  'fresh OpenClaw turn without sticky id omits --session-id',
+);
+
+const openclawSticky = agentPrintArgs('openclaw', ROOT, {
+  prompt: 'status',
+  sessionId: '123e4567-e89b-12d3-a456-426614174000',
+});
+assert(
+  JSON.stringify(openclawSticky.args) === JSON.stringify([
+    '--no-color',
+    'agent',
+    '--agent', 'main',
+    '--session-id', '123e4567-e89b-12d3-a456-426614174000',
+    '--message', 'status',
+    '--json',
+  ]),
+  'OpenClaw sticky session reuses explicit session id',
 );
 
 console.log(`\n${'─'.repeat(40)}`);
