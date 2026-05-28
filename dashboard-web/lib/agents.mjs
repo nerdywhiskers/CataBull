@@ -16,8 +16,8 @@ export const AGENT_CONTINUATION_SUPPORT = {
   codex: true,
   opencode: true,
   gemini: false,
-  hermes: false,
-  openclaw: false,
+  hermes: true,
+  openclaw: true,
 };
 
 export const isWin = platform() === 'win32';
@@ -188,10 +188,16 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     //   - `-Q/--quiet` suppresses banner/spinner so we get clean output.
     //   - `--yolo` bypasses approval prompts (needed when allowEdits-ish
     //     workflows touch the FS).
+    //   - `--continue` resumes the most recent chat session. The dashboard
+    //     uses that for follow-up turns and drops the seen marker on Reset so
+    //     the next message starts a fresh session.
     // hermes does not read prompts from stdin in this mode, so promptVia
     // must be 'argv' — runAgentPrint will close stdin without writing.
+    const args = ['chat'];
+    if (continueSession) args.push('--continue');
+    args.push('-q', prompt, '-Q', '--yolo');
     return {
-      args: ['chat', '-q', prompt, '-Q', '--yolo'],
+      args,
       env: process.env,
       promptVia: 'argv',
     };
@@ -206,6 +212,9 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     //     default agent openclaw bootstraps on first install (visible as
     //     "main (default)" in `openclaw agents list`). Users who renamed
     //     or removed it will need to adjust here.
+    //   - `--session-id <uuid>` lets the dashboard pin follow-up turns to its
+    //     own browser-owned sticky session instead of colliding with whatever
+    //     default routing context OpenClaw would otherwise choose.
     //   - `--message` carries the prompt inline (no stdin path exists).
     //   - `--no-color` keeps stdout ANSI-free.
     //   - `--json` is required: the default (human) output path stalls
@@ -218,8 +227,11 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     //     keys in the shell env, bypassing openclaw's own config. Gateway
     //     mode is the documented normal path. (The previous `--agent`
     //     with no value was a bug — `--agent <id>` requires a value.)
+    const args = ['--no-color', 'agent', '--agent', 'main'];
+    if (sessionId) args.push('--session-id', sessionId);
+    args.push('--message', prompt, '--json');
     return {
-      args: ['--no-color', 'agent', '--agent', 'main', '--message', prompt, '--json'],
+      args,
       env: process.env,
       promptVia: 'argv',
     };
