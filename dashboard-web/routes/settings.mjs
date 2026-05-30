@@ -1,8 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { homedir } from 'os';
 import { join } from 'path';
 import { parseApplications, parsePipeline } from '../lib/parsers.mjs';
 import { normalizeUrl } from '../../scan/level3.mjs';
 import { DEFAULT_MIN_RELEVANCE } from '../../lib/relevance.mjs';
+import {
+  GLOBAL_WORKSPACE_PREFERENCE_KEY,
+  normalizeGlobalWorkspacePreference,
+} from '../../lib/workspace-resolver.mjs';
 import {
   detectTailscale,
   normalizeTailscaleMode,
@@ -25,6 +30,7 @@ const MIN_RELEVANCE_KEY = 'CATABULL_DEEP_SCAN_MIN_RELEVANCE';
 const FRESHNESS_DAYS_KEY = 'CATABULL_SCAN_FRESHNESS_DAYS';
 const TAILSCALE_MODE_KEY = 'CATABULL_TAILSCALE_MODE';
 const AUTO_UPDATE_KEY = 'CATABULL_AUTO_UPDATE';
+const DEFAULT_GLOBAL_WORKSPACE_PREFERENCE = 'home';
 const DEFAULT_WEBSEARCH_ORDER = 'brave,serper,scrape';
 const SCAN_HISTORY_HEADER = 'url\tfirst_seen\tportal\ttitle\tcompany\tstatus\n';
 
@@ -36,6 +42,7 @@ export default async function (app) {
   app.put('/settings', async (req, reply) => {
     const body = req.body || {};
     const envUpdates = {};
+    const globalEnvUpdates = {};
     const currentSettings = readSettings(root);
     const previousTailscaleMode = currentSettings.tailscale?.mode || 'off';
 
@@ -101,6 +108,15 @@ export default async function (app) {
       envUpdates[AUTO_UPDATE_KEY] = body.autoUpdate === true ? 'true' : null;
     }
 
+    if (body.workspacePreference !== undefined) {
+      const rawPreference = String(body.workspacePreference || '').trim().toLowerCase();
+      if (!['home', 'cwd'].includes(rawPreference)) {
+        return reply.code(400).send({ error: 'Workspace preference must be home or cwd.' });
+      }
+      const preference = normalizeGlobalWorkspacePreference(rawPreference);
+      globalEnvUpdates[GLOBAL_WORKSPACE_PREFERENCE_KEY] = preference === DEFAULT_GLOBAL_WORKSPACE_PREFERENCE ? null : preference;
+    }
+
     if (Object.keys(envUpdates).length > 0) {
       const envPath = settingsEnvPath(root);
       const current = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : '';
@@ -111,6 +127,14 @@ export default async function (app) {
         if (value == null) delete process.env[key];
         else process.env[key] = value;
       }
+    }
+
+    if (Object.keys(globalEnvUpdates).length > 0) {
+      const envPath = globalSettingsEnvPath();
+      const current = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : '';
+      const next = applyEnvUpdates(current, globalEnvUpdates);
+      mkdirSync(join(homedir(), '.catabull'), { recursive: true });
+      writeFileSync(envPath, next, 'utf-8');
     }
 
     return { success: true, settings: readSettings(root) };
@@ -134,10 +158,12 @@ export default async function (app) {
 export function readSettings(root, runtimeEnv = process.env) {
   const envPath = settingsEnvPath(root);
   const text = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : '';
-  return readSettingsFromEnv(text, runtimeEnv, { detectTailnet: true });
+  const globalEnvPath = globalSettingsEnvPath();
+  const globalEnvText = existsSync(globalEnvPath) ? readFileSync(globalEnvPath, 'utf-8') : '';
+  return readSettingsFromEnv(text, runtimeEnv, { detectTailnet: true, globalEnvText, root });
 }
 
-export function readSettingsFromEnv(text, runtimeEnv = {}, { detectTailnet = false } = {}) {
+export function readSettingsFromEnv(text, runtimeEnv = {}, { detectTailnet = false, globalEnvText = '', root = '' } = {}) {
   const secrets = {};
   for (const setting of SECRET_SETTINGS) {
     const fileValue = readEnvValue(text, setting.envKey);
@@ -157,6 +183,9 @@ export function readSettingsFromEnv(text, runtimeEnv = {}, { detectTailnet = fal
   const minRelevanceValue = readEnvValue(text, MIN_RELEVANCE_KEY) ?? runtimeEnv[MIN_RELEVANCE_KEY];
   const tailscaleMode = normalizeTailscaleMode(readEnvValue(text, TAILSCALE_MODE_KEY) || runtimeEnv[TAILSCALE_MODE_KEY]);
   const autoUpdate = parseEnvBoolean(readEnvValue(text, AUTO_UPDATE_KEY) ?? runtimeEnv[AUTO_UPDATE_KEY]);
+  const globalInstallPreference = normalizeGlobalWorkspacePreference(
+    readEnvValue(globalEnvText || text, GLOBAL_WORKSPACE_PREFERENCE_KEY) ?? runtimeEnv[GLOBAL_WORKSPACE_PREFERENCE_KEY]
+  );
   const tailscaleStatus = detectTailnet
     ? detectTailscale({ env: runtimeEnv })
     : { installed: false, running: false, available: false, ip: '', dnsName: '', message: 'Not checked' };
@@ -178,6 +207,11 @@ export function readSettingsFromEnv(text, runtimeEnv = {}, { detectTailnet = fal
     },
     updates: {
       autoUpdate,
+    },
+    workspace: {
+      globalInstallPreference,
+      currentRoot: root || '',
+      homeRoot: join(homedir(), '.catabull'),
     },
     envFile: '.env',
   };
@@ -255,6 +289,10 @@ export function readEnvValue(text, wantedKey) {
 
 function settingsEnvPath(root) {
   return join(root, '.env');
+}
+
+function globalSettingsEnvPath() {
+  return join(homedir(), '.catabull', '.env');
 }
 
 function sanitizeSecret(value) {

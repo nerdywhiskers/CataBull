@@ -17,9 +17,9 @@
 
 import { spawn } from 'child_process';
 import { readFileSync } from 'fs';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { ensureWorkspace } from '../lib/workspace-resolver.mjs';
+import { ensureWorkspace, looksLikeWorkspace } from '../lib/workspace-resolver.mjs';
 import { ensurePlaywrightChromium } from '../lib/runtime-deps.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -95,7 +95,15 @@ async function main() {
   } else if (ws.reason === 'env') {
     console.log(`Using workspace from CATABULL_WORKSPACE_ROOT: ${ws.root}`);
   } else if (ws.reason === 'home') {
-    console.log(`Using workspace: ${ws.root}`);
+    if (ws.installKind === 'npm-global') {
+      console.log(`Using global workspace: ${ws.root}`);
+      if (ws.preference === 'home' && looksLikeWorkspace(process.cwd()) && resolve(process.cwd()) !== resolve(ws.root)) {
+        console.log('  Detected a CataBull workspace in the current folder, but leaving it alone to protect that working tree.');
+        console.log('  Change the preference in Settings or set CATABULL_WORKSPACE_ROOT to target it explicitly.');
+      }
+    } else {
+      console.log(`Using workspace: ${ws.root}`);
+    }
   }
 
   if (subcommand === 'dashboard' || subcommand === 'setup') {

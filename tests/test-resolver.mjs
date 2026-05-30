@@ -151,6 +151,40 @@ withTemp((cwdDir) => {
   });
 });
 
+withTemp((cwdDir) => {
+  // npm-global install should prefer ~/.catabull over cwd even if cwd looks like a workspace
+  writeFileSync(join(cwdDir, 'cv.md'), '# CV');
+  withTemp((homeDir) => {
+    const r = resolveWorkspaceRoot({
+      env: {},
+      cwd: cwdDir,
+      home: homeDir,
+      installKind: 'npm-global',
+      autoCreate: false,
+    });
+    assert(r.reason === 'home', 'npm-global ignores cwd workspace by default');
+    assert(r.root === join(homeDir, '.catabull'), 'npm-global defaults to home workspace');
+  });
+});
+
+withTemp((cwdDir) => {
+  // Persisted global preference may opt back into cwd workspace detection
+  writeFileSync(join(cwdDir, 'cv.md'), '# CV');
+  withTemp((homeDir) => {
+    mkdirSync(join(homeDir, '.catabull'), { recursive: true });
+    writeFileSync(join(homeDir, '.catabull', '.env'), 'CATABULL_GLOBAL_WORKSPACE_PREFERENCE=cwd\n');
+    const r = resolveWorkspaceRoot({
+      env: {},
+      cwd: cwdDir,
+      home: homeDir,
+      installKind: 'npm-global',
+      autoCreate: false,
+    });
+    assert(r.reason === 'cwd', 'npm-global may use cwd when persisted preference says cwd');
+    assert(r.root === cwdDir, 'persisted cwd preference returns cwd path');
+  });
+});
+
 // ── 4. resolveWorkspaceRoot — home auto-create ────────────────────────
 
 console.log('\n4. resolveWorkspaceRoot — home auto-create');
