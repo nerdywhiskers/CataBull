@@ -80,18 +80,17 @@ for (const f of pythonFiles) {
 console.log('\n2. Script execution (graceful on empty data)');
 
 const scripts = [
-  { name: 'cv-sync-check.mjs', expectExit: 1, allowFail: true }, // fails without cv.md (normal in repo)
-  { name: 'verify-pipeline.mjs', expectExit: 0 },
-  { name: 'normalize-statuses.mjs', expectExit: 0 },
-  { name: 'dedup-tracker.mjs', expectExit: 0 },
-  { name: 'merge-tracker.mjs', expectExit: 0 },
-  { name: 'python3', args: ['tests/test_linkedin_import.py'], expectExit: 0 },
-  { name: 'node', args: ['tests/test-job-url-metadata.mjs'], expectExit: 0 },
+  { cmd: 'node', args: ['cv-sync-check.mjs'], allowFail: true, label: 'cv-sync-check.mjs' }, // fails without cv.md (normal in repo)
+  { cmd: 'node', args: ['verify-pipeline.mjs'], label: 'verify-pipeline.mjs' },
+  { cmd: 'node', args: ['normalize-statuses.mjs'], label: 'normalize-statuses.mjs' },
+  { cmd: 'node', args: ['dedup-tracker.mjs'], label: 'dedup-tracker.mjs' },
+  { cmd: 'node', args: ['merge-tracker.mjs'], label: 'merge-tracker.mjs' },
+  { cmd: 'python3', args: ['tests/test_linkedin_import.py'], label: 'python3 tests/test_linkedin_import.py' },
+  { cmd: 'node', args: ['tests/test-job-url-metadata.mjs'], label: 'node tests/test-job-url-metadata.mjs' },
 ];
 
-for (const { name, args = [], allowFail } of scripts) {
-  const result = run(name, args.length > 0 ? args : name.split(' '), { stdio: ['pipe', 'pipe', 'pipe'] });
-  const label = args.length > 0 ? `${name} ${args.join(' ')}` : name;
+for (const { cmd, args = [], allowFail, label } of scripts) {
+  const result = run(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'] });
   if (result !== null) {
     pass(`${label} runs OK`);
   } else if (allowFail) {
