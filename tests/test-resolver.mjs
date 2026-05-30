@@ -34,6 +34,7 @@ const {
   scaffoldWorkspace,
   ensureWorkspace,
   RESOLUTION_REASONS,
+  readGlobalWorkspacePreference,
 } = await import('../lib/workspace-resolver.mjs');
 
 console.log('\nlib/workspace-resolver.mjs');
@@ -149,6 +150,48 @@ withTemp((cwdDir) => {
     assert(r.reason === 'home', 'falls through to home');
     assert(r.root === join(homeDir, '.catabull'), 'home subdir is .catabull');
   });
+});
+
+withTemp((cwdDir) => {
+  // npm-global install should prefer ~/.catabull over cwd even if cwd looks like a workspace
+  writeFileSync(join(cwdDir, 'cv.md'), '# CV');
+  withTemp((homeDir) => {
+    const r = resolveWorkspaceRoot({
+      env: {},
+      cwd: cwdDir,
+      home: homeDir,
+      installKind: 'npm-global',
+      autoCreate: false,
+    });
+    assert(r.reason === 'home', 'npm-global ignores cwd workspace by default');
+    assert(r.root === join(homeDir, '.catabull'), 'npm-global defaults to home workspace');
+    assert(r.shouldPromptForWorkspacePreference === true, 'npm-global prompts on first run when cwd workspace also exists');
+  });
+});
+
+withTemp((cwdDir) => {
+  // Persisted global preference may opt back into cwd workspace detection
+  writeFileSync(join(cwdDir, 'cv.md'), '# CV');
+  withTemp((homeDir) => {
+    mkdirSync(join(homeDir, '.catabull'), { recursive: true });
+    writeFileSync(join(homeDir, '.catabull', '.env'), 'CATABULL_GLOBAL_WORKSPACE_PREFERENCE=cwd\n');
+    const r = resolveWorkspaceRoot({
+      env: {},
+      cwd: cwdDir,
+      home: homeDir,
+      installKind: 'npm-global',
+      autoCreate: false,
+    });
+    assert(r.reason === 'cwd', 'npm-global may use cwd when persisted preference says cwd');
+    assert(r.root === cwdDir, 'persisted cwd preference returns cwd path');
+    assert(r.shouldPromptForWorkspacePreference === false, 'persisted cwd preference suppresses prompt');
+  });
+});
+
+withTemp((homeDir) => {
+  const pref = readGlobalWorkspacePreference({ envText: 'CATABULL_GLOBAL_WORKSPACE_PREFERENCE=home\n', home: homeDir });
+  assert(pref.preference === 'home', 'explicit home preference parses');
+  assert(pref.persisted === true, 'explicit home preference marked persisted');
 });
 
 // ── 4. resolveWorkspaceRoot — home auto-create ────────────────────────

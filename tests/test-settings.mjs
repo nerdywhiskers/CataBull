@@ -60,12 +60,14 @@ const tuned = readSettingsFromEnv('CATABULL_WEBSEARCH_ORDER=serper,brave,scrape\
 assert.equal(tuned.webSearchOrder, 'serper,brave,scrape');
 assert.deepEqual(tuned.scanDefaults, { deepScanLimit: 25, minRelevance: 4, freshnessDays: 7 });
 
-const tailnet = readSettingsFromEnv('CATABULL_TAILSCALE_MODE=serve\nCATABULL_AUTO_UPDATE=true\n', {});
+const tailnet = readSettingsFromEnv('CATABULL_TAILSCALE_MODE=serve\nCATABULL_AUTO_UPDATE=true\nCATABULL_GLOBAL_WORKSPACE_PREFERENCE=cwd\n', {});
 assert.equal(tailnet.tailscale.mode, 'serve');
 assert.equal(tailnet.tailscale.status.message, 'Not checked');
 assert.equal(tailnet.updates.autoUpdate, true);
+assert.equal(tailnet.workspace.globalInstallPreference, 'cwd');
 
-const invalidTailnet = readSettingsFromEnv('CATABULL_TAILSCALE_MODE=maybe\n', {});
+const invalidTailnet = readSettingsFromEnv('CATABULL_TAILSCALE_MODE=maybe\nCATABULL_GLOBAL_WORKSPACE_PREFERENCE=weird\n', {});
+assert.equal(invalidTailnet.workspace.globalInstallPreference, 'home');
 assert.equal(invalidTailnet.tailscale.mode, 'off');
 
 const explicitZero = readSettingsFromEnv('CATABULL_DEEP_SCAN_MIN_RELEVANCE=0\n', {});

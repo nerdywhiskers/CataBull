@@ -50,6 +50,8 @@ function renderSettings(container, settings, maintenance = {}) {
   const tailscale = settings.tailscale || {};
   const tailscaleStatus = tailscale.status || {};
   const tailscaleMode = tailscale.mode || 'off';
+  const workspace = settings.workspace || {};
+  const workspacePreference = workspace.globalInstallPreference || 'home';
   try { localStorage.setItem(SCAN_LIMIT_KEY, String(scanLimit)); } catch {}
 
   container.innerHTML = `
@@ -122,6 +124,31 @@ function renderSettings(container, settings, maintenance = {}) {
                 </div>
                 <span class="settings-help">${esc(tailscaleStatus.message || 'Not checked')}</span>
                 ${tailscale.url ? `<span class="settings-help">Tailnet URL: <code>${esc(tailscale.url)}</code></span>` : ''}
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section settings-section-compact">
+            <div class="settings-section-header">
+              <div>
+                <h2>Global Install Workspace</h2>
+                <p>Controls where the npm-installed catabull CLI stores and reads your data.</p>
+              </div>
+            </div>
+            <div class="settings-grid settings-grid-compact settings-grid-inline">
+              <label class="settings-field">
+                <span class="form-label">Workspace preference</span>
+                <select class="form-select" id="workspace-preference">
+                  ${workspacePreferenceOption('home', `Home workspace (${workspace.homeRoot || '~/.catabull'})`, workspacePreference)}
+                  ${workspacePreferenceOption('cwd', 'Current CataBull folder when detected', workspacePreference)}
+                </select>
+                <span class="settings-help">Default is the safe home workspace. Choosing the current folder only affects global installs and never changes which code install gets updated.</span>
+              </label>
+              <div class="settings-field">
+                <div class="settings-field-top">
+                  <span class="form-label">Current workspace root</span>
+                </div>
+                <span class="settings-help"><code>${esc(workspace.currentRoot || '(unknown)')}</code></span>
               </div>
             </div>
           </section>
@@ -272,6 +299,7 @@ function renderSettings(container, settings, maintenance = {}) {
         freshnessDays: parseInt(container.querySelector('#freshness-days')?.value || '0', 10) || 0,
         tailscaleMode: container.querySelector('#tailscale-mode')?.value || 'off',
         autoUpdate: Boolean(container.querySelector('#auto-update')?.checked),
+        workspacePreference: container.querySelector('#workspace-preference')?.value || 'home',
       };
       const result = await api.updateSettings(payload);
       toast('Settings saved');
@@ -337,6 +365,10 @@ function freshnessOption(value, label, current) {
 }
 
 function tailscaleModeOption(value, label, current) {
+  return `<option value="${value}" ${current === value ? 'selected' : ''}>${esc(label)}</option>`;
+}
+
+function workspacePreferenceOption(value, label, current) {
   return `<option value="${value}" ${current === value ? 'selected' : ''}>${esc(label)}</option>`;
 }
 
