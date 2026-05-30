@@ -58,8 +58,8 @@ export const api = {
   applyPending: (url, company, role) => request('/pipeline/apply', { method: 'POST', body: { url, company, role } }),
   deleteAllPending: () => request('/pipeline/delete-pending', { method: 'POST', body: {} }),
   deletePending: (urls) => request('/pipeline/delete', { method: 'POST', body: { urls } }),
-  addPending: ({ url, company, role, postedAt } = {}) =>
-    request('/pipeline/add', { method: 'POST', body: { url, company, role, postedAt } }),
+  addPending: ({ url, company, role, postedAt, location } = {}) =>
+    request('/pipeline/add', { method: 'POST', body: { url, company, role, postedAt, location } }),
 
   // Reports
   getReports: () => request('/reports'),

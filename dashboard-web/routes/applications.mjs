@@ -2,6 +2,7 @@ import { parseApplications, loadReportSummary, parsePipeline } from '../lib/pars
 import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem } from '../lib/writers.mjs';
 import { readProfile, readPortals } from '../lib/writers.mjs';
 import { scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../lib/relevance.mjs';
+import { enrichJobUrl } from '../lib/job-url-metadata.mjs';
 
 export default async function (app) {
   const root = app.cataBullRoot;
@@ -99,23 +100,45 @@ export default async function (app) {
 
   app.post('/pipeline/add', async (req, reply) => {
     const { url, company, role, postedAt, location } = req.body || {};
-    if (!url || !company || !role) {
-      return reply.code(400).send({ error: 'url, company, and role are required' });
+    if (!url) {
+      return reply.code(400).send({ error: 'url is required' });
     }
     try {
       // Defensive validation — stops file-injection via newlines or pipes
       // in user-supplied fields.
-      if (/[\n\r|]/.test(url) || /[\n\r|]/.test(company) || /[\n\r|]/.test(role)) {
+      if ([url, company, role, location].some((value) => /[\n\r|]/.test(value || ''))) {
         return reply.code(400).send({ error: 'fields must not contain newlines or pipe characters' });
       }
       // Cheap URL sanity check; the parser also requires http(s).
       if (!/^https?:\/\//i.test(url)) {
         return reply.code(400).send({ error: 'url must start with http:// or https://' });
       }
-      const result = addPendingItem(root, { url, company, role, postedAt, location });
+
+      let finalCompany = String(company || '').trim();
+      let finalRole = String(role || '').trim();
+      let finalLocation = String(location || '').trim();
+      let finalPostedAt = postedAt;
+
+      if (!finalCompany || !finalRole || !finalLocation) {
+        try {
+          const enriched = await enrichJobUrl(url);
+          if (!finalCompany) finalCompany = enriched.company || '';
+          if (!finalRole) finalRole = enriched.role || '';
+          if (!finalLocation) finalLocation = enriched.location || '';
+        } catch {
+          // Keep manual fallback behavior — if enrichment fails but the user
+          // supplied enough fields, we should still add the item.
+        }
+      }
+
+      if (!finalCompany || !finalRole) {
+        return reply.code(400).send({ error: 'company and role are required (or the URL must expose them for auto-fill)' });
+      }
+
+      const result = addPendingItem(root, { url, company: finalCompany, role: finalRole, postedAt: finalPostedAt, location: finalLocation });
       if (result.duplicate) return reply.code(409).send({ error: 'URL already exists in pipeline.md' });
       if (!result.added) return reply.code(500).send({ error: 'Failed to add entry' });
-      return { success: true };
+      return { success: true, company: finalCompany, role: finalRole, location: finalLocation || null };
     } catch (err) {
       return reply.code(500).send({ error: err.message });
     }
