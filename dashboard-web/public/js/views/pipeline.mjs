@@ -1640,9 +1640,10 @@ function update(container) {
     render(container);
   };
 
-  // Add Entry insight card → modal that captures URL + company + role and
-  // appends a new pending row to data/pipeline.md. Same field layout as
-  // the canonical pipeline format so the parser picks it up immediately.
+  // Add Entry insight card → modal that captures a URL plus optional manual
+  // company/role overrides and appends a new pending row to data/pipeline.md.
+  // If the user only pastes a job URL, the server tries to auto-fill company,
+  // role, and location from job-page metadata before writing the row.
   const addEntryBtn = container.querySelector('#add-entry-btn');
   if (addEntryBtn) {
     addEntryBtn.onclick = async () => {
@@ -1650,10 +1651,10 @@ function update(container) {
         title: 'Add a job to your pipeline',
         confirmText: 'Add to pipeline',
         body: `
-          <p style="font-size:13px;color:var(--subtext);margin-bottom:14px">Paste the posting link and identify the role. The entry shows up under <strong>Pending</strong> immediately — Tailor or Apply when you're ready.</p>
+          <p style="font-size:13px;color:var(--subtext);margin-bottom:14px">Paste the posting link. Company and role can be filled manually, or left blank if the page exposes them cleanly for auto-fill.</p>
           <div class="form-group"><label class="form-label">Job URL</label><input class="form-input" data-return="url" type="url" placeholder="https://company.com/jobs/123" autocomplete="off" autofocus></div>
-          <div class="form-group"><label class="form-label">Company</label><input class="form-input" data-return="company" type="text" placeholder="Acme Corp" autocomplete="off"></div>
-          <div class="form-group"><label class="form-label">Role</label><input class="form-input" data-return="role" type="text" placeholder="Senior Designer" autocomplete="off"></div>
+          <div class="form-group"><label class="form-label">Company <span style="color:var(--subtext);font-weight:400">(optional if auto-fill works)</span></label><input class="form-input" data-return="company" type="text" placeholder="Acme Corp" autocomplete="off"></div>
+          <div class="form-group"><label class="form-label">Role <span style="color:var(--subtext);font-weight:400">(optional if auto-fill works)</span></label><input class="form-input" data-return="role" type="text" placeholder="Senior Designer" autocomplete="off"></div>
         `,
       });
       if (!result || !result.data) return;
@@ -1661,23 +1662,27 @@ function update(container) {
       const cleanUrl = url.trim();
       const cleanCompany = company.trim();
       const cleanRole = role.trim();
-      if (!cleanUrl || !cleanCompany || !cleanRole) {
-        toast('URL, company, and role are all required.', 'error');
+      if (!cleanUrl) {
+        toast('Job URL is required.', 'error');
         return;
       }
       try {
-        await api.addPending({
+        const added = await api.addPending({
           url: cleanUrl,
           company: cleanCompany,
           role: cleanRole,
           postedAt: new Date().toISOString().slice(0, 10),
         });
-        toast(`Added ${cleanCompany} to pending`);
+        toast(`Added ${(added.company || cleanCompany || 'job')} to pending`);
         currentFilter = 'pending';
         currentPage = 1;
         render(container);
       } catch (err) {
-        const msg = err.message?.includes('409') ? 'That URL is already in your pipeline.' : `Failed to add: ${err.message}`;
+        const msg = err.message?.includes('409')
+          ? 'That URL is already in your pipeline.'
+          : err.message?.includes('400')
+            ? 'Could not infer company/role from that link. Add them manually and try again.'
+            : `Failed to add: ${err.message}`;
         toast(msg, 'error');
       }
     };

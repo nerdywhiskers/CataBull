@@ -62,26 +62,41 @@ for (const f of mjsFiles) {
   }
 }
 
+const pythonFiles = [
+  ...readdirSync(join(ROOT, 'scripts')).filter(f => f.endsWith('.py')).map(f => join('scripts', f)),
+  ...readdirSync(join(ROOT, 'tests')).filter(f => f.endsWith('.py')).map(f => join('tests', f)),
+];
+for (const f of pythonFiles) {
+  const result = run('python3', ['-m', 'py_compile', f]);
+  if (result !== null) {
+    pass(`${f} syntax OK`);
+  } else {
+    fail(`${f} has syntax errors`);
+  }
+}
+
 // ── 2. SCRIPT EXECUTION ─────────────────────────────────────────
 
 console.log('\n2. Script execution (graceful on empty data)');
 
 const scripts = [
-  { name: 'cv-sync-check.mjs', expectExit: 1, allowFail: true }, // fails without cv.md (normal in repo)
-  { name: 'verify-pipeline.mjs', expectExit: 0 },
-  { name: 'normalize-statuses.mjs', expectExit: 0 },
-  { name: 'dedup-tracker.mjs', expectExit: 0 },
-  { name: 'merge-tracker.mjs', expectExit: 0 },
+  { cmd: 'node', args: ['cv-sync-check.mjs'], allowFail: true, label: 'cv-sync-check.mjs' }, // fails without cv.md (normal in repo)
+  { cmd: 'node', args: ['verify-pipeline.mjs'], label: 'verify-pipeline.mjs' },
+  { cmd: 'node', args: ['normalize-statuses.mjs'], label: 'normalize-statuses.mjs' },
+  { cmd: 'node', args: ['dedup-tracker.mjs'], label: 'dedup-tracker.mjs' },
+  { cmd: 'node', args: ['merge-tracker.mjs'], label: 'merge-tracker.mjs' },
+  { cmd: 'python3', args: ['tests/test_linkedin_import.py'], label: 'python3 tests/test_linkedin_import.py' },
+  { cmd: 'node', args: ['tests/test-job-url-metadata.mjs'], label: 'node tests/test-job-url-metadata.mjs' },
 ];
 
-for (const { name, allowFail } of scripts) {
-  const result = run('node', name.split(' '), { stdio: ['pipe', 'pipe', 'pipe'] });
+for (const { cmd, args = [], allowFail, label } of scripts) {
+  const result = run(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'] });
   if (result !== null) {
-    pass(`${name} runs OK`);
+    pass(`${label} runs OK`);
   } else if (allowFail) {
-    warn(`${name} exited with error (expected without user data)`);
+    warn(`${label} exited with error (expected without user data)`);
   } else {
-    fail(`${name} crashed`);
+    fail(`${label} crashed`);
   }
 }
 
