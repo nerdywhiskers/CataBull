@@ -30,7 +30,6 @@ const MIN_RELEVANCE_KEY = 'CATABULL_DEEP_SCAN_MIN_RELEVANCE';
 const FRESHNESS_DAYS_KEY = 'CATABULL_SCAN_FRESHNESS_DAYS';
 const TAILSCALE_MODE_KEY = 'CATABULL_TAILSCALE_MODE';
 const AUTO_UPDATE_KEY = 'CATABULL_AUTO_UPDATE';
-const DEFAULT_GLOBAL_WORKSPACE_PREFERENCE = 'home';
 const DEFAULT_WEBSEARCH_ORDER = 'brave,serper,scrape';
 const SCAN_HISTORY_HEADER = 'url\tfirst_seen\tportal\ttitle\tcompany\tstatus\n';
 
@@ -114,7 +113,7 @@ export default async function (app) {
         return reply.code(400).send({ error: 'Workspace preference must be home or cwd.' });
       }
       const preference = normalizeGlobalWorkspacePreference(rawPreference);
-      globalEnvUpdates[GLOBAL_WORKSPACE_PREFERENCE_KEY] = preference === DEFAULT_GLOBAL_WORKSPACE_PREFERENCE ? null : preference;
+      globalEnvUpdates[GLOBAL_WORKSPACE_PREFERENCE_KEY] = preference;
     }
 
     if (Object.keys(envUpdates).length > 0) {
