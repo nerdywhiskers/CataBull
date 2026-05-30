@@ -32,6 +32,8 @@ URL_RE = re.compile(r"https?://[^\s<>'\")]+", re.I)
 WS_RE = re.compile(r"\s+")
 MARKER_RE = re.compile(r"\[\[LINK_(\d+)\]\]")
 GENERIC_LINK_TEXT_RE = re.compile(r"^(?:view job|apply|view|jobs?|see more|learn more|open role|read more)$", re.I)
+GENERIC_ROLE_RE = re.compile(r"^(?:jobs? similar to|your job alert for|view all jobs|media jobs|ar/vr jobs|expand your search)\b", re.I)
+LINKEDIN_LOGIN_RE = re.compile(r"^(?:linkedin login|sign in)$", re.I)
 JSON_LD_RE = re.compile(r"<script[^>]*type=([\"'])application/ld\+json\1[^>]*>(.*?)</script>", re.I | re.S)
 META_RE = re.compile(r"<meta\s+[^>]*(?:property|name)=([\"'])([^\"']+)\1[^>]*content=([\"'])([^\"']*)\3[^>]*>", re.I)
 TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
@@ -335,6 +337,67 @@ def generic_link_text(text):
     return not text or len(text) > 120 or bool(GENERIC_LINK_TEXT_RE.fullmatch(text))
 
 
+def generic_role_text(text):
+    text = clean_cell(text)
+    if not text:
+        return True
+    if GENERIC_ROLE_RE.search(text):
+        return True
+    if len(split_context_parts(text)) >= 2:
+        return True
+    lowered = text.lower()
+    if "recommendations based on your activity" in lowered:
+        return True
+    return False
+
+
+def company_location_from_line(text):
+    parts = split_context_parts(text)
+    if len(parts) >= 2:
+        return parts[0], " · ".join(parts[1:])
+    return "", ""
+
+
+def context_role_company_pair(context_before, context_after):
+    nearby = context_before + context_after
+    for idx in range(len(nearby) - 1):
+        role_candidate = clean_cell(nearby[idx])
+        company_line = clean_cell(nearby[idx + 1])
+        company_candidate, _ = company_location_from_line(company_line)
+        if role_candidate and company_candidate and not generic_role_text(role_candidate):
+            return company_candidate, role_candidate
+    return "", ""
+
+
+def strip_known_company_suffix(role, company):
+    role = clean_cell(role)
+    company = clean_cell(company)
+    if not role or not company:
+        return role
+    if " · " in role:
+        head = role.split(" · ", 1)[0].strip()
+        if head:
+            role = head
+    suffix = f" {company}"
+    if role.endswith(suffix):
+        trimmed = clean_cell(role[: -len(suffix)])
+        if trimmed:
+            return trimmed
+    return role
+
+
+def metadata_looks_like_login_wall(metadata):
+    metadata = metadata or {}
+    role = clean_cell(metadata.get("role"))
+    company = clean_cell(metadata.get("company"))
+    location = clean_cell(metadata.get("location"))
+    return bool(
+        LINKEDIN_LOGIN_RE.fullmatch(role)
+        or LINKEDIN_LOGIN_RE.fullmatch(company)
+        or LINKEDIN_LOGIN_RE.fullmatch(location)
+    )
+
+
 def strip_tags(html_text):
     text = re.sub(r"<[^>]+>", " ", html_text or "")
     return WS_RE.sub(" ", html.unescape(text)).strip()
@@ -478,9 +541,13 @@ def fetch_job_page_metadata(url):
         final_url = response.geturl()
         html_text = response.read().decode("utf-8", errors="replace")
     metadata = parse_job_page_metadata(html_text, final_url)
+    if metadata_looks_like_login_wall(metadata):
+        metadata = {"role": "", "company": "", "location": "", "source": clean_cell(metadata.get("source") or "login-wall")}
     if not metadata_sufficient(metadata):
         live_metadata = fetch_live_job_page_metadata(final_url)
         live = live_metadata if isinstance(live_metadata, dict) else {}
+        if metadata_looks_like_login_wall(live):
+            live = {}
         if metadata_sufficient(live):
             metadata = {
                 "role": clean_cell(live.get("role") or metadata.get("role") or ""),
@@ -514,26 +581,31 @@ def infer_company_role(link, subject):
     role = ""
     company = ""
 
+    paired_company, paired_role = context_role_company_pair(context_before, context_after)
+    if paired_company and paired_role:
+        company = paired_company
+        role = paired_role
+
     for source in (title, aria_label, text):
         parsed_role, parsed_company = parse_role_company_phrase(source)
-        if parsed_role and not role:
+        if parsed_role and (not role or generic_role_text(role)):
             role = parsed_role
         if parsed_company and not company:
             company = parsed_company
-        if role and company:
+        if role and company and not generic_role_text(role):
             break
 
-    if not role and not generic_link_text(text):
+    if (not role or generic_role_text(role)) and not generic_link_text(text) and not generic_role_text(text):
         role = text
 
     nearby_lines = context_before + context_after
     for line in reversed(nearby_lines):
         parsed_role, parsed_company = parse_role_company_phrase(line)
-        if parsed_role and not role:
+        if parsed_role and (not role or generic_role_text(role)):
             role = parsed_role
         if parsed_company and not company:
             company = parsed_company
-        if role and company:
+        if role and company and not generic_role_text(role):
             break
 
     if len(context_before) >= 2:
@@ -543,18 +615,18 @@ def infer_company_role(link, subject):
         if len(nearest_parts) >= 2:
             if not company:
                 company = nearest_parts[0]
-            if not role and not generic_link_text(previous):
+            if (not role or generic_role_text(role)) and not generic_link_text(previous) and not generic_role_text(previous):
                 role = previous
         elif not company and role and not generic_link_text(nearest):
             company = nearest
 
     for line in reversed(nearby_lines):
-        if role and company:
+        if role and company and not generic_role_text(role):
             break
         parts = split_context_parts(line)
         if len(parts) >= 2 and not company:
             company = parts[0]
-        if not role and not generic_link_text(line):
+        if (not role or generic_role_text(role)) and not generic_link_text(line) and not generic_role_text(line):
             role = line
 
     for source in (title, aria_label, text, subject):
@@ -564,9 +636,11 @@ def infer_company_role(link, subject):
         if m:
             company = clean_cell(m.group(1))
 
-    if not role:
+    if not role or generic_role_text(role):
         m = re.search(r"(?:hiring|recommended|new):?\s+(.{5,90})", subject, re.I)
         role = clean_cell(m.group(1)) if m else "LinkedIn job lead"
+
+    role = strip_known_company_suffix(role, company)
 
     if not company:
         company = "LinkedIn"

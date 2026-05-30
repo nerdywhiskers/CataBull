@@ -145,6 +145,107 @@ class LinkedInImportTests(unittest.TestCase):
             linkedin_import.urllib.request.urlopen = original_urlopen
             setattr(linkedin_import, "fetch_live_job_page_metadata", original_live)
 
+    def test_fetch_job_page_metadata_ignores_linkedin_login_wall(self):
+        original_urlopen = linkedin_import.urllib.request.urlopen
+        original_live = getattr(linkedin_import, "fetch_live_job_page_metadata")
+        try:
+            class FakeResponse:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+
+                def geturl(self):
+                    return "https://www.linkedin.com/uas/login?session_redirect=%2Fjobs%2Fview%2F123"
+
+                def read(self):
+                    return b"""
+                        <html><head>
+                          <title>LinkedIn Login</title>
+                          <meta property='og:title' content='LinkedIn Login'>
+                          <meta property='og:description' content='Sign in'>
+                        </head></html>
+                    """
+
+            linkedin_import.urllib.request.urlopen = lambda req, timeout=20: FakeResponse()
+            setattr(linkedin_import, "fetch_live_job_page_metadata", lambda url: {
+                "role": "LinkedIn Login",
+                "company": "Sign in",
+                "location": "Login page",
+                "source": "playwright-dom",
+            })
+
+            metadata = linkedin_import.fetch_job_page_metadata("https://www.linkedin.com/jobs/view/123/")
+
+            self.assertEqual("", metadata["role"])
+            self.assertEqual("", metadata["company"])
+            self.assertEqual("", metadata["location"])
+        finally:
+            linkedin_import.urllib.request.urlopen = original_urlopen
+            setattr(linkedin_import, "fetch_live_job_page_metadata", original_live)
+
+    def test_infer_company_role_prefers_context_pair_for_jobs_similar_email(self):
+        link = {
+            "url": "https://www.linkedin.com/comm/jobs/view/4416492022",
+            "text": "Jobs similar to Senior Art Director/Designer - Small Business at Autodesk",
+            "context_before": [
+                "-->",
+                "Jobs similar to Senior Art Director/Designer - Small Business at Autodesk",
+            ],
+            "context_after": [
+                "Senior Art Director",
+                "Smalls · United States (Remote)",
+            ],
+            "title": "",
+            "aria_label": "",
+        }
+
+        company, role = linkedin_import.infer_company_role(link, "New jobs similar to Senior Art Director/Designer - Small Business at Autodesk")
+
+        self.assertEqual("Smalls", company)
+        self.assertEqual("Senior Art Director", role)
+
+    def test_infer_company_role_strips_company_location_from_role_text(self):
+        link = {
+            "url": "https://www.linkedin.com/comm/jobs/view/4405500413/",
+            "text": "CG Artist, Experimental - INK Netflix · Los Angeles, CA (On-site)",
+            "context_before": [
+                "AR/VR jobs",
+                "CG Artist, Experimental - INK",
+                "Netflix · Los Angeles, CA (On-site)",
+            ],
+            "context_after": [],
+            "title": "",
+            "aria_label": "",
+        }
+
+        company, role = linkedin_import.infer_company_role(link, "Netflix is hiring for a AR/VR role")
+
+        self.assertEqual("Netflix", company)
+        self.assertEqual("CG Artist, Experimental - INK", role)
+
+    def test_infer_company_role_uses_context_after_pair_for_job_alert(self):
+        link = {
+            "url": "https://www.linkedin.com/comm/jobs/view/4418821676/",
+            "text": "",
+            "context_before": [
+                "Rocket Money Senior Art Director: ABOUT ROCKET MONEY 🔮Rocket Money’s mission is to…",
+                "Your job alert for art director",
+            ],
+            "context_after": [
+                "Senior Art Director",
+                "Rocket Money · Los Angeles Metropolitan Area (Remote)",
+            ],
+            "title": "",
+            "aria_label": "",
+        }
+
+        company, role = linkedin_import.infer_company_role(link, "Senior Art Director at Rocket Money")
+
+        self.assertEqual("Rocket Money", company)
+        self.assertEqual("Senior Art Director", role)
+
 
 if __name__ == "__main__":
     unittest.main()
