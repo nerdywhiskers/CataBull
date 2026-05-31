@@ -22,6 +22,10 @@ let visibleSuggestions = [];
 let activeSuggestionIndex = -1;
 let commandSuggestions = null;
 let workingMessageId = null;
+let onMessagesChange = null;
+
+const MAX_PERSISTED_MESSAGES = 200;
+const PERSISTABLE_ROLES = new Set(['user', 'assistant', 'system', 'permission']);
 
 const parser = createAnsiLineParser(handleParsedLine);
 
@@ -54,6 +58,35 @@ function queueUserEchoes(text) {
 
 function createMessage(role, text, meta = {}) {
   return { id: ++messageId, role, text, tone: meta.tone || 'default', agent: meta.agent || '' };
+}
+
+function sanitizePersistedMessages(snapshot = []) {
+  if (!Array.isArray(snapshot)) return [];
+  return snapshot
+    .filter((message) => message && typeof message === 'object' && PERSISTABLE_ROLES.has(message.role))
+    .map((message) => createMessage(message.role, String(message.text || ''), {
+      tone: message.tone === 'error' ? 'error' : 'default',
+      agent: typeof message.agent === 'string' ? message.agent : '',
+    }))
+    .filter((message) => message.text || message.role === 'permission')
+    .slice(-MAX_PERSISTED_MESSAGES);
+}
+
+function getPersistedMessagesSnapshot() {
+  return messages
+    .filter((message) => PERSISTABLE_ROLES.has(message.role))
+    .map((message) => ({
+      role: message.role,
+      text: message.text,
+      tone: message.tone === 'error' ? 'error' : 'default',
+      agent: message.agent || '',
+    }))
+    .slice(-MAX_PERSISTED_MESSAGES);
+}
+
+function emitMessagesChange() {
+  if (typeof onMessagesChange !== 'function') return;
+  onMessagesChange(getPersistedMessagesSnapshot());
 }
 
 function removeMessageById(id) {
@@ -142,6 +175,7 @@ function renderMessages() {
       </div>
     `;
   messagesEl.scrollTop = messagesEl.scrollHeight;
+  emitMessagesChange();
 }
 
 function getCommandSuggestions() {
@@ -316,10 +350,11 @@ function bindComposer() {
   });
 }
 
-export function init(container, { onSubmit, onNewChat } = {}) {
+export function init(container, { onSubmit, onNewChat, onMessagesChange: onMessagesChangeCallback } = {}) {
   root = container;
   onSubmitPrompt = onSubmit || null;
   onNewChatRequest = onNewChat || null;
+  onMessagesChange = onMessagesChangeCallback || null;
 
   if (!root) return;
   root.innerHTML = `
@@ -360,6 +395,19 @@ export function reset(agent = '') {
   workingMessageId = null;
   parser.reset();
   renderMessages();
+}
+
+export function restoreMessages(snapshot = [], agent = '') {
+  currentAgent = agent || currentAgent;
+  pendingEchoes = [];
+  workingMessageId = null;
+  parser.reset();
+  messages = sanitizePersistedMessages(snapshot);
+  renderMessages();
+}
+
+export function getMessagesSnapshot() {
+  return getPersistedMessagesSnapshot();
 }
 
 export function setAgent(agent) {

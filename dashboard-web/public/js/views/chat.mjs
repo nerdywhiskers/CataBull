@@ -5,12 +5,14 @@ import {
   addSystemMessage,
   addUserMessage,
   focusInput as focusChatInput,
+  getMessagesSnapshot,
   handleError as handleChatError,
   handleExit as handleChatExit,
   handleOutput as handleChatOutput,
   hideWorkingMessage,
   init as initChatUi,
   reset as resetChatUi,
+  restoreMessages as restoreChatMessages,
   setAgent as setChatAgent,
   showWorkingMessage,
 } from './chatui.mjs';
@@ -28,9 +30,11 @@ let lastOutputAt = 0;
 let rawBacklog = '';
 let currentView = localStorage.getItem('catabull-terminal-view') || 'chat';
 let reconnectTimer = null;
+let suppressTranscriptPersistence = false;
 const DEFAULT_OPEN = localStorage.getItem('catabull-terminal-open') !== 'false';
 const AGENT_STORAGE_KEY = 'catabull-terminal-agent';
 const AGENT_SESSIONS_STORAGE_KEY = 'catabull-chat-agent-sessions';
+const CHAT_TRANSCRIPTS_STORAGE_KEY = 'catabull-chat-transcripts';
 
 const DEFAULT_COLS = 120;
 const DEFAULT_ROWS = 20;
@@ -43,6 +47,8 @@ let continuationSupport = {};
 // codex falls back to "resume last" (no per-id session control in exec mode),
 // so for codex this map only tracks "have we seen at least one turn yet?".
 const agentSessions = loadAgentSessions();
+const chatTranscripts = loadChatTranscripts();
+pruneOrphanedAgentSessions();
 
 function loadAgentSessions() {
   try {
@@ -57,6 +63,66 @@ function loadAgentSessions() {
 
 function saveAgentSessions() {
   try { localStorage.setItem(AGENT_SESSIONS_STORAGE_KEY, JSON.stringify(agentSessions)); } catch {}
+}
+
+function loadChatTranscripts() {
+  try {
+    const raw = localStorage.getItem(CHAT_TRANSCRIPTS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveChatTranscripts() {
+  try { localStorage.setItem(CHAT_TRANSCRIPTS_STORAGE_KEY, JSON.stringify(chatTranscripts)); } catch {}
+}
+
+function withTranscriptPersistencePaused(callback) {
+  suppressTranscriptPersistence = true;
+  try {
+    return callback();
+  } finally {
+    suppressTranscriptPersistence = false;
+  }
+}
+
+function transcriptHasMessages(name) {
+  return Array.isArray(chatTranscripts[name]?.messages) && chatTranscripts[name].messages.length > 0;
+}
+
+function pruneOrphanedAgentSessions() {
+  let changed = false;
+  for (const name of Object.keys(agentSessions)) {
+    if (transcriptHasMessages(name)) continue;
+    delete agentSessions[name];
+    changed = true;
+  }
+  if (changed) saveAgentSessions();
+}
+
+function persistCurrentTranscript(snapshot = getMessagesSnapshot()) {
+  if (suppressTranscriptPersistence || !currentAgent) return;
+  if (Array.isArray(snapshot) && snapshot.length) {
+    chatTranscripts[currentAgent] = {
+      messages: snapshot,
+      updatedAt: Date.now(),
+    };
+  } else {
+    delete chatTranscripts[currentAgent];
+  }
+  saveChatTranscripts();
+}
+
+function restoreChatTranscript(name) {
+  const snapshot = Array.isArray(chatTranscripts[name]?.messages)
+    ? chatTranscripts[name].messages
+    : [];
+  withTranscriptPersistencePaused(() => {
+    restoreChatMessages(snapshot, name);
+  });
 }
 
 function agentSupportsContinuation(name) {
@@ -140,10 +206,19 @@ function logSystem(text, tone = 'default') {
   addSystemMessage(text, tone);
 }
 
-function clearSessionOutput() {
+function clearTerminalOutput() {
   rawBacklog = '';
   if (term) term.clear();
-  resetChatUi(currentAgent);
+}
+
+function syncChatUiToCurrentAgent() {
+  restoreChatTranscript(currentAgent);
+}
+
+function clearSessionOutput({ resetChat = true } = {}) {
+  clearTerminalOutput();
+  if (resetChat) resetChatUi(currentAgent);
+  else syncChatUiToCurrentAgent();
 }
 
 // "Reset" rotates the current agent's session id so the next message starts
@@ -152,9 +227,12 @@ function clearSessionOutput() {
 function resetChatSession() {
   if (currentAgent) {
     delete agentSessions[currentAgent];
+    delete chatTranscripts[currentAgent];
     saveAgentSessions();
+    saveChatTranscripts();
   }
-  clearSessionOutput();
+  clearTerminalOutput();
+  syncChatUiToCurrentAgent();
 }
 
 function ensureTerminal() {
@@ -577,11 +655,14 @@ export async function init() {
   agentsReady = loadAgents();
   await agentsReady;
 
-  initChatUi(document.getElementById('chat-pane'), {
-    onSubmit: submitFromChatView,
-    onNewChat: resetChatSession,
+  withTranscriptPersistencePaused(() => {
+    initChatUi(document.getElementById('chat-pane'), {
+      onSubmit: submitFromChatView,
+      onNewChat: resetChatSession,
+      onMessagesChange: persistCurrentTranscript,
+    });
+    syncChatUiToCurrentAgent();
   });
-  resetChatUi(currentAgent);
   applyViewMode(currentView);
 
   const drawer = document.getElementById('terminal-drawer');
@@ -595,7 +676,7 @@ export async function init() {
       currentAgent = event.target.value;
       localStorage.setItem(AGENT_STORAGE_KEY, currentAgent);
       setChatAgent(currentAgent);
-      clearSessionOutput();
+      clearSessionOutput({ resetChat: false });
       if (currentView === 'raw') {
         logSystem(`Switching to ${currentAgent}...`);
       }
