@@ -161,6 +161,42 @@ assert(
   'OpenClaw sticky session reuses explicit session id',
 );
 
+console.log('\n6. Chat transcript persistence sanitization');
+
+globalThis.document = {
+  getElementById() { return null; },
+  addEventListener() {},
+  querySelector() { return null; },
+  body: { style: {} },
+};
+globalThis.window = { document: globalThis.document };
+globalThis.localStorage = {
+  getItem() { return null; },
+  setItem() {},
+  removeItem() {},
+};
+
+const chatUi = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web/public/js/views/chatui.mjs')).href
+);
+
+chatUi.restoreMessages([
+  { role: 'user', text: 'hello' },
+  { role: 'assistant', text: 'hi back', agent: 'claude' },
+  { role: 'working', text: 'should not persist' },
+  { role: 'system', text: 'Heads up', tone: 'error' },
+  { role: 'bogus', text: 'drop me' },
+]);
+
+assert(
+  JSON.stringify(chatUi.getMessagesSnapshot()) === JSON.stringify([
+    { role: 'user', text: 'hello', tone: 'default', agent: '' },
+    { role: 'assistant', text: 'hi back', tone: 'default', agent: 'claude' },
+    { role: 'system', text: 'Heads up', tone: 'error', agent: '' },
+  ]),
+  'chat transcript restore drops non-persistable roles and preserves valid messages',
+);
+
 console.log(`\n${'─'.repeat(40)}`);
 console.log(`Passed: ${passed} / ${total}`);
 if (failed > 0) {
