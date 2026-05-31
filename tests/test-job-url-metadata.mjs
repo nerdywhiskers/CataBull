@@ -56,6 +56,18 @@ assert(linkedInMeta.role === 'Applied AI Engineer', 'linkedin title parsed');
 assert(linkedInMeta.company === 'Anthropic', 'linkedin company parsed');
 assert(linkedInMeta.location === 'San Francisco, CA (Hybrid)', 'linkedin location parsed');
 
+const reversedMetaAttrHtml = `
+  <html><head>
+    <meta content="Staff Software Engineer - Vercel | LinkedIn" property="og:title">
+    <meta content="Vercel · Remote (US)" property="og:description">
+    <title>Ignore me</title>
+  </head><body></body></html>
+`;
+const reversedMetaAttr = extractJobMetadataFromHtml(reversedMetaAttrHtml, 'https://www.linkedin.com/jobs/view/123456789/');
+assert(reversedMetaAttr.role === 'Staff Software Engineer', 'meta parser handles content before property for role');
+assert(reversedMetaAttr.company === 'Vercel', 'meta parser handles content before property for company');
+assert(reversedMetaAttr.location === 'Remote (US)', 'meta parser handles content before property for location');
+
 const linkedInSearchHtml = `
   <html><head>
     <title>More than 1,000 jobs for Product Designer in United States</title>

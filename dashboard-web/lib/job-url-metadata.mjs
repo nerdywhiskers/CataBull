@@ -1,6 +1,6 @@
 import { launchChromiumWithRetry } from '../../lib/playwright-launch.mjs';
 
-const META_RE = /<meta\s+[^>]*(?:property|name)=(["'])([^"']+)\1[^>]*content=(["'])([^"']*)\3[^>]*>/gi;
+const META_TAG_RE = /<meta\b[^>]*>/gi;
 const TITLE_RE = /<title[^>]*>([\s\S]*?)<\/title>/i;
 const H1_RE = /<h1[^>]*>([\s\S]*?)<\/h1>/i;
 const SCRIPT_JSON_LD_RE = /<script[^>]*type=(["'])application\/ld\+json\1[^>]*>([\s\S]*?)<\/script>/gi;
@@ -43,12 +43,22 @@ function uniqTexts(list = []) {
   return out;
 }
 
+function extractAttr(tag, attrName) {
+  const re = new RegExp(`\\b${attrName}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, 'i');
+  const match = tag.match(re);
+  return match ? cleanText(match[2]) : '';
+}
+
 function extractMetaMap(html) {
   const meta = {};
-  META_RE.lastIndex = 0;
+  META_TAG_RE.lastIndex = 0;
   let match;
-  while ((match = META_RE.exec(html)) !== null) {
-    meta[match[2].toLowerCase()] = cleanText(match[4]);
+  while ((match = META_TAG_RE.exec(html)) !== null) {
+    const tag = match[0];
+    const key = extractAttr(tag, 'property') || extractAttr(tag, 'name');
+    const value = extractAttr(tag, 'content');
+    if (!key || !value) continue;
+    meta[key.toLowerCase()] = value;
   }
   return meta;
 }
