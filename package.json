@@ -55,7 +55,7 @@
     "dashboard": "node start.mjs",
     "dashboard:server": "node dashboard-web/server.mjs",
     "test": "node tests/test-all.mjs",
-    "test:unit": "node tests/test-core.mjs && node tests/test-health.mjs && node tests/test-providers.mjs && node tests/test-onboarding.mjs && node tests/test-workspace.mjs && node tests/test-discovery.mjs && node tests/test-relevance.mjs && node tests/test-discover.mjs && node tests/test-chat-session.mjs && node tests/test-tailor.mjs && node tests/test-cv.mjs && node tests/test-recovery.mjs && node tests/test-resolver.mjs && node tests/test-profiles.mjs && node tests/test-websearch.mjs && node tests/test-settings.mjs && node tests/test-updates.mjs && node tests/test-level3.mjs && node tests/test-jobspy.mjs && python3 tests/test_linkedin_import.py && node tests/test-job-url-metadata.mjs"
+    "test:unit": "node tests/test-core.mjs && node tests/test-health.mjs && node tests/test-providers.mjs && node tests/test-onboarding.mjs && node tests/test-workspace.mjs && node tests/test-discovery.mjs && node tests/test-relevance.mjs && node tests/test-discover.mjs && node tests/test-chat-session.mjs && node tests/test-api-auth-recovery.mjs && node tests/test-tailor.mjs && node tests/test-cv.mjs && node tests/test-recovery.mjs && node tests/test-resolver.mjs && node tests/test-profiles.mjs && node tests/test-websearch.mjs && node tests/test-settings.mjs && node tests/test-updates.mjs && node tests/test-level3.mjs && node tests/test-jobspy.mjs && python3 tests/test_linkedin_import.py && node tests/test-job-url-metadata.mjs"
   },
   "keywords": [
     "ai",

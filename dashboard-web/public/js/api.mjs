@@ -2,6 +2,15 @@ const BASE = '/api/v1';
 
 let reloadingForAuth = false;
 
+export function buildAuthRefreshLocation(location = window.location) {
+  const pathname = location?.pathname || '/';
+  const params = new URLSearchParams(location?.search || '');
+  params.set('cb_session_refresh', String(Date.now()));
+  const search = params.toString();
+  const hash = location?.hash || '';
+  return `${pathname}${search ? `?${search}` : ''}${hash}`;
+}
+
 async function request(path, opts = {}) {
   const headers = { ...opts.headers };
   const body = opts.body ? JSON.stringify(opts.body) : undefined;
@@ -11,13 +20,14 @@ async function request(path, opts = {}) {
   // future caller hands us absolute URLs.
   const res = await fetch(BASE + path, { ...opts, headers, body, credentials: 'same-origin' });
   // If the server restarts mid-session, the cookie's token becomes
-  // stale and every subsequent API call returns 401. Reloading the
-  // page lets the new server set a fresh cookie before the browser
-  // tries again. Guard with a flag so a flurry of failed requests
-  // doesn't trigger a reload storm.
+  // stale and every subsequent API call returns 401. A plain reload can
+  // get a cached 304 for `/`, which does not reissue Set-Cookie and traps
+  // the page in a reload loop. Force a one-shot cache-busting navigation
+  // instead. Guard with a flag so a flurry of failed requests doesn't
+  // trigger a navigation storm.
   if (res.status === 401 && !reloadingForAuth) {
     reloadingForAuth = true;
-    try { window.location.reload(); } catch {}
+    try { window.location.replace(buildAuthRefreshLocation(window.location)); } catch {}
   }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
