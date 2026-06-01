@@ -7,7 +7,7 @@ import { render as renderProfile } from './views/profile.mjs';
 import { render as renderPortals } from './views/portals.mjs';
 import { render as renderDiscover } from './views/discover.mjs';
 import { render as renderSettings } from './views/settings.mjs';
-import { init as initTerminal, show as showTerminal, hide as hideTerminal, runPrompt } from './views/chat.mjs';
+import { init as initTerminal, show as showTerminal, runPrompt } from './views/chat.mjs';
 import { init as initCommandPalette, isOpen as isPaletteOpen, open as openCommandPalette } from './views/command-palette.mjs';
 import { render as renderOnboarding } from './views/onboarding.mjs';
 import { initUpdateNotifier } from './components/update-notifier.mjs';
@@ -95,7 +95,6 @@ async function init() {
   // collapses behind a slide-in transform — the toggle button still works.
   initTerminal();
   initCommandPalette(document.getElementById('command-palette-root'));
-  showTerminal();
   initUpdateNotifier();
 
   // Nav tab clicks (also routes the avatar profile chip)
