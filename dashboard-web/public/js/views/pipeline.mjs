@@ -233,6 +233,10 @@ function renderScoreRing(score, tone, title = '') {
   `;
 }
 
+function wrapTable(tableMarkup, className = 'table-scroll') {
+  return `<div class="${className}">${tableMarkup}</div>`;
+}
+
 // Renders the three-up insight row at the bottom of the Pipeline page —
 // Match Insight, AI Suggestion, and the Add Entry CTA. Content adapts to
 // whatever slice the pipeline is showing.
@@ -568,7 +572,7 @@ function renderPending(pageItems = null) {
 
   return `
     ${batchBar}
-    <table class="data-table">
+    ${wrapTable(`<table class="data-table pipeline-table pending-table">
       <thead><tr>
         <th class="col-check"><input type="checkbox" id="select-all" ${allSelected ? 'checked' : ''}></th>
         <th>Company</th>
@@ -578,7 +582,7 @@ function renderPending(pageItems = null) {
         <th class="col-actions">Actions</th>
       </tr></thead>
       <tbody>${rows}</tbody>
-    </table>
+    </table>`, 'table-scroll table-scroll-pipeline')}
   `;
 }
 
@@ -600,7 +604,7 @@ function renderCollapsibleGroup(label, items, style = '') {
         <span>${label}</span>
         <span class="skip-group-count">${items.length}</span>
       </summary>
-      <table class="data-table data-table-compact">
+      ${wrapTable(`<table class="data-table data-table-compact pipeline-table skip-table">
         <tbody>${items.map(s => `
           <tr class="is-muted">
             <td class="col-company">
@@ -618,7 +622,7 @@ function renderCollapsibleGroup(label, items, style = '') {
             </td>
           </tr>`).join('')}
         </tbody>
-      </table>
+      </table>`, 'table-scroll table-scroll-compact')}
     </details>`;
 }
 
@@ -652,7 +656,7 @@ function renderSkipped() {
           <span>Rejected</span>
           <span class="skip-group-count">${rejected.length}</span>
         </summary>
-        <table class="data-table data-table-compact">
+        ${wrapTable(`<table class="data-table data-table-compact pipeline-table skip-table">
           <tbody>${rejected.map(r => `
             <tr class="is-muted">
               <td><span class="cell-date">${r.date}</span></td>
@@ -673,7 +677,7 @@ function renderSkipped() {
               </td>
             </tr>`).join('')}
           </tbody>
-        </table>
+        </table>`, 'table-scroll table-scroll-compact')}
       </details>`;
   }
 
@@ -764,7 +768,7 @@ function renderTable(items) {
     }
   }
 
-  let html = `${appBatchBar}<table class="data-table">
+  let html = `${appBatchBar}${wrapTable(`<table class="data-table pipeline-table applications-table">
     <thead><tr>
       ${showCheckboxes ? `<th class="col-check"><input type="checkbox" id="select-all-apps" ${allAppsSelected ? 'checked' : ''}></th>` : ''}
       <th class="col-num">#</th>
@@ -776,7 +780,7 @@ function renderTable(items) {
       <th class="col-actions">Actions</th>
     </tr></thead>
     <tbody>${rows}</tbody>
-  </table>`;
+  </table>`, 'table-scroll table-scroll-pipeline')}`;
 
   if (currentFilter === 'skip') html += renderSkipped();
 

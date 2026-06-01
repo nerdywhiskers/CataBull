@@ -1040,6 +1040,45 @@ input[type="checkbox"]:checked::after {
   color: var(--text);
 }
 
+@media (max-width: 900px) {
+  .cell-company {
+    gap: 10px;
+    font-size: 14px;
+  }
+  .cell-role,
+  .cell-date {
+    font-size: 13px;
+  }
+  .cell-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .table-scroll-pipeline > .data-table {
+    min-width: 680px;
+  }
+  .table-scroll-compact > .data-table {
+    min-width: 520px;
+  }
+  .data-table th,
+  .data-table td {
+    padding: 10px;
+  }
+  .applications-table .col-actions,
+  .pending-table .col-actions {
+    width: 220px;
+  }
+  .score-ring {
+    width: 42px;
+    height: 42px;
+  }
+  .score-ring-value {
+    font-size: 11px;
+  }
+}
+
 @media (max-width: 920px) {
   .pipeline-insights { grid-template-columns: 1fr; }
 }

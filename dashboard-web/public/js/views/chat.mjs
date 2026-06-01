@@ -31,7 +31,11 @@ let rawBacklog = '';
 let currentView = localStorage.getItem('catabull-terminal-view') || 'chat';
 let reconnectTimer = null;
 let suppressTranscriptPersistence = false;
-const DEFAULT_OPEN = localStorage.getItem('catabull-terminal-open') !== 'false';
+function shouldAutoOpenDrawer() {
+  // On mobile the drawer becomes a full overlay. Reopening it automatically
+  // from a desktop preference hides the dashboard behind chat on first load.
+  return window.innerWidth > 1180 && localStorage.getItem('catabull-terminal-open') !== 'false';
+}
 const AGENT_STORAGE_KEY = 'catabull-terminal-agent';
 const AGENT_SESSIONS_STORAGE_KEY = 'catabull-chat-agent-sessions';
 const CHAT_TRANSCRIPTS_STORAGE_KEY = 'catabull-chat-transcripts';
@@ -450,7 +454,7 @@ async function submitFromChatView(text) {
   return runPrompt(text);
 }
 
-export async function show() {
+export async function show({ persist = true } = {}) {
   const drawer = document.getElementById('terminal-drawer');
   const main = document.getElementById('main-content');
   if (!drawer) return;
@@ -458,7 +462,7 @@ export async function show() {
   drawer.style.display = 'flex';
   drawer.classList.add('is-open');
   document.querySelector('.dashboard-shell')?.classList.remove('rail-hidden');
-  localStorage.setItem('catabull-terminal-open', 'true');
+  if (persist) localStorage.setItem('catabull-terminal-open', 'true');
   if (main) main.classList.add('with-drawer-right');
   drawerVisible = true;
 
@@ -490,7 +494,7 @@ export async function show() {
   connect();
 }
 
-export function hide() {
+export function hide({ persist = true } = {}) {
   const drawer = document.getElementById('terminal-drawer');
   const main = document.getElementById('main-content');
   if (drawer) {
@@ -503,7 +507,7 @@ export function hide() {
     main.style.removeProperty('--drawer-offset');
   }
   disconnectSession();
-  localStorage.setItem('catabull-terminal-open', 'false');
+  if (persist) localStorage.setItem('catabull-terminal-open', 'false');
   drawerVisible = false;
 }
 
@@ -697,7 +701,9 @@ export async function init() {
     }
   });
 
-  if (DEFAULT_OPEN) {
-    setTimeout(() => { show(); }, 0);
+  if (shouldAutoOpenDrawer()) {
+    setTimeout(() => { show({ persist: false }); }, 0);
+  } else {
+    hide({ persist: false });
   }
 }
