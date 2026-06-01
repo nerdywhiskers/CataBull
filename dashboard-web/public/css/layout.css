@@ -1,4 +1,8 @@
 /* ── Shell ──────────────────────────────────────────────────────────── */
+body {
+  margin: 0;
+}
+
 .app {
   display: flex;
   flex-direction: column;
@@ -41,6 +45,7 @@
   align-items: center;
   gap: 4px;
   flex: 1;
+  min-width: 0;
 }
 
 .nav-tab {
@@ -79,6 +84,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 /* Profile chip on the far right */
@@ -201,6 +207,9 @@
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; }
+.grid-2 > *,
+.grid-3 > *,
+.grid-4 > * { min-width: 0; }
 
 /* ── Right rail (chat / terminal) ────────────────────────────────────── */
 .terminal-drawer {
@@ -378,13 +387,46 @@ select.terminal-header-agent option { background: var(--mantle); color: var(--te
     transform: translateX(100%);
     transition: transform 220ms ease;
   }
+  .terminal-resize-handle { display: none; }
   .terminal-drawer.is-open { transform: translateX(0); }
 }
 
+@media (max-width: 980px) {
+  .nav {
+    padding: 0 16px;
+    gap: 12px;
+  }
+  .nav-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .nav-tabs::-webkit-scrollbar { display: none; }
+  .nav-tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .nav-profile {
+    padding-right: 4px;
+  }
+  #user-name {
+    display: none;
+  }
+}
+
 @media (max-width: 720px) {
-  .nav { padding: 0 16px; gap: 16px; }
+  .nav { padding: 0 16px; gap: 12px; }
   .nav-tabs { gap: 0; }
   .nav-tab { padding: 8px 10px; }
+  .nav-icon-btn {
+    width: 32px;
+    height: 32px;
+  }
+  .nav-profile {
+    padding: 2px;
+    border-radius: 50%;
+  }
   .main { padding: 20px 16px 32px; }
   .section-title { font-size: 24px; }
 }
