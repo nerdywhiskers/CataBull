@@ -126,10 +126,12 @@ export function detectAgents() {
 export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId = null, continueSession = false, prompt = '' } = {}) {
   if (agentName === 'claude') {
     const args = ['-p', '--output-format', 'text'];
-    // claude -p without flags defaults to continuing the most-recent session
-    // for this cwd. Pin to an explicit session id so the client can switch
-    // conversations on demand (Reset → new uuid → fresh session).
-    if (sessionId) args.push('--session-id', sessionId);
+    // Claude print-mode creates a named session with --session-id on the first
+    // turn, but follow-up turns must use --resume <id>. Reusing --session-id on
+    // an existing session fails with "Session ID ... is already in use."
+    if (sessionId) {
+      args.push(continueSession ? '--resume' : '--session-id', sessionId);
+    }
     if (allowEdits) args.push('--permission-mode', 'acceptEdits');
     return { args, env: process.env, promptVia: 'stdin' };
   }
