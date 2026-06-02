@@ -25,6 +25,7 @@ import { resolveProvider } from '../scan/providers/index.mjs';
 import { disposeBrowser as disposeWebfetchBrowser } from '../scan/providers/webfetch.mjs';
 import { buildTitleClassifier } from '../lib/title-filter.mjs';
 import { loadEnvFile } from '../lib/load-env.mjs';
+import { encodeScanProgress } from '../lib/scan-progress-stream.mjs';
 import {
   DEFAULT_MIN_RELEVANCE,
   hasRelevanceSignals,
@@ -56,6 +57,8 @@ mkdirSync(join(ROOT, 'data'), { recursive: true });
 const CONCURRENCY = 10;
 const FETCH_TIMEOUT_MS = 10_000;
 const MIN_RELEVANCE_ENV_KEY = 'CATABULL_DEEP_SCAN_MIN_RELEVANCE';
+const QUICK_MODE_EXCLUDED_PROVIDERS = new Set(['webfetch']);
+const SCAN_EVENT_LOG_PATH = join(ROOT, 'data/scan-events.jsonl');
 
 loadEnvFile(ROOT);
 
@@ -326,6 +329,16 @@ function appendToScanHistory(offers, date) {
   appendFileSync(SCAN_HISTORY_PATH, lines, 'utf-8');
 }
 
+function emitProgress(enabled, payload) {
+  if (!enabled) return;
+  process.stdout.write(`${encodeScanProgress({ at: new Date().toISOString(), ...payload })}\n`);
+}
+
+function appendScanEvent(enabled, payload) {
+  if (!enabled) return;
+  appendFileSync(SCAN_EVENT_LOG_PATH, `${JSON.stringify({ at: new Date().toISOString(), ...payload })}\n`, 'utf-8');
+}
+
 // ── Parallel fetch with concurrency limit ───────────────────────────
 
 async function parallelFetch(tasks, limit) {
@@ -349,14 +362,20 @@ async function parallelFetch(tasks, limit) {
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
+  const progressOutput = args.includes('--progress');
   const jsonOutput = args.includes('--json');
   const diagnose = args.includes('--diagnose') || jsonOutput;
+  const modeFlag = args.indexOf('--mode');
+  const mode = modeFlag !== -1 ? String(args[modeFlag + 1] || 'full').toLowerCase() : 'full';
+  if (!['full', 'quick'].includes(mode)) throw new Error(`Unknown scan mode: ${mode}`);
   const originalConsoleLog = console.log;
   if (jsonOutput) console.log = () => {};
   const companyFlag = args.indexOf('--company');
   const filterCompany = companyFlag !== -1 ? args[companyFlag + 1]?.toLowerCase() : null;
   const limitFlag = args.indexOf('--limit');
   const limit = limitFlag !== -1 ? Math.max(0, parseInt(args[limitFlag + 1], 10)) || 0 : 0;
+  const runId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const startedAt = Date.now();
 
   // 1. Read portals.yml
   if (!existsSync(PORTALS_PATH)) {
@@ -382,20 +401,26 @@ async function main() {
     .filter(c => c.enabled !== false)
     .filter(c => !filterCompany || c.name.toLowerCase().includes(filterCompany));
 
-  const targets = enabledCompanies
+  const resolvedTargets = enabledCompanies
     .map((company) => {
       try {
         return { ...company, _provider: resolveProvider(company, defaultProvider) };
       } catch {
         return { ...company, _provider: null };
       }
-    })
-    .filter(c => c._provider !== null);
+    });
+  const noProviderCount = resolvedTargets.filter((c) => c._provider === null).length;
+  const modeSkippedCount = resolvedTargets.filter((c) => c._provider && mode === 'quick' && QUICK_MODE_EXCLUDED_PROVIDERS.has(c._provider.name)).length;
+  const targets = resolvedTargets
+    .filter(c => c._provider !== null)
+    .filter(c => mode !== 'quick' || !QUICK_MODE_EXCLUDED_PROVIDERS.has(c._provider.name));
 
-  const skippedCount = enabledCompanies.length - targets.length;
+  const skippedCount = noProviderCount + modeSkippedCount;
 
-  console.log(`Scanning ${targets.length} companies via provider registry (${skippedCount} skipped - no provider resolved)`);
+  console.log(`Scanning ${targets.length} companies via provider registry (${skippedCount} skipped${modeSkippedCount ? `, ${modeSkippedCount} excluded from ${mode} mode` : ' - no provider resolved'})`);
   if (dryRun) console.log('(dry run — no files will be written)\n');
+  emitProgress(progressOutput, { type: 'run:start', mode, runId, companies: targets.length });
+  appendScanEvent(!dryRun, { event: 'run_start', mode, runId, companies: targets.length });
 
   // 3. Load dedup sets
   const seenUrls = loadSeenUrls();
@@ -486,8 +511,18 @@ async function main() {
     }
   }
 
-  const tasks = targets.map(company => async () => {
+  const tasks = targets.map((company, idx) => async () => {
     const provider = company._provider;
+    const startedCompanyAt = Date.now();
+    emitProgress(progressOutput, {
+      type: 'company:start',
+      mode,
+      runId,
+      company: company.name,
+      provider: provider.name,
+      index: idx + 1,
+      total: targets.length,
+    });
     const stats = {
       company: company.name,
       provider: provider.name,
@@ -499,6 +534,7 @@ async function main() {
       error: null,
       sniff: null,
       recovered: null,
+      durationMs: 0,
     };
     companyStats.push(stats);
     try {
@@ -552,6 +588,38 @@ async function main() {
     } catch (err) {
       errors.push({ company: company.name, error: `${provider.name}: ${err.message}` });
       stats.error = `${provider.name}: ${err.message}`;
+    } finally {
+      stats.durationMs = Date.now() - startedCompanyAt;
+      emitProgress(progressOutput, {
+        type: 'company:done',
+        mode,
+        runId,
+        company: company.name,
+        provider: provider.name,
+        index: idx + 1,
+        total: targets.length,
+        found: stats.found,
+        filtered: stats.filtered,
+        relevanceFiltered: stats.relevanceFiltered,
+        dupes: stats.dupes,
+        added: stats.added,
+        error: stats.error,
+        durationMs: stats.durationMs,
+      });
+      appendScanEvent(!dryRun, {
+        event: 'company_done',
+        mode,
+        runId,
+        company: company.name,
+        provider: provider.name,
+        found: stats.found,
+        filtered: stats.filtered,
+        relevanceFiltered: stats.relevanceFiltered,
+        dupes: stats.dupes,
+        added: stats.added,
+        error: stats.error,
+        durationMs: stats.durationMs,
+      });
     }
   });
 
@@ -568,6 +636,7 @@ async function main() {
     appendToScanHistory(newOffers, date);
   }
   const persistedRecoveries = !dryRun ? persistRecoveredUrls(config, sniffResults, date) : [];
+  const durationMs = Date.now() - startedAt;
 
   // 6. Print summary
   console.log(`\n${'━'.repeat(45)}`);
@@ -647,10 +716,14 @@ async function main() {
 
   const summary = {
     success: true,
+    runId,
+    mode,
     date,
     dryRun,
+    durationMs,
     companiesScanned: targets.length,
-    skippedNoProvider: skippedCount,
+    skippedNoProvider: noProviderCount,
+    skippedByMode: modeSkippedCount,
     totalJobsFound: totalFound,
     filteredByTitle: totalFiltered,
     filteredByRelevance: totalRelevanceFiltered,
@@ -666,6 +739,33 @@ async function main() {
     newOffers,
     ...(diagnostics ? { diagnostics } : {}),
   };
+
+  emitProgress(progressOutput, {
+    type: 'run:complete',
+    runId,
+    mode,
+    companies: targets.length,
+    totalFound,
+    filteredByTitle: totalFiltered,
+    filteredByRelevance: totalRelevanceFiltered,
+    duplicates: totalDupes,
+    added: newOffers.length,
+    errors: errors.length,
+    durationMs,
+  });
+  appendScanEvent(!dryRun, {
+    event: 'run_complete',
+    runId,
+    mode,
+    companies: targets.length,
+    totalFound,
+    filteredByTitle: totalFiltered,
+    filteredByRelevance: totalRelevanceFiltered,
+    duplicates: totalDupes,
+    added: newOffers.length,
+    errors: errors.length,
+    durationMs,
+  });
 
   if (jsonOutput) {
     originalConsoleLog(JSON.stringify(summary, null, 2));

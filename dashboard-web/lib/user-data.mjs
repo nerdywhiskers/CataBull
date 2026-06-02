@@ -27,6 +27,7 @@ export const USER_PATHS = [
   'data/applications.md',
   'data/pipeline.md',
   'data/scan-history.tsv',
+  'data/scan-events.jsonl',
   'data/scan-schedule-state.json',
   'data/scan-health.json',
   'data/scan-health.log',
