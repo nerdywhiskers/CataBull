@@ -15,6 +15,7 @@
  */
 
 import { api } from '../api.mjs';
+import { deepProgressFromEvent, quickProgressFromEvent, renderScanProgress } from '../components/scan-progress.mjs';
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 import { openScoreModal } from '../components/score-modal.mjs';
@@ -32,6 +33,7 @@ import {
 let pending = [];
 let portals = null;
 let scanStatus = null;
+let scanProgress = { visible: false };
 let minScore = 2.5;     // default threshold; matches the scan relevance default
 let industryFilter = new Set();   // empty = no filter
 let companyFilter = '';          // free-text
@@ -63,6 +65,15 @@ function timeAgo(dateStr, future = false) {
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function setScanProgress(progress) {
+  scanProgress = progress || { visible: false };
+}
+
+function updateScanProgressSlot(container) {
+  const slot = container.querySelector('.scan-progress-slot');
+  if (slot) slot.innerHTML = renderScanProgress(scanProgress);
 }
 
 function scoreClass(score) {
@@ -143,6 +154,7 @@ function renderScanSchedule() {
   const scheduleLabels = { off: 'Off', daily: 'Daily', 'every-3-days': 'Every 3 days', weekly: 'Weekly' };
   const current = scanStatus.schedule || 'off';
   const savedLimit = localStorage.getItem(SCAN_LIMIT_KEY) || '0';
+  const busy = scanStatus.running || scanProgress?.visible;
 
   let lastScanBadge = '';
   if (scanStatus.lastScanAt) {
@@ -164,18 +176,18 @@ function renderScanSchedule() {
       </div>
       <div class="scan-card-controls">
         <span class="scan-card-label">Schedule</span>
-        <select class="form-select scan-card-select" id="scan-schedule-select" title="Run scan on a schedule">
+        <select class="form-select scan-card-select" id="scan-schedule-select" title="Run scan on a schedule" ${busy ? 'disabled' : ''}>
           ${Object.entries(scheduleLabels).map(([value, label]) => `<option value="${value}"${value === current ? ' selected' : ''}>${label}</option>`).join('')}
         </select>
-        <select class="form-select scan-card-select" id="scan-limit-select" ${scanStatus.running ? 'disabled' : ''} title="Cap on new offers added per scan">
+        <select class="form-select scan-card-select" id="scan-limit-select" ${busy ? 'disabled' : ''} title="Cap on new offers added per scan">
           ${SCAN_LIMIT_OPTIONS.map(o => `<option value="${o.value}"${o.value === savedLimit ? ' selected' : ''}>Max: ${o.label}</option>`).join('')}
         </select>
-        <button class="btn btn-sm btn-primary" id="scan-now-btn" ${scanStatus.running ? 'disabled' : ''} title="API sweep across tracked companies (~30s, no LLM)">
+        <button class="btn btn-sm btn-primary" id="scan-now-btn" ${busy ? 'disabled' : ''} title="ATS-only quick scan. Direct providers only; no branded-page scraping.">
           <svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor" aria-hidden="true"><path d="M7.5 0L0 7.5h4L3.5 14 11 6.5H7L7.5 0z"/></svg>
-          ${scanStatus.running ? 'Scanning' : 'Scan'}
+          ${busy ? 'Scanning' : 'Quick Scan'}
         </button>
-        <button class="btn btn-sm btn-secondary" id="deep-scan-btn" ${scanStatus.running ? 'disabled' : ''} title="Quick Scan + WebSearch on job boards + JobSpy aggregator scrape. Several minutes; uses WebSearch quota.">Deep Scan</button>
-        <button class="btn-icon" id="discover-refresh-btn" title="Refresh pending list">
+        <button class="btn btn-sm btn-secondary" id="deep-scan-btn" ${busy ? 'disabled' : ''} title="Quick Scan + WebSearch on job boards + JobSpy aggregator scrape. Several minutes; uses WebSearch quota.">Deep Scan</button>
+        <button class="btn-icon" id="discover-refresh-btn" title="Refresh pending list" ${busy ? 'disabled' : ''}>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 6a4.5 4.5 0 1 1-1.3-3.18"/><polyline points="11.5 1 11.5 4 8.5 4"/></svg>
         </button>
       </div>
@@ -205,6 +217,7 @@ function renderTopBar() {
   return `
     ${renderHeader()}
     ${renderScanSchedule()}
+    <div class="scan-progress-slot">${renderScanProgress(scanProgress)}</div>
     <div class="discover-toolbar">
       <div class="discover-toolbar-row">
         <input class="form-input discover-search" id="discover-search" placeholder="Search company or role…" value="${esc(searchQuery)}" />
@@ -398,29 +411,57 @@ function bindScanControls(container) {
     limitSelect.onchange = () => localStorage.setItem(SCAN_LIMIT_KEY, limitSelect.value);
   }
 
-  // Scan Now — API sweep via local scan.mjs (~30s, no LLM).
+  // Quick Scan — ATS-only fast path streamed via SSE so progress matches Deep Scan UX.
   const scanNowBtn = container.querySelector('#scan-now-btn');
   if (scanNowBtn) {
     scanNowBtn.onclick = async () => {
       const limit = parseInt(localStorage.getItem(SCAN_LIMIT_KEY) || '0', 10) || 0;
-      scanNowBtn.disabled = true;
-      scanNowBtn.textContent = 'Scanning…';
-      toast(limit ? `Scanning (up to ${limit} new offers)…` : 'Scan started, this takes about 30 seconds…');
-      try {
-        const result = await api.runScanNow(limit);
-        if (result.success) {
-          toast(`Scan complete: ${result.newOffers} new offer${result.newOffers !== 1 ? 's' : ''}`);
+      setScanProgress(quickProgressFromEvent({ stage: 'quick:start' }));
+      rerender(container);
+      toast(limit ? `Quick scan started (up to ${limit} new offers)…` : 'Quick scan started — ATS providers only…');
+      const stream = api.runQuickScanStream({ limit });
+      let lastStage = 'quick:start';
+
+      await new Promise((resolve) => {
+        const done = (fn) => { try { stream.close(); } catch {} fn(); };
+
+        stream.addEventListener('progress', (ev) => {
+          let data; try { data = JSON.parse(ev.data); } catch { return; }
+          lastStage = data.stage || lastStage;
+          const next = quickProgressFromEvent(data);
+          if (next) {
+            setScanProgress(next);
+            updateScanProgressSlot(container);
+          }
+        });
+
+        stream.addEventListener('complete', async (ev) => {
+          let data; try { data = JSON.parse(ev.data); } catch { data = { summary: {} }; }
+          const quick = data.summary?.quick?.added ?? 0;
+          toast(`Quick scan complete: ${quick} new offer${quick !== 1 ? 's' : ''}`);
           await requestPermission();
-          notifyScanComplete(result.newOffers || 0, 0);
-        } else {
-          toast(`Scan error: ${result.error || 'unknown'}`, 'error');
-        }
-      } catch (error) {
-        toast(`Scan failed: ${error.message}`, 'error');
-      } finally {
-        await loadData();
-        rerender(container);
-      }
+          notifyScanComplete(quick || 0, 0);
+          done(async () => {
+            setScanProgress({ visible: false });
+            await loadData();
+            rerender(container);
+            resolve();
+          });
+        });
+
+        stream.addEventListener('error', (ev) => {
+          let data; try { data = JSON.parse(ev.data || '{}'); } catch { data = {}; }
+          const message = data.message
+            ? `Quick scan failed: ${data.message}`
+            : `Quick scan disconnected (last stage: ${lastStage}).`;
+          toast(message, 'error');
+          done(() => {
+            setScanProgress({ visible: false });
+            rerender(container);
+            resolve();
+          });
+        });
+      });
     };
   }
 
@@ -432,9 +473,9 @@ function bindScanControls(container) {
       const ok = await confirmModal({
         title: 'Run Deep Scan?',
         body: `
-          <p style="font-size:14px;color:var(--subtext);margin-bottom:8px">Runs Quick Scan first, then searches every enabled job board (Wellfound / RemoteOK / Ladders / JobSpy aggregators) and Playwright-verifies each hit before adding it to your pipeline.</p>
+          <p style="font-size:14px;color:var(--subtext);margin-bottom:8px">Starts with the same ATS-only Quick Scan, then searches broader job boards (Wellfound / RemoteOK / Ladders / JobSpy aggregators) and Playwright-verifies each hit before adding it to your pipeline.</p>
           <ul style="font-size:13px;color:var(--text);margin:8px 0 8px 20px;line-height:1.7">
-            <li>Takes <strong>several minutes</strong> (vs ~30s for the regular Scan Now)</li>
+            <li>Takes <strong>several minutes</strong> (vs the ATS-only quick scan)</li>
             <li>Uses your configured WebSearch provider quota (Brave / Serper / scrape)</li>
             <li>Finds roles at companies that aren't in <code>tracked_companies</code></li>
           </ul>
@@ -445,8 +486,8 @@ function bindScanControls(container) {
       if (!ok) return;
 
       const limit = parseInt(localStorage.getItem(SCAN_LIMIT_KEY) || '0', 10) || 0;
-      deepScanBtn.disabled = true;
-      deepScanBtn.textContent = 'Running…';
+      setScanProgress(deepProgressFromEvent({ stage: 'quick:start' }) || { visible: true, tone: 'running', eyebrow: 'Deep Scan', title: 'Starting…', detail: '', meta: '' });
+      rerender(container);
 
       let lastStage = 'starting';
       const stream = api.scanDeepStream({ limit });
@@ -457,15 +498,11 @@ function bindScanControls(container) {
         stream.addEventListener('progress', (ev) => {
           let data; try { data = JSON.parse(ev.data); } catch { return; }
           lastStage = data.stage;
-          if (data.stage === 'quick:scanning')           deepScanBtn.textContent = `Quick · ${data.companies} portals…`;
-          else if (data.stage === 'quick:done')          deepScanBtn.textContent = `L3 starting (Quick +${data.added || 0})…`;
-          else if (data.stage === 'l3:search:start')     deepScanBtn.textContent = `Searching ${data.queryIndex + 1}/${data.total}…`;
-          else if (data.stage === 'l3:liveness:check')   deepScanBtn.textContent = `Verifying ${data.index + 1}/${data.total}…`;
-          else if (data.stage === 'l3:done')             deepScanBtn.textContent = `L3 done (+${data.added})`;
-          else if (data.stage === 'l4:start')            deepScanBtn.textContent = `JobSpy ${data.queries} queries…`;
-          else if (data.stage === 'l4:query:start')      deepScanBtn.textContent = `JobSpy ${data.queryIndex + 1}/${data.total}…`;
-          else if (data.stage === 'l4:liveness:check')   deepScanBtn.textContent = `JobSpy verify ${data.index + 1}/${data.total}…`;
-          else if (data.stage === 'l4:done')             deepScanBtn.textContent = `L4 done (+${data.added})`;
+          const next = deepProgressFromEvent(data);
+          if (next) {
+            setScanProgress(next);
+            updateScanProgressSlot(container);
+          }
         });
 
         stream.addEventListener('complete', async (ev) => {
@@ -476,8 +513,7 @@ function bindScanControls(container) {
           const quick = data.summary?.quick?.added ?? 0;
           toast(`Deep scan complete — ${total} new role${total === 1 ? '' : 's'} (${quick} APIs + ${lvl3} WebSearch + ${lvl4} JobSpy). Refreshing…`);
           done(async () => {
-            deepScanBtn.disabled = false;
-            deepScanBtn.textContent = 'Deep Scan';
+            setScanProgress({ visible: false });
             await loadData();
             rerender(container);
             resolve();
@@ -491,8 +527,8 @@ function bindScanControls(container) {
             : `Deep scan disconnected (last stage: ${lastStage}).`;
           toast(message, 'error');
           done(() => {
-            deepScanBtn.disabled = false;
-            deepScanBtn.textContent = 'Deep Scan';
+            setScanProgress({ visible: false });
+            rerender(container);
             resolve();
           });
         });

@@ -108,21 +108,59 @@
 }
 .profile-switch-skeleton-row { width: 100%; }
 
-/* Scan progress banner shown above the pipeline tabs while a scan is in
-   flight. */
-.scan-banner {
+/* Shared scan progress card used for both Quick Scan and Deep Scan states. */
+.scan-progress-slot { margin: 12px 0 16px; }
+.scan-progress {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  padding: 12px 16px;
-  margin-bottom: 16px;
+  padding: 14px 16px;
   border-radius: var(--radius);
   font-size: 13px;
   color: var(--text);
   background: rgba(137, 180, 250, 0.10);
   border: 1px solid rgba(137, 180, 250, 0.28);
 }
-.scan-banner-running .spinner { border-top-color: var(--blue); }
+.scan-progress-running .spinner { border-top-color: var(--blue); }
+.scan-progress-icon {
+  width: 18px;
+  min-width: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 1px;
+}
+.scan-progress-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.scan-progress-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--blue);
+}
+.scan-progress-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.scan-progress-detail,
+.scan-progress-meta {
+  font-size: 12px;
+  color: var(--subtext);
+  line-height: 1.45;
+}
+.scan-progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--blue);
+  display: inline-block;
+}
 
 /* Overflow menu */
 .overflow-menu {

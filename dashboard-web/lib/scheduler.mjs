@@ -84,7 +84,7 @@ export function runScan(root, opts = {}) {
   if (running) return Promise.resolve({ success: false, error: 'Scan already running' });
   running = true;
 
-  const args = [join(PACKAGE_ROOT, 'scan.mjs')];
+  const args = [join(PACKAGE_ROOT, 'scan.mjs'), '--mode', 'quick'];
   if (opts.company) {
     args.push('--company', String(opts.company));
   }
