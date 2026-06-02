@@ -1,7 +1,9 @@
+import { spawn } from 'child_process';
 import { join } from 'path';
 import { getStatus, getSchedule, setSchedule, runScan, restartScheduler } from '../lib/scheduler.mjs';
 import { parsePipeline } from '../lib/parsers.mjs';
 import { expirePipelineItem } from '../lib/writers.mjs';
+import { createLineBuffer, parseProgressLine } from '../lib/scan-progress-stream.mjs';
 import { spawnWithTimeout } from '../lib/spawn-timeout.mjs';
 
 // Alias for backwards compatibility with internal callers.
@@ -19,6 +21,37 @@ function parseLivenessOutput(stdout) {
   return results;
 }
 
+function mapQuickProgress(payload = {}) {
+  if (payload.type === 'run:start') return { stage: 'quick:scanning', companies: payload.companies || 0 };
+  if (payload.type === 'company:start') return {
+    stage: 'quick:company:start',
+    company: payload.company,
+    provider: payload.provider,
+    index: payload.index,
+    total: payload.total,
+  };
+  if (payload.type === 'company:done') return {
+    stage: 'quick:company:done',
+    company: payload.company,
+    provider: payload.provider,
+    index: payload.index,
+    total: payload.total,
+    found: payload.found,
+    added: payload.added,
+    error: payload.error,
+    durationMs: payload.durationMs,
+  };
+  if (payload.type === 'run:complete') return {
+    stage: 'quick:done',
+    companies: payload.companies,
+    totalFound: payload.totalFound,
+    added: payload.added,
+    errors: payload.errors,
+    durationMs: payload.durationMs,
+  };
+  return null;
+}
+
 export default async function (app) {
   const root = app.cataBullRoot;
   // Helper scripts live in the package, not the user's workspace (the two
@@ -30,7 +63,7 @@ export default async function (app) {
   // Manual scan (legacy endpoint)
   app.post('/actions/scan', async (req) => {
     const dryRun = req.body?.dryRun || false;
-    const extraArgs = dryRun ? ['--dry-run'] : [];
+    const extraArgs = ['--mode', 'quick', ...(dryRun ? ['--dry-run'] : [])];
     return runNodeScript(join(packageRoot, 'scan.mjs'), extraArgs, { cwd: root, timeoutMs: 120000, env: scriptEnv });
   });
 
@@ -54,6 +87,76 @@ export default async function (app) {
     const limit = parseInt(req.body?.limit, 10);
     const result = await runScan(root, { limit: Number.isFinite(limit) && limit > 0 ? limit : 0 });
     return result;
+  });
+
+  app.get('/scan/run/stream', async (req, reply) => {
+    const limit = parseInt(req.query?.limit, 10);
+    const args = [join(packageRoot, 'scan.mjs'), '--mode', 'quick', '--progress'];
+    if (Number.isFinite(limit) && limit > 0) args.push('--limit', String(limit));
+
+    reply.raw.setHeader('Content-Type', 'text/event-stream');
+    reply.raw.setHeader('Cache-Control', 'no-cache, no-transform');
+    reply.raw.setHeader('Connection', 'keep-alive');
+    reply.raw.setHeader('X-Accel-Buffering', 'no');
+    reply.raw.flushHeaders?.();
+
+    const send = (event, payload) => {
+      try {
+        reply.raw.write(`event: ${event}\n`);
+        reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`);
+      } catch {}
+    };
+
+    const child = spawn(process.execPath, args, { cwd: root, env: scriptEnv });
+    let stdout = '';
+    let stderr = '';
+    let finished = false;
+
+    const closeChild = () => {
+      try { child.kill('SIGTERM'); } catch {}
+      setTimeout(() => { try { child.kill('SIGKILL'); } catch {} }, 5000).unref?.();
+    };
+
+    reply.raw.on('close', () => {
+      if (!finished) closeChild();
+    });
+
+    const handleLine = (line) => {
+      const payload = parseProgressLine(line);
+      if (!payload) return;
+      const mapped = mapQuickProgress(payload);
+      if (mapped) send('progress', mapped);
+    };
+
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    const progressFromStdout = createLineBuffer(handleLine);
+    child.stdout.on('data', progressFromStdout);
+    const progressFromStderr = createLineBuffer(handleLine);
+    child.stderr.on('data', progressFromStderr);
+
+    child.on('error', (err) => {
+      finished = true;
+      send('error', { message: err.message || String(err) });
+      reply.raw.end();
+    });
+
+    child.on('close', (code) => {
+      finished = true;
+      const added = parseInt((stdout.match(/New offers added:\s+(\d+)/)?.[1]) || '0', 10);
+      if (code !== 0) {
+        send('error', { message: stderr || stdout || `Quick scan failed (${code})` });
+        reply.raw.end();
+        return;
+      }
+      send('complete', { summary: { quick: { added, stdout, stderr }, totalNew: added } });
+      reply.raw.end();
+    });
   });
 
   app.post('/scan/diagnose', async (req, reply) => {

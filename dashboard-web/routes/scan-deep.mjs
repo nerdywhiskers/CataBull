@@ -26,6 +26,7 @@ import { searchWeb, WebSearchError } from '../../scan/websearch.mjs';
 import { runJobSpy, detectRunner as detectJobSpyRunner, DEFAULT_SITES as JOBSPY_DEFAULT_SITES } from '../../scan/market/jobspy.mjs';
 import { classifyLiveness } from '../../lib/liveness-core.mjs';
 import { launchChromiumWithRetry } from '../../lib/playwright-launch.mjs';
+import { createLineBuffer, parseProgressLine } from '../../lib/scan-progress-stream.mjs';
 import { buildTitleClassifier } from '../../lib/title-filter.mjs';
 import { loadEnvFile } from '../../lib/load-env.mjs';
 import { DEFAULT_MIN_RELEVANCE, hasRelevanceSignals, resolveMinRelevance, scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../lib/relevance.mjs';
@@ -97,7 +98,6 @@ export default async function (app) {
       // ── Phase 1: Quick Scan (Levels 1 + 2) ──────────────────────────
       send('progress', { stage: 'quick:start' });
       const quickResult = await runQuickScan({ root, limit, onProgress: (p) => send('progress', p) });
-      send('progress', { stage: 'quick:done', ...quickResult });
 
       if (aborted) { reply.raw.end(); return; }
 
@@ -314,38 +314,52 @@ function mergeSkipped(target = {}, add = {}) {
 
 function runQuickScan({ root, limit, onProgress = () => {} }) {
   return new Promise((resolve) => {
-    const args = [join(PACKAGE_ROOT, 'scan.mjs')];
+    const args = [join(PACKAGE_ROOT, 'scan.mjs'), '--mode', 'quick', '--progress'];
     if (limit > 0) args.push('--limit', String(limit));
 
     const env = { ...process.env, CATABULL_WORKSPACE_ROOT: root };
     const child = spawn(process.execPath, args, { cwd: root, env });
 
-    let buf = '';
+    let stdout = '';
     let added = 0;
     let totalFound = 0;
     let totalFiltered = 0;
     let totalDupes = 0;
 
-    child.stdout.on('data', (chunk) => {
-      buf += chunk.toString();
-      // Stream summary lines as progress so the dashboard sees activity
-      // while a slow scan runs.
-      const lines = buf.split('\n');
-      buf = lines.pop();
-      for (const line of lines) {
-        const m = line.match(/^Scanning (\d+) companies/);
-        if (m) onProgress({ stage: 'quick:scanning', companies: parseInt(m[1], 10) });
-        const af = line.match(/^Total jobs found:\s+(\d+)/);
-        if (af) totalFound = parseInt(af[1], 10);
-        const fb = line.match(/^Filtered by title:\s+(\d+)/);
-        if (fb) totalFiltered = parseInt(fb[1], 10);
-        const db = line.match(/^Duplicates:\s+(\d+)/);
-        if (db) totalDupes = parseInt(db[1], 10);
-        const nb = line.match(/^New offers added:\s+(\d+)/);
-        if (nb) added = parseInt(nb[1], 10);
+    const handleLine = (line) => {
+      const payload = parseProgressLine(line);
+      if (payload?.type === 'run:start') {
+        onProgress({ stage: 'quick:scanning', companies: payload.companies || 0 });
+      } else if (payload?.type === 'company:start') {
+        onProgress({ stage: 'quick:company:start', company: payload.company, provider: payload.provider, index: payload.index, total: payload.total });
+      } else if (payload?.type === 'company:done') {
+        onProgress({ stage: 'quick:company:done', company: payload.company, provider: payload.provider, index: payload.index, total: payload.total, found: payload.found, added: payload.added, error: payload.error, durationMs: payload.durationMs });
+      } else if (payload?.type === 'run:complete') {
+        totalFound = payload.totalFound || 0;
+        totalDupes = payload.duplicates || 0;
+        added = payload.added || 0;
+        onProgress({ stage: 'quick:done', companies: payload.companies, totalFound, added, errors: payload.errors || 0, durationMs: payload.durationMs || 0 });
       }
+
+      const m = line.match(/^Scanning (\d+) companies/);
+      if (m) onProgress({ stage: 'quick:scanning', companies: parseInt(m[1], 10) });
+      const af = line.match(/^Total jobs found:\s+(\d+)/);
+      if (af) totalFound = parseInt(af[1], 10);
+      const fb = line.match(/^Filtered by title:\s+(\d+)/);
+      if (fb) totalFiltered = parseInt(fb[1], 10);
+      const db = line.match(/^Duplicates:\s+(\d+)/);
+      if (db) totalDupes = parseInt(db[1], 10);
+      const nb = line.match(/^New offers added:\s+(\d+)/);
+      if (nb) added = parseInt(nb[1], 10);
+    };
+
+    const onStdout = createLineBuffer((line) => {
+      stdout += `${line}\n`;
+      handleLine(line);
     });
-    child.stderr.on('data', () => {/* errors surface in summary */});
+    child.stdout.on('data', onStdout);
+    child.stderr.on('data', createLineBuffer(handleLine));
+
     child.on('error', () => resolve({ added: 0, totalFound, totalFiltered, totalDupes, addedItems: [] }));
     child.on('close', () => resolve({ added, totalFound, totalFiltered, totalDupes, addedItems: [] }));
   });

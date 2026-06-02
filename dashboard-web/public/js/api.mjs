@@ -129,6 +129,10 @@ export const api = {
   getScanStatus: () => request('/scan/status'),
   setScanSchedule: (schedule) => request('/scan/schedule', { method: 'PUT', body: { schedule } }),
   runScanNow: (limit) => request('/scan/run', { method: 'POST', body: { limit: limit || 0 } }),
+  runQuickScanStream: ({ limit } = {}) => {
+    const qs = limit ? `?limit=${encodeURIComponent(limit)}` : '';
+    return new EventSource(`${BASE}/scan/run/stream${qs}`);
+  },
   runScanDiagnostics: (limit) => request('/scan/diagnose', { method: 'POST', body: { limit: limit || 0 } }),
 
   // Liveness
