@@ -127,6 +127,7 @@ export const api = {
 
   // Scan scheduler
   getScanStatus: () => request('/scan/status'),
+  getScanRunState: () => request('/scan/run-state'),
   setScanSchedule: (schedule) => request('/scan/schedule', { method: 'PUT', body: { schedule } }),
   runScanNow: (limit) => request('/scan/run', { method: 'POST', body: { limit: limit || 0 } }),
   runQuickScanStream: ({ limit } = {}) => {

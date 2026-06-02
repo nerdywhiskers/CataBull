@@ -4,6 +4,7 @@ import { getStatus, getSchedule, setSchedule, runScan, restartScheduler } from '
 import { parsePipeline } from '../lib/parsers.mjs';
 import { expirePipelineItem } from '../lib/writers.mjs';
 import { createLineBuffer, parseProgressLine } from '../lib/scan-progress-stream.mjs';
+import { finishScanRun, readScanRunState, startScanRun, updateScanRun } from '../lib/scan-run-state.mjs';
 import { spawnWithTimeout } from '../lib/spawn-timeout.mjs';
 
 // Alias for backwards compatibility with internal callers.
@@ -72,6 +73,10 @@ export default async function (app) {
     return getStatus(root);
   });
 
+  app.get('/scan/run-state', async () => {
+    return readScanRunState(root);
+  });
+
   app.put('/scan/schedule', async (req) => {
     const { schedule } = req.body;
     if (!['off', 'daily', 'every-3-days', 'weekly'].includes(schedule)) {
@@ -93,6 +98,12 @@ export default async function (app) {
     const limit = parseInt(req.query?.limit, 10);
     const args = [join(packageRoot, 'scan.mjs'), '--mode', 'quick', '--progress'];
     if (Number.isFinite(limit) && limit > 0) args.push('--limit', String(limit));
+
+    startScanRun(root, {
+      mode: 'quick',
+      stage: 'quick:start',
+      progress: { stage: 'quick:start' },
+    });
 
     reply.raw.setHeader('Content-Type', 'text/event-stream');
     reply.raw.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -125,7 +136,10 @@ export default async function (app) {
       const payload = parseProgressLine(line);
       if (!payload) return;
       const mapped = mapQuickProgress(payload);
-      if (mapped) send('progress', mapped);
+      if (mapped) {
+        updateScanRun(root, { stage: mapped.stage, progress: mapped });
+        send('progress', mapped);
+      }
     };
 
     child.stdout.on('data', (chunk) => {
@@ -142,6 +156,7 @@ export default async function (app) {
 
     child.on('error', (err) => {
       finished = true;
+      finishScanRun(root, { mode: 'quick', status: 'failed', error: err.message || String(err) });
       send('error', { message: err.message || String(err) });
       reply.raw.end();
     });
@@ -150,10 +165,12 @@ export default async function (app) {
       finished = true;
       const added = parseInt((stdout.match(/New offers added:\s+(\d+)/)?.[1]) || '0', 10);
       if (code !== 0) {
+        finishScanRun(root, { mode: 'quick', status: 'failed', error: stderr || stdout || `Quick scan failed (${code})` });
         send('error', { message: stderr || stdout || `Quick scan failed (${code})` });
         reply.raw.end();
         return;
       }
+      finishScanRun(root, { mode: 'quick', status: 'completed', summary: { totalNew: added, quick: { added } } });
       send('complete', { summary: { quick: { added, stdout, stderr }, totalNew: added } });
       reply.raw.end();
     });
