@@ -596,6 +596,11 @@ export async function runPrompt(text, {
 
       if (result?.ok) {
         addAssistantMessage(result.output || 'No output returned.', currentAgent);
+        try {
+          window.dispatchEvent(new CustomEvent('catabull:data-maybe-changed', {
+            detail: { source: 'chat', agent: currentAgent },
+          }));
+        } catch {}
         // For agents on the resume-last path (codex), mark the agent as
         // "seen" so the next turn requests continuation. Sticky-session
         // agents already had their uuid stamped via ensureSessionId.

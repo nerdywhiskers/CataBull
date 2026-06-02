@@ -31,6 +31,7 @@ import { buildTitleClassifier } from '../../lib/title-filter.mjs';
 import { loadEnvFile } from '../../lib/load-env.mjs';
 import { DEFAULT_MIN_RELEVANCE, hasRelevanceSignals, resolveMinRelevance, scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../lib/relevance.mjs';
 import { readProfile } from '../lib/writers.mjs';
+import { finishScanRun, startScanRun, updateScanRun } from '../lib/scan-run-state.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = join(__dirname, '..', '..');
@@ -70,6 +71,11 @@ export default async function (app) {
 
   app.get('/scan/deep', async (req, reply) => {
     const queryLimit = Math.max(0, parseInt(req.query?.limit, 10) || 0);
+    startScanRun(root, {
+      mode: 'deep',
+      stage: 'quick:start',
+      progress: { stage: 'quick:start' },
+    });
 
     // SSE headers. Disable nagling so progress events flush immediately.
     reply.raw.setHeader('Content-Type', 'text/event-stream');
@@ -79,6 +85,9 @@ export default async function (app) {
     reply.raw.flushHeaders?.();
 
     const send = (event, payload) => {
+      if (event === 'progress' && payload?.stage) {
+        updateScanRun(root, { stage: payload.stage, progress: payload });
+      }
       try {
         reply.raw.write(`event: ${event}\n`);
         reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`);
@@ -115,6 +124,7 @@ export default async function (app) {
 
       if (limit && remainingAfterQuick <= 0) {
         send('progress', { stage: 'l3:skipped', reason: 'max roles reached by Quick Scan' });
+        finishScanRun(root, { mode: 'deep', status: 'completed', summary: { quick: quickResult, level3: null, level4: null, totalNew: quickResult.added } });
         send('complete', { summary: { quick: quickResult, level3: null, level4: null, totalNew: quickResult.added } });
         reply.raw.end();
         return;
@@ -122,6 +132,7 @@ export default async function (app) {
 
       if (enabledQueries.length === 0) {
         send('progress', { stage: 'l3:skipped', reason: 'no enabled search_queries' });
+        finishScanRun(root, { mode: 'deep', status: 'completed', summary: { quick: quickResult, level3: null, totalNew: quickResult.added } });
         send('complete', { summary: { quick: quickResult, level3: null, totalNew: quickResult.added } });
         reply.raw.end();
         return;
@@ -209,6 +220,7 @@ export default async function (app) {
           appendToScanHistory(root, level4Result.added);
         }
       } catch (err) {
+        finishScanRun(root, { mode: 'deep', status: 'failed', error: err instanceof WebSearchError ? `WebSearch (${err.provider}): ${err.message}` : (err.message || String(err)) });
         if (err instanceof WebSearchError) {
           send('error', { message: `WebSearch (${err.provider}): ${err.message}`, code: err.code });
         } else {
@@ -224,21 +236,22 @@ export default async function (app) {
       const l3Added = level3Result.added.length;
       const l4Added = level4Result?.added?.length || 0;
 
-      send('complete', {
-        summary: {
-          quick: quickResult,
-          level3: {
-            added: l3Added,
-            skipped: level3Result.skipped,
-            errors: level3Result.errors,
-            perQuery: level3Result.perQuery,
-          },
-          level4: level4Result,
-          totalNew: quickResult.added + l3Added + l4Added,
+      const summary = {
+        quick: quickResult,
+        level3: {
+          added: l3Added,
+          skipped: level3Result.skipped,
+          errors: level3Result.errors,
+          perQuery: level3Result.perQuery,
         },
-      });
+        level4: level4Result,
+        totalNew: quickResult.added + l3Added + l4Added,
+      };
+      send('complete', { summary });
+      finishScanRun(root, { mode: 'deep', status: 'completed', summary });
       reply.raw.end();
     } catch (err) {
+      finishScanRun(root, { mode: 'deep', status: 'failed', error: err.message || String(err) });
       send('error', { message: err.message || String(err) });
       reply.raw.end();
     }

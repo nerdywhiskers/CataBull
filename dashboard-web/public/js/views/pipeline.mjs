@@ -21,6 +21,87 @@ let sortDir = 'desc';
 let expandedRow = null;
 let searchQuery = '';           // pipeline text search
 let scanProgress = { visible: false };
+let activeContainer = null;
+let scanRunStatePoller = null;
+let lastObservedScanFinishedAt = '';
+
+async function loadData() {
+  try {
+    const [data, portalsResp] = await Promise.all([
+      api.getApplications(),
+      api.getPortals().catch(() => null),
+    ]);
+    apps = data.applications || [];
+    pending = data.pending || [];
+    skipped = data.skipped || [];
+    expired = data.expired || [];
+    portalsData = portalsResp?.portals || null;
+  } catch {
+    apps = [];
+    pending = [];
+    skipped = [];
+    expired = [];
+    portalsData = null;
+  }
+}
+
+function progressFromRunState(state) {
+  if (!state?.active || !state.progress) return { visible: false };
+  if (state.mode === 'deep') {
+    return deepProgressFromEvent(state.progress)
+      || quickProgressFromEvent(state.progress, { mode: 'Deep Scan · Quick phase' })
+      || { visible: true, tone: 'running', eyebrow: 'Deep Scan', title: 'Scan running…', detail: '', meta: '' };
+  }
+  return quickProgressFromEvent(state.progress)
+    || { visible: true, tone: 'running', eyebrow: 'Quick Scan', title: 'Scan running…', detail: '', meta: '' };
+}
+
+async function refreshData(container) {
+  await loadData();
+  if (container === activeContainer) update(container);
+}
+
+async function syncScanRunState(container, { refreshOnFinish = false } = {}) {
+  const state = await api.getScanRunState().catch(() => null);
+  if (!state || container !== activeContainer) return;
+
+  if (state.active) {
+    const next = progressFromRunState(state);
+    const changed = JSON.stringify(next) !== JSON.stringify(scanProgress);
+    setScanProgress(next);
+    if (changed) update(container);
+    else updateScanProgressSlot(container);
+    return;
+  }
+
+  const finishedAt = state?.lastResult?.finishedAt || '';
+  const justFinished = Boolean(finishedAt) && finishedAt !== lastObservedScanFinishedAt;
+  if (finishedAt) lastObservedScanFinishedAt = finishedAt;
+  const wasVisible = Boolean(scanProgress?.visible);
+  if (wasVisible) setScanProgress({ visible: false });
+  if (justFinished && refreshOnFinish) {
+    await refreshData(container);
+    return;
+  }
+  if (wasVisible) update(container);
+}
+
+function ensureLiveRefresh(container) {
+  activeContainer = container;
+  if (!scanRunStatePoller) {
+    scanRunStatePoller = setInterval(() => {
+      if (!activeContainer?.isConnected || !activeContainer.classList.contains('active')) return;
+      syncScanRunState(activeContainer, { refreshOnFinish: true }).catch(() => {});
+    }, 3000);
+  }
+  if (!window.__catabullPipelineRefreshBound) {
+    window.__catabullPipelineRefreshBound = true;
+    window.addEventListener('catabull:data-maybe-changed', () => {
+      if (!activeContainer?.isConnected || !activeContainer.classList.contains('active')) return;
+      refreshData(activeContainer).catch(() => {});
+    });
+  }
+}
 
 // ── Pending-list filter popover (industry / location / posted-date) ───
 //
@@ -979,6 +1060,7 @@ function attachOverflowListeners(container) {
 }
 
 export async function render(container) {
+  ensureLiveRefresh(container);
   container.innerHTML = `
     <div class="pipeline-shell">
       <header class="pipeline-header">
@@ -1003,18 +1085,8 @@ export async function render(container) {
     </div>
   `;
 
-  try {
-    const [data, portalsResp] = await Promise.all([
-      api.getApplications(),
-      api.getPortals().catch(() => null),
-    ]);
-    apps = data.applications || [];
-    pending = data.pending || [];
-    skipped = data.skipped || [];
-    expired = data.expired || [];
-    // /portals returns { portals: { tracked_companies, ... } } — unwrap.
-    portalsData = portalsResp?.portals || null;
-  } catch { apps = []; pending = []; skipped = []; expired = []; portalsData = null; }
+  await loadData();
+  await syncScanRunState(container, { refreshOnFinish: false });
 
   update(container);
 }
@@ -1529,8 +1601,8 @@ function update(container) {
       } catch (error) {
         toast(`Quick scan failed: ${error.message}`, 'error');
       } finally {
-        setScanProgress({ visible: false });
-        render(container);
+        await refreshData(container);
+        await syncScanRunState(container, { refreshOnFinish: false });
       }
     };
   }
@@ -1633,7 +1705,8 @@ function update(container) {
         refreshBtn.disabled = false;
       }
     }
-    render(container);
+    await refreshData(container);
+    await syncScanRunState(container, { refreshOnFinish: false });
   };
 
   // Add Entry insight card → modal that captures a URL plus optional manual
