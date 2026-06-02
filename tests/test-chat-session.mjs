@@ -114,7 +114,35 @@ assert(
   'continued Codex turn does not use removed --continue flag',
 );
 
-console.log('\n4. Hermes chat-panel continuation args');
+console.log('\n4. Claude chat-panel session args');
+
+const claudeFresh = agentPrintArgs('claude', ROOT, {
+  sessionId: '123e4567-e89b-12d3-a456-426614174000',
+  continueSession: false,
+});
+assert(
+  JSON.stringify(claudeFresh.args) === JSON.stringify([
+    '-p',
+    '--output-format', 'text',
+    '--session-id', '123e4567-e89b-12d3-a456-426614174000',
+  ]),
+  'fresh Claude turn uses --session-id to create the named session',
+);
+
+const claudeContinued = agentPrintArgs('claude', ROOT, {
+  sessionId: '123e4567-e89b-12d3-a456-426614174000',
+  continueSession: true,
+});
+assert(
+  JSON.stringify(claudeContinued.args) === JSON.stringify([
+    '-p',
+    '--output-format', 'text',
+    '--resume', '123e4567-e89b-12d3-a456-426614174000',
+  ]),
+  'continued Claude turn uses --resume instead of reusing --session-id',
+);
+
+console.log('\n5. Hermes chat-panel continuation args');
 
 const hermesFresh = agentPrintArgs('hermes', ROOT, {
   prompt: 'hello',
@@ -134,7 +162,7 @@ assert(
   'continued Hermes turn uses --continue',
 );
 
-console.log('\n5. OpenClaw chat-panel session args');
+console.log('\n6. OpenClaw chat-panel session args');
 
 const openclawFresh = agentPrintArgs('openclaw', ROOT, {
   prompt: 'status',
@@ -161,7 +189,7 @@ assert(
   'OpenClaw sticky session reuses explicit session id',
 );
 
-console.log('\n6. Chat transcript persistence sanitization');
+console.log('\n7. Chat transcript persistence sanitization');
 
 globalThis.document = {
   getElementById() { return null; },
