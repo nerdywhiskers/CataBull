@@ -6,6 +6,7 @@ import { openScoreModal } from '../components/score-modal.mjs';
 import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
 import { INDUSTRIES } from '../lib/industries.mjs';
+import { DEFAULT_PENDING_REFRESH_INTERVAL_MS, runPendingRefresh } from '../lib/pending-refresh.mjs';
 
 let apps = [];
 let pending = [];
@@ -23,6 +24,7 @@ let searchQuery = '';           // pipeline text search
 let scanProgress = { visible: false };
 let activeContainer = null;
 let scanRunStatePoller = null;
+let pendingRefreshPoller = null;
 let lastObservedScanFinishedAt = '';
 
 async function loadData() {
@@ -61,6 +63,36 @@ async function refreshData(container) {
   if (container === activeContainer) update(container);
 }
 
+async function refreshPendingPostings(container, { force = false, source = 'auto' } = {}) {
+  const manual = source === 'manual';
+  if (manual) toast('Refreshing — verifying pending postings…');
+  try {
+    const result = await runPendingRefresh({
+      pendingCount: pending.length,
+      force,
+      checkLivenessAll: () => api.checkLivenessAll(),
+      reload: loadData,
+      rerender: async () => {
+        if (container === activeContainer) update(container);
+      },
+    });
+    if (manual) {
+      if (result?.error) toast(`Liveness check failed: ${result.error}`, 'error');
+      else if (result?.checked) toast(`Checked ${result.checked} jobs — ${result.expired} expired`);
+      else if (container === activeContainer) update(container);
+    } else if (result?.error) {
+      toast(`Auto-refresh failed: ${result.error}`, 'error');
+    } else if (result?.expired) {
+      toast(`Auto-refresh expired ${result.expired} posting${result.expired === 1 ? '' : 's'}`);
+    }
+    return result;
+  } catch (err) {
+    const message = manual ? `Liveness check failed: ${err.message}` : `Auto-refresh failed: ${err.message}`;
+    toast(message, 'error');
+    throw err;
+  }
+}
+
 async function syncScanRunState(container, { refreshOnFinish = false } = {}) {
   const state = await api.getScanRunState().catch(() => null);
   if (!state || container !== activeContainer) return;
@@ -94,11 +126,18 @@ function ensureLiveRefresh(container) {
       syncScanRunState(activeContainer, { refreshOnFinish: true }).catch(() => {});
     }, 3000);
   }
+  if (!pendingRefreshPoller) {
+    pendingRefreshPoller = setInterval(() => {
+      if (!activeContainer?.isConnected || !activeContainer.classList.contains('active')) return;
+      refreshPendingPostings(activeContainer, { source: 'auto' }).catch(() => {});
+    }, DEFAULT_PENDING_REFRESH_INTERVAL_MS);
+  }
   if (!window.__catabullPipelineRefreshBound) {
     window.__catabullPipelineRefreshBound = true;
     window.addEventListener('catabull:data-maybe-changed', () => {
       if (!activeContainer?.isConnected || !activeContainer.classList.contains('active')) return;
       refreshData(activeContainer).catch(() => {});
+      refreshPendingPostings(activeContainer, { source: 'auto' }).catch(() => {});
     });
   }
 }
@@ -1089,6 +1128,7 @@ export async function render(container) {
   await syncScanRunState(container, { refreshOnFinish: false });
 
   update(container);
+  refreshPendingPostings(container, { source: 'load' }).catch(() => {});
 }
 
 function update(container) {
@@ -1685,28 +1725,14 @@ function update(container) {
   const refreshBtn = container.querySelector('#refresh-btn');
   if (refreshBtn) refreshBtn.onclick = async () => {
     setScanProgress({ visible: false });
-    // On the Pending tab, "refresh" doubles as a liveness sweep — verify each
-    // posting is still live before redrawing. The user used to invoke this
-    // separately via a Check Liveness button; folding it in keeps the toolbar
-    // tighter without losing the capability.
-    if (currentFilter === 'pending' && pending.length > 0) {
-      refreshBtn.disabled = true;
-      toast('Refreshing — verifying pending postings…');
-      try {
-        const result = await api.checkLivenessAll();
-        if (result?.error) {
-          toast(`Liveness check failed: ${result.error}`, 'error');
-        } else if (result) {
-          toast(`Checked ${result.checked} jobs — ${result.expired} expired`);
-        }
-      } catch (err) {
-        toast(`Liveness check failed: ${err.message}`, 'error');
-      } finally {
-        refreshBtn.disabled = false;
-      }
+    refreshBtn.disabled = true;
+    try {
+      await refreshPendingPostings(container, { force: true, source: 'manual' });
+      await refreshData(container);
+      await syncScanRunState(container, { refreshOnFinish: false });
+    } finally {
+      if (refreshBtn.isConnected) refreshBtn.disabled = false;
     }
-    await refreshData(container);
-    await syncScanRunState(container, { refreshOnFinish: false });
   };
 
   // Add Entry insight card → modal that captures a URL plus optional manual

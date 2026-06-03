@@ -614,6 +614,7 @@ async function classifyByPlaywright(page, url) {
     const status = response?.status() ?? 0;
     await page.waitForTimeout(1500);
     const finalUrl = page.url();
+    const titleText = await page.title().catch(() => '');
     const bodyText = await page.evaluate(() => document.body?.innerText ?? '');
     const applyControls = await page.evaluate(() => {
       const els = Array.from(document.querySelectorAll('a, button, input[type="submit"], [role="button"]'));
@@ -628,7 +629,7 @@ async function classifyByPlaywright(page, url) {
           .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim())
         .filter(Boolean);
     });
-    return classifyLiveness({ status, finalUrl, bodyText, applyControls });
+    return classifyLiveness({ status, finalUrl, bodyText, titleText, applyControls });
   } catch (err) {
     return { result: 'uncertain', reason: `navigation error: ${(err.message || '').split('\n')[0]}` };
   }

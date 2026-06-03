@@ -28,6 +28,7 @@ async function checkUrl(page, url) {
     await page.waitForTimeout(2000);
 
     const finalUrl = page.url();
+    const titleText = await page.title().catch(() => '');
     const bodyText = await page.evaluate(() => document.body?.innerText ?? '');
     const applyControls = await page.evaluate(() => {
       const candidates = Array.from(
@@ -62,7 +63,7 @@ async function checkUrl(page, url) {
         .filter(Boolean);
     });
 
-    return classifyLiveness({ status, finalUrl, bodyText, applyControls });
+    return classifyLiveness({ status, finalUrl, bodyText, titleText, applyControls });
 
   } catch (err) {
     return { result: 'uncertain', reason: `navigation error: ${err.message.split('\n')[0]}` };
