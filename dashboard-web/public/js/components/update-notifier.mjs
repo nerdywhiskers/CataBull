@@ -22,6 +22,7 @@ export async function safeCheck({ quiet = false } = {}) {
 
     if (!status.supported) return hideBanner();
     if (!status.updateAvailable) return hideBanner();
+    if (status.showUpdateBanner === false) return hideBanner();
 
     if (updates.autoUpdate) {
       return applyAvailableUpdate({ auto: true });

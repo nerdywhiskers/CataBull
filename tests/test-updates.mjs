@@ -103,7 +103,15 @@ console.log('\nupdate manager');
 
   status = await checkForUpdates(local, opts);
   assert.equal(status.updateAvailable, true, 'remote commit ahead → updateAvailable');
+  assert.equal(status.showUpdateBanner, true, 'main branch git checkout still shows update banner when remote is ahead');
   assert.equal(status.canGitPull, true, 'clean tree on main with remote ahead → canGitPull');
+
+  run('git', ['checkout', '-b', 'feature/test-branch'], local);
+  status = await checkForUpdates(local, opts);
+  assert.equal(status.updateAvailable, true, 'non-main branch still knows main is ahead');
+  assert.equal(status.showUpdateBanner, false, 'non-main branch suppresses update banner');
+  assert.equal(status.canGitPull, false, 'non-main branch cannot git-pull main updates directly');
+  run('git', ['checkout', 'main'], local);
 
   const pullResult = await applyGitPull(local, opts);
   assert.equal(pullResult.success, true);
