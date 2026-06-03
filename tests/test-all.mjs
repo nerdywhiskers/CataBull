@@ -129,6 +129,17 @@ try {
     fail(`Closed-posting phrase variant misclassified as ${expiredLinkedInClosedVariant.result}`);
   }
 
+  const expiredFilledOrExpiredPosting = classifyLiveness({
+    finalUrl: 'https://example.com/jobs/filled-role',
+    bodyText: 'This position has been filled. This posting has expired and is no longer available.',
+    applyControls: ['Apply now'],
+  });
+  if (expiredFilledOrExpiredPosting.result === 'expired') {
+    pass('Filled or expired posting text still expires links');
+  } else {
+    fail(`Filled/expired posting text misclassified as ${expiredFilledOrExpiredPosting.result}`);
+  }
+
   const activeWorkdayPage = classifyLiveness({
     finalUrl: 'https://example.workday.com/job/123',
     bodyText: [

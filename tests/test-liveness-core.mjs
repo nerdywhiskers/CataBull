@@ -48,6 +48,24 @@ const linkedInOpenVariantWithApply = classifyLiveness({
 });
 assert(linkedInOpenVariantWithApply.result === 'expired', 'closed-text variants beat visible apply control');
 
+const filledRole = classifyLiveness({
+  status: 200,
+  finalUrl: 'https://company.com/jobs/filled-role',
+  bodyText: 'Thank you for your interest. This position has been filled.',
+  titleText: 'Careers',
+  applyControls: ['Apply now'],
+});
+assert(filledRole.result === 'expired', 'filled-position text expires posting even if stale apply UI remains');
+
+const expiredPosting = classifyLiveness({
+  status: 200,
+  finalUrl: 'https://company.com/jobs/expired-role',
+  bodyText: 'This job posting has expired and is no longer available.',
+  titleText: 'Job Posting',
+  applyControls: [],
+});
+assert(expiredPosting.result === 'expired', 'expired posting text expires posting');
+
 const activeWithApply = classifyLiveness({
   status: 200,
   finalUrl: 'https://company.com/jobs/123',
