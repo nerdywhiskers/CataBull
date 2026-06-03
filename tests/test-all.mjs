@@ -109,13 +109,13 @@ try {
 
   const expiredChromeApply = classifyLiveness({
     finalUrl: 'https://example.com/jobs/closed-role',
-    bodyText: 'Company Careers\nApply\nThe job you are looking for is no longer open.',
+    bodyText: 'Company Careers\nApply\nThis posting is no longer accepting applications.',
     applyControls: [],
   });
   if (expiredChromeApply.result === 'expired') {
-    pass('Expired pages are not revived by nav/footer "Apply" text');
+    pass('Explicit closed pages are not revived by nav/footer "Apply" text');
   } else {
-    fail(`Expired page misclassified as ${expiredChromeApply.result}`);
+    fail(`Explicitly closed page misclassified as ${expiredChromeApply.result}`);
   }
 
   const activeWorkdayPage = classifyLiveness({
