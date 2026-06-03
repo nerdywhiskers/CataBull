@@ -26,10 +26,12 @@ import { searchWeb, WebSearchError } from '../../scan/websearch.mjs';
 import { runJobSpy, detectRunner as detectJobSpyRunner, DEFAULT_SITES as JOBSPY_DEFAULT_SITES } from '../../scan/market/jobspy.mjs';
 import { classifyLiveness } from '../../lib/liveness-core.mjs';
 import { launchChromiumWithRetry } from '../../lib/playwright-launch.mjs';
+import { createLineBuffer, parseProgressLine } from '../../lib/scan-progress-stream.mjs';
 import { buildTitleClassifier } from '../../lib/title-filter.mjs';
 import { loadEnvFile } from '../../lib/load-env.mjs';
 import { DEFAULT_MIN_RELEVANCE, hasRelevanceSignals, resolveMinRelevance, scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../lib/relevance.mjs';
 import { readProfile } from '../lib/writers.mjs';
+import { finishScanRun, startScanRun, updateScanRun } from '../lib/scan-run-state.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = join(__dirname, '..', '..');
@@ -69,6 +71,11 @@ export default async function (app) {
 
   app.get('/scan/deep', async (req, reply) => {
     const queryLimit = Math.max(0, parseInt(req.query?.limit, 10) || 0);
+    startScanRun(root, {
+      mode: 'deep',
+      stage: 'quick:start',
+      progress: { stage: 'quick:start' },
+    });
 
     // SSE headers. Disable nagling so progress events flush immediately.
     reply.raw.setHeader('Content-Type', 'text/event-stream');
@@ -78,6 +85,9 @@ export default async function (app) {
     reply.raw.flushHeaders?.();
 
     const send = (event, payload) => {
+      if (event === 'progress' && payload?.stage) {
+        updateScanRun(root, { stage: payload.stage, progress: payload });
+      }
       try {
         reply.raw.write(`event: ${event}\n`);
         reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`);
@@ -97,7 +107,6 @@ export default async function (app) {
       // ── Phase 1: Quick Scan (Levels 1 + 2) ──────────────────────────
       send('progress', { stage: 'quick:start' });
       const quickResult = await runQuickScan({ root, limit, onProgress: (p) => send('progress', p) });
-      send('progress', { stage: 'quick:done', ...quickResult });
 
       if (aborted) { reply.raw.end(); return; }
 
@@ -115,6 +124,7 @@ export default async function (app) {
 
       if (limit && remainingAfterQuick <= 0) {
         send('progress', { stage: 'l3:skipped', reason: 'max roles reached by Quick Scan' });
+        finishScanRun(root, { mode: 'deep', status: 'completed', summary: { quick: quickResult, level3: null, level4: null, totalNew: quickResult.added } });
         send('complete', { summary: { quick: quickResult, level3: null, level4: null, totalNew: quickResult.added } });
         reply.raw.end();
         return;
@@ -122,6 +132,7 @@ export default async function (app) {
 
       if (enabledQueries.length === 0) {
         send('progress', { stage: 'l3:skipped', reason: 'no enabled search_queries' });
+        finishScanRun(root, { mode: 'deep', status: 'completed', summary: { quick: quickResult, level3: null, totalNew: quickResult.added } });
         send('complete', { summary: { quick: quickResult, level3: null, totalNew: quickResult.added } });
         reply.raw.end();
         return;
@@ -209,6 +220,7 @@ export default async function (app) {
           appendToScanHistory(root, level4Result.added);
         }
       } catch (err) {
+        finishScanRun(root, { mode: 'deep', status: 'failed', error: err instanceof WebSearchError ? `WebSearch (${err.provider}): ${err.message}` : (err.message || String(err)) });
         if (err instanceof WebSearchError) {
           send('error', { message: `WebSearch (${err.provider}): ${err.message}`, code: err.code });
         } else {
@@ -224,21 +236,22 @@ export default async function (app) {
       const l3Added = level3Result.added.length;
       const l4Added = level4Result?.added?.length || 0;
 
-      send('complete', {
-        summary: {
-          quick: quickResult,
-          level3: {
-            added: l3Added,
-            skipped: level3Result.skipped,
-            errors: level3Result.errors,
-            perQuery: level3Result.perQuery,
-          },
-          level4: level4Result,
-          totalNew: quickResult.added + l3Added + l4Added,
+      const summary = {
+        quick: quickResult,
+        level3: {
+          added: l3Added,
+          skipped: level3Result.skipped,
+          errors: level3Result.errors,
+          perQuery: level3Result.perQuery,
         },
-      });
+        level4: level4Result,
+        totalNew: quickResult.added + l3Added + l4Added,
+      };
+      send('complete', { summary });
+      finishScanRun(root, { mode: 'deep', status: 'completed', summary });
       reply.raw.end();
     } catch (err) {
+      finishScanRun(root, { mode: 'deep', status: 'failed', error: err.message || String(err) });
       send('error', { message: err.message || String(err) });
       reply.raw.end();
     }
@@ -314,38 +327,52 @@ function mergeSkipped(target = {}, add = {}) {
 
 function runQuickScan({ root, limit, onProgress = () => {} }) {
   return new Promise((resolve) => {
-    const args = [join(PACKAGE_ROOT, 'scan.mjs')];
+    const args = [join(PACKAGE_ROOT, 'scan.mjs'), '--mode', 'quick', '--progress'];
     if (limit > 0) args.push('--limit', String(limit));
 
     const env = { ...process.env, CATABULL_WORKSPACE_ROOT: root };
     const child = spawn(process.execPath, args, { cwd: root, env });
 
-    let buf = '';
+    let stdout = '';
     let added = 0;
     let totalFound = 0;
     let totalFiltered = 0;
     let totalDupes = 0;
 
-    child.stdout.on('data', (chunk) => {
-      buf += chunk.toString();
-      // Stream summary lines as progress so the dashboard sees activity
-      // while a slow scan runs.
-      const lines = buf.split('\n');
-      buf = lines.pop();
-      for (const line of lines) {
-        const m = line.match(/^Scanning (\d+) companies/);
-        if (m) onProgress({ stage: 'quick:scanning', companies: parseInt(m[1], 10) });
-        const af = line.match(/^Total jobs found:\s+(\d+)/);
-        if (af) totalFound = parseInt(af[1], 10);
-        const fb = line.match(/^Filtered by title:\s+(\d+)/);
-        if (fb) totalFiltered = parseInt(fb[1], 10);
-        const db = line.match(/^Duplicates:\s+(\d+)/);
-        if (db) totalDupes = parseInt(db[1], 10);
-        const nb = line.match(/^New offers added:\s+(\d+)/);
-        if (nb) added = parseInt(nb[1], 10);
+    const handleLine = (line) => {
+      const payload = parseProgressLine(line);
+      if (payload?.type === 'run:start') {
+        onProgress({ stage: 'quick:scanning', companies: payload.companies || 0 });
+      } else if (payload?.type === 'company:start') {
+        onProgress({ stage: 'quick:company:start', company: payload.company, provider: payload.provider, index: payload.index, total: payload.total });
+      } else if (payload?.type === 'company:done') {
+        onProgress({ stage: 'quick:company:done', company: payload.company, provider: payload.provider, index: payload.index, total: payload.total, found: payload.found, added: payload.added, error: payload.error, durationMs: payload.durationMs });
+      } else if (payload?.type === 'run:complete') {
+        totalFound = payload.totalFound || 0;
+        totalDupes = payload.duplicates || 0;
+        added = payload.added || 0;
+        onProgress({ stage: 'quick:done', companies: payload.companies, totalFound, added, errors: payload.errors || 0, durationMs: payload.durationMs || 0 });
       }
+
+      const m = line.match(/^Scanning (\d+) companies/);
+      if (m) onProgress({ stage: 'quick:scanning', companies: parseInt(m[1], 10) });
+      const af = line.match(/^Total jobs found:\s+(\d+)/);
+      if (af) totalFound = parseInt(af[1], 10);
+      const fb = line.match(/^Filtered by title:\s+(\d+)/);
+      if (fb) totalFiltered = parseInt(fb[1], 10);
+      const db = line.match(/^Duplicates:\s+(\d+)/);
+      if (db) totalDupes = parseInt(db[1], 10);
+      const nb = line.match(/^New offers added:\s+(\d+)/);
+      if (nb) added = parseInt(nb[1], 10);
+    };
+
+    const onStdout = createLineBuffer((line) => {
+      stdout += `${line}\n`;
+      handleLine(line);
     });
-    child.stderr.on('data', () => {/* errors surface in summary */});
+    child.stdout.on('data', onStdout);
+    child.stderr.on('data', createLineBuffer(handleLine));
+
     child.on('error', () => resolve({ added: 0, totalFound, totalFiltered, totalDupes, addedItems: [] }));
     child.on('close', () => resolve({ added, totalFound, totalFiltered, totalDupes, addedItems: [] }));
   });
@@ -587,6 +614,7 @@ async function classifyByPlaywright(page, url) {
     const status = response?.status() ?? 0;
     await page.waitForTimeout(1500);
     const finalUrl = page.url();
+    const titleText = await page.title().catch(() => '');
     const bodyText = await page.evaluate(() => document.body?.innerText ?? '');
     const applyControls = await page.evaluate(() => {
       const els = Array.from(document.querySelectorAll('a, button, input[type="submit"], [role="button"]'));
@@ -601,7 +629,7 @@ async function classifyByPlaywright(page, url) {
           .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim())
         .filter(Boolean);
     });
-    return classifyLiveness({ status, finalUrl, bodyText, applyControls });
+    return classifyLiveness({ status, finalUrl, bodyText, titleText, applyControls });
   } catch (err) {
     return { result: 'uncertain', reason: `navigation error: ${(err.message || '').split('\n')[0]}` };
   }

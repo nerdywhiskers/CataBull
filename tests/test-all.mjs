@@ -62,26 +62,41 @@ for (const f of mjsFiles) {
   }
 }
 
+const pythonFiles = [
+  ...readdirSync(join(ROOT, 'scripts')).filter(f => f.endsWith('.py')).map(f => join('scripts', f)),
+  ...readdirSync(join(ROOT, 'tests')).filter(f => f.endsWith('.py')).map(f => join('tests', f)),
+];
+for (const f of pythonFiles) {
+  const result = run('python3', ['-m', 'py_compile', f]);
+  if (result !== null) {
+    pass(`${f} syntax OK`);
+  } else {
+    fail(`${f} has syntax errors`);
+  }
+}
+
 // ── 2. SCRIPT EXECUTION ─────────────────────────────────────────
 
 console.log('\n2. Script execution (graceful on empty data)');
 
 const scripts = [
-  { name: 'cv-sync-check.mjs', expectExit: 1, allowFail: true }, // fails without cv.md (normal in repo)
-  { name: 'verify-pipeline.mjs', expectExit: 0 },
-  { name: 'normalize-statuses.mjs', expectExit: 0 },
-  { name: 'dedup-tracker.mjs', expectExit: 0 },
-  { name: 'merge-tracker.mjs', expectExit: 0 },
+  { cmd: 'node', args: ['cv-sync-check.mjs'], allowFail: true, label: 'cv-sync-check.mjs' }, // fails without cv.md (normal in repo)
+  { cmd: 'node', args: ['verify-pipeline.mjs'], label: 'verify-pipeline.mjs' },
+  { cmd: 'node', args: ['normalize-statuses.mjs'], label: 'normalize-statuses.mjs' },
+  { cmd: 'node', args: ['dedup-tracker.mjs'], label: 'dedup-tracker.mjs' },
+  { cmd: 'node', args: ['merge-tracker.mjs'], label: 'merge-tracker.mjs' },
+  { cmd: 'python3', args: ['tests/test_linkedin_import.py'], label: 'python3 tests/test_linkedin_import.py' },
+  { cmd: 'node', args: ['tests/test-job-url-metadata.mjs'], label: 'node tests/test-job-url-metadata.mjs' },
 ];
 
-for (const { name, allowFail } of scripts) {
-  const result = run('node', name.split(' '), { stdio: ['pipe', 'pipe', 'pipe'] });
+for (const { cmd, args = [], allowFail, label } of scripts) {
+  const result = run(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'] });
   if (result !== null) {
-    pass(`${name} runs OK`);
+    pass(`${label} runs OK`);
   } else if (allowFail) {
-    warn(`${name} exited with error (expected without user data)`);
+    warn(`${label} exited with error (expected without user data)`);
   } else {
-    fail(`${name} crashed`);
+    fail(`${label} crashed`);
   }
 }
 
@@ -94,13 +109,35 @@ try {
 
   const expiredChromeApply = classifyLiveness({
     finalUrl: 'https://example.com/jobs/closed-role',
-    bodyText: 'Company Careers\nApply\nThe job you are looking for is no longer open.',
+    bodyText: 'Company Careers\nApply\nThis posting is no longer accepting applications.',
     applyControls: [],
   });
   if (expiredChromeApply.result === 'expired') {
-    pass('Expired pages are not revived by nav/footer "Apply" text');
+    pass('Explicit closed pages are not revived by nav/footer "Apply" text');
   } else {
-    fail(`Expired page misclassified as ${expiredChromeApply.result}`);
+    fail(`Explicitly closed page misclassified as ${expiredChromeApply.result}`);
+  }
+
+  const expiredLinkedInClosedVariant = classifyLiveness({
+    finalUrl: 'https://www.linkedin.com/jobs/view/456',
+    bodyText: 'The job you are looking for is no longer open. This role is no longer accepting candidates at this time.',
+    applyControls: ['Apply now'],
+  });
+  if (expiredLinkedInClosedVariant.result === 'expired') {
+    pass('Closed-posting phrase variants still expire links even if stale apply UI remains');
+  } else {
+    fail(`Closed-posting phrase variant misclassified as ${expiredLinkedInClosedVariant.result}`);
+  }
+
+  const expiredFilledOrExpiredPosting = classifyLiveness({
+    finalUrl: 'https://example.com/jobs/filled-role',
+    bodyText: 'This position has been filled. This posting has expired and is no longer available.',
+    applyControls: ['Apply now'],
+  });
+  if (expiredFilledOrExpiredPosting.result === 'expired') {
+    pass('Filled or expired posting text still expires links');
+  } else {
+    fail(`Filled/expired posting text misclassified as ${expiredFilledOrExpiredPosting.result}`);
   }
 
   const activeWorkdayPage = classifyLiveness({

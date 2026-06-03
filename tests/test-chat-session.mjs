@@ -100,18 +100,153 @@ const { agentPrintArgs } = await import(
 
 const codexFresh = agentPrintArgs('codex', ROOT, { continueSession: false });
 assert(
-  JSON.stringify(codexFresh.args) === JSON.stringify(['exec']),
-  'fresh Codex turn uses codex exec',
+  JSON.stringify(codexFresh.args) === JSON.stringify([
+    'exec',
+    '--skip-git-repo-check',
+    '--sandbox', 'workspace-write',
+    '--ask-for-approval', 'on-request',
+  ]),
+  'fresh Codex turn forces workspace-write + on-request',
 );
 
 const codexContinued = agentPrintArgs('codex', ROOT, { continueSession: true });
 assert(
-  JSON.stringify(codexContinued.args) === JSON.stringify(['exec', 'resume', '--last', '-']),
-  'continued Codex turn uses codex exec resume --last -',
+  JSON.stringify(codexContinued.args) === JSON.stringify([
+    'exec',
+    '--skip-git-repo-check',
+    '--sandbox', 'workspace-write',
+    '--ask-for-approval', 'on-request',
+    'resume', '--last', '-',
+  ]),
+  'continued Codex turn keeps workspace-write + on-request and resumes last',
 );
 assert(
   !codexContinued.args.includes('--continue'),
   'continued Codex turn does not use removed --continue flag',
+);
+
+const { agentPtyConfig } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web/lib/agents.mjs')).href
+);
+
+const codexPty = agentPtyConfig('codex', ROOT);
+assert(
+  JSON.stringify(codexPty?.args || []) === JSON.stringify([
+    '--sandbox', 'workspace-write',
+    '--ask-for-approval', 'on-request',
+  ]),
+  'Codex PTY session also forces workspace-write + on-request',
+);
+
+console.log('\n4. Claude chat-panel session args');
+
+const claudeFresh = agentPrintArgs('claude', ROOT, {
+  sessionId: '123e4567-e89b-12d3-a456-426614174000',
+  continueSession: false,
+});
+assert(
+  JSON.stringify(claudeFresh.args) === JSON.stringify([
+    '-p',
+    '--output-format', 'text',
+    '--session-id', '123e4567-e89b-12d3-a456-426614174000',
+  ]),
+  'fresh Claude turn uses --session-id to create the named session',
+);
+
+const claudeContinued = agentPrintArgs('claude', ROOT, {
+  sessionId: '123e4567-e89b-12d3-a456-426614174000',
+  continueSession: true,
+});
+assert(
+  JSON.stringify(claudeContinued.args) === JSON.stringify([
+    '-p',
+    '--output-format', 'text',
+    '--resume', '123e4567-e89b-12d3-a456-426614174000',
+  ]),
+  'continued Claude turn uses --resume instead of reusing --session-id',
+);
+
+console.log('\n5. Hermes chat-panel continuation args');
+
+const hermesFresh = agentPrintArgs('hermes', ROOT, {
+  prompt: 'hello',
+  continueSession: false,
+});
+assert(
+  JSON.stringify(hermesFresh.args) === JSON.stringify(['chat', '-q', 'hello', '-Q', '--yolo']),
+  'fresh Hermes turn does not resume prior context',
+);
+
+const hermesContinued = agentPrintArgs('hermes', ROOT, {
+  prompt: 'follow up',
+  continueSession: true,
+});
+assert(
+  JSON.stringify(hermesContinued.args) === JSON.stringify(['chat', '--continue', '-q', 'follow up', '-Q', '--yolo']),
+  'continued Hermes turn uses --continue',
+);
+
+console.log('\n6. OpenClaw chat-panel session args');
+
+const openclawFresh = agentPrintArgs('openclaw', ROOT, {
+  prompt: 'status',
+  sessionId: null,
+});
+assert(
+  JSON.stringify(openclawFresh.args) === JSON.stringify(['--no-color', 'agent', '--agent', 'main', '--message', 'status', '--json']),
+  'fresh OpenClaw turn without sticky id omits --session-id',
+);
+
+const openclawSticky = agentPrintArgs('openclaw', ROOT, {
+  prompt: 'status',
+  sessionId: '123e4567-e89b-12d3-a456-426614174000',
+});
+assert(
+  JSON.stringify(openclawSticky.args) === JSON.stringify([
+    '--no-color',
+    'agent',
+    '--agent', 'main',
+    '--session-id', '123e4567-e89b-12d3-a456-426614174000',
+    '--message', 'status',
+    '--json',
+  ]),
+  'OpenClaw sticky session reuses explicit session id',
+);
+
+console.log('\n7. Chat transcript persistence sanitization');
+
+globalThis.document = {
+  getElementById() { return null; },
+  addEventListener() {},
+  querySelector() { return null; },
+  body: { style: {} },
+};
+globalThis.window = { document: globalThis.document };
+globalThis.localStorage = {
+  getItem() { return null; },
+  setItem() {},
+  removeItem() {},
+};
+
+const chatUi = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web/public/js/views/chatui.mjs')).href
+);
+
+chatUi.restoreMessages([
+  { role: 'user', text: 'hello' },
+  { role: 'assistant', text: 'hi back', agent: 'claude' },
+  { role: 'working', text: 'should not persist' },
+  { role: 'system', text: 'Heads up', tone: 'error' },
+  { role: 'bogus', text: 'drop me' },
+]);
+
+assert(
+  JSON.stringify(chatUi.getMessagesSnapshot()) === JSON.stringify([
+    { role: 'user', text: 'hello', tone: 'default', agent: '' },
+    { role: 'assistant', text: 'hi back', tone: 'default', agent: 'claude' },
+    { role: 'system', text: 'Heads up', tone: 'error', agent: '' },
+  ]),
+  'chat transcript restore drops non-persistable roles and preserves valid messages',
 );
 
 console.log(`\n${'─'.repeat(40)}`);

@@ -108,21 +108,59 @@
 }
 .profile-switch-skeleton-row { width: 100%; }
 
-/* Scan progress banner shown above the pipeline tabs while a scan is in
-   flight. */
-.scan-banner {
+/* Shared scan progress card used for both Quick Scan and Deep Scan states. */
+.scan-progress-slot { margin: 12px 0 16px; }
+.scan-progress {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  padding: 12px 16px;
-  margin-bottom: 16px;
+  padding: 14px 16px;
   border-radius: var(--radius);
   font-size: 13px;
   color: var(--text);
   background: rgba(137, 180, 250, 0.10);
   border: 1px solid rgba(137, 180, 250, 0.28);
 }
-.scan-banner-running .spinner { border-top-color: var(--blue); }
+.scan-progress-running .spinner { border-top-color: var(--blue); }
+.scan-progress-icon {
+  width: 18px;
+  min-width: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 1px;
+}
+.scan-progress-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.scan-progress-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--blue);
+}
+.scan-progress-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.scan-progress-detail,
+.scan-progress-meta {
+  font-size: 12px;
+  color: var(--subtext);
+  line-height: 1.45;
+}
+.scan-progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--blue);
+  display: inline-block;
+}
 
 /* Overflow menu */
 .overflow-menu {
@@ -167,6 +205,7 @@
 
 /* Cards */
 .card {
+  box-sizing: border-box;
   background: var(--surface0);
   border-radius: var(--radius-lg);
   padding: 20px;
@@ -175,6 +214,7 @@
 
 /* Stat cards */
 .stat-card {
+  box-sizing: border-box;
   background: var(--surface0);
   border-radius: var(--radius-lg);
   padding: 16px 20px;
@@ -250,6 +290,14 @@
 
 /* Tables */
 .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+.table-scroll > .data-table { width: 100%; }
 .data-table th {
   text-align: left;
   padding: 10px 12px;
@@ -588,6 +636,58 @@
 
 .analytics-table th:hover {
   color: var(--subtext0);
+}
+
+@media (max-width: 900px) {
+  .grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .grid-3,
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .filter-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .filter-tabs::-webkit-scrollbar { display: none; }
+  .filter-tab { flex: 0 0 auto; }
+  .analytics-subtoolbar {
+    align-items: flex-start;
+  }
+  .analytics-total {
+    margin-left: 0;
+  }
+  .bar-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 6px 10px;
+  }
+  .bar-label {
+    width: auto;
+    text-align: left;
+    grid-column: 1 / -1;
+  }
+  .bar-track {
+    min-width: 0;
+  }
+  .bar-value {
+    width: auto;
+    text-align: right;
+  }
+}
+
+@media (max-width: 560px) {
+  .grid-4 {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Memory */

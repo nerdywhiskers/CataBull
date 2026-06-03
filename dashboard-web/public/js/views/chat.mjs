@@ -5,12 +5,14 @@ import {
   addSystemMessage,
   addUserMessage,
   focusInput as focusChatInput,
+  getMessagesSnapshot,
   handleError as handleChatError,
   handleExit as handleChatExit,
   handleOutput as handleChatOutput,
   hideWorkingMessage,
   init as initChatUi,
   reset as resetChatUi,
+  restoreMessages as restoreChatMessages,
   setAgent as setChatAgent,
   showWorkingMessage,
 } from './chatui.mjs';
@@ -28,9 +30,15 @@ let lastOutputAt = 0;
 let rawBacklog = '';
 let currentView = localStorage.getItem('catabull-terminal-view') || 'chat';
 let reconnectTimer = null;
-const DEFAULT_OPEN = localStorage.getItem('catabull-terminal-open') !== 'false';
+let suppressTranscriptPersistence = false;
+function shouldAutoOpenDrawer() {
+  // On mobile the drawer becomes a full overlay. Reopening it automatically
+  // from a desktop preference hides the dashboard behind chat on first load.
+  return window.innerWidth > 1180 && localStorage.getItem('catabull-terminal-open') !== 'false';
+}
 const AGENT_STORAGE_KEY = 'catabull-terminal-agent';
 const AGENT_SESSIONS_STORAGE_KEY = 'catabull-chat-agent-sessions';
+const CHAT_TRANSCRIPTS_STORAGE_KEY = 'catabull-chat-transcripts';
 
 const DEFAULT_COLS = 120;
 const DEFAULT_ROWS = 20;
@@ -43,6 +51,8 @@ let continuationSupport = {};
 // codex falls back to "resume last" (no per-id session control in exec mode),
 // so for codex this map only tracks "have we seen at least one turn yet?".
 const agentSessions = loadAgentSessions();
+const chatTranscripts = loadChatTranscripts();
+pruneOrphanedAgentSessions();
 
 function loadAgentSessions() {
   try {
@@ -57,6 +67,66 @@ function loadAgentSessions() {
 
 function saveAgentSessions() {
   try { localStorage.setItem(AGENT_SESSIONS_STORAGE_KEY, JSON.stringify(agentSessions)); } catch {}
+}
+
+function loadChatTranscripts() {
+  try {
+    const raw = localStorage.getItem(CHAT_TRANSCRIPTS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveChatTranscripts() {
+  try { localStorage.setItem(CHAT_TRANSCRIPTS_STORAGE_KEY, JSON.stringify(chatTranscripts)); } catch {}
+}
+
+function withTranscriptPersistencePaused(callback) {
+  suppressTranscriptPersistence = true;
+  try {
+    return callback();
+  } finally {
+    suppressTranscriptPersistence = false;
+  }
+}
+
+function transcriptHasMessages(name) {
+  return Array.isArray(chatTranscripts[name]?.messages) && chatTranscripts[name].messages.length > 0;
+}
+
+function pruneOrphanedAgentSessions() {
+  let changed = false;
+  for (const name of Object.keys(agentSessions)) {
+    if (transcriptHasMessages(name)) continue;
+    delete agentSessions[name];
+    changed = true;
+  }
+  if (changed) saveAgentSessions();
+}
+
+function persistCurrentTranscript(snapshot = getMessagesSnapshot()) {
+  if (suppressTranscriptPersistence || !currentAgent) return;
+  if (Array.isArray(snapshot) && snapshot.length) {
+    chatTranscripts[currentAgent] = {
+      messages: snapshot,
+      updatedAt: Date.now(),
+    };
+  } else {
+    delete chatTranscripts[currentAgent];
+  }
+  saveChatTranscripts();
+}
+
+function restoreChatTranscript(name) {
+  const snapshot = Array.isArray(chatTranscripts[name]?.messages)
+    ? chatTranscripts[name].messages
+    : [];
+  withTranscriptPersistencePaused(() => {
+    restoreChatMessages(snapshot, name);
+  });
 }
 
 function agentSupportsContinuation(name) {
@@ -140,10 +210,19 @@ function logSystem(text, tone = 'default') {
   addSystemMessage(text, tone);
 }
 
-function clearSessionOutput() {
+function clearTerminalOutput() {
   rawBacklog = '';
   if (term) term.clear();
-  resetChatUi(currentAgent);
+}
+
+function syncChatUiToCurrentAgent() {
+  restoreChatTranscript(currentAgent);
+}
+
+function clearSessionOutput({ resetChat = true } = {}) {
+  clearTerminalOutput();
+  if (resetChat) resetChatUi(currentAgent);
+  else syncChatUiToCurrentAgent();
 }
 
 // "Reset" rotates the current agent's session id so the next message starts
@@ -152,9 +231,12 @@ function clearSessionOutput() {
 function resetChatSession() {
   if (currentAgent) {
     delete agentSessions[currentAgent];
+    delete chatTranscripts[currentAgent];
     saveAgentSessions();
+    saveChatTranscripts();
   }
-  clearSessionOutput();
+  clearTerminalOutput();
+  syncChatUiToCurrentAgent();
 }
 
 function ensureTerminal() {
@@ -372,7 +454,7 @@ async function submitFromChatView(text) {
   return runPrompt(text);
 }
 
-export async function show() {
+export async function show({ persist = true } = {}) {
   const drawer = document.getElementById('terminal-drawer');
   const main = document.getElementById('main-content');
   if (!drawer) return;
@@ -380,7 +462,7 @@ export async function show() {
   drawer.style.display = 'flex';
   drawer.classList.add('is-open');
   document.querySelector('.dashboard-shell')?.classList.remove('rail-hidden');
-  localStorage.setItem('catabull-terminal-open', 'true');
+  if (persist) localStorage.setItem('catabull-terminal-open', 'true');
   if (main) main.classList.add('with-drawer-right');
   drawerVisible = true;
 
@@ -412,7 +494,7 @@ export async function show() {
   connect();
 }
 
-export function hide() {
+export function hide({ persist = true } = {}) {
   const drawer = document.getElementById('terminal-drawer');
   const main = document.getElementById('main-content');
   if (drawer) {
@@ -425,7 +507,7 @@ export function hide() {
     main.style.removeProperty('--drawer-offset');
   }
   disconnectSession();
-  localStorage.setItem('catabull-terminal-open', 'false');
+  if (persist) localStorage.setItem('catabull-terminal-open', 'false');
   drawerVisible = false;
 }
 
@@ -468,13 +550,14 @@ export async function runPrompt(text, {
 
   if (currentView === 'chat') {
     showWorkingMessage(`${currentAgent} is working`, currentAgent);
-    // claude is the only CLI whose --session-id <uuid> creates the session
-    // on first use, so we can drive it with a sticky uuid (Reset rotates it).
-    // codex and opencode resume the most recent session globally. For those
-    // agents we just track "have we seen one turn yet?" and Reset drops the
-    // flag so the next turn creates a new session by omitting continuation.
+    // claude and openclaw are the CLIs whose explicit session ids create the
+    // session on first use, so we can drive them with a sticky uuid (Reset
+    // rotates it). codex, hermes, and opencode resume the most recent session
+    // globally. For those agents we just track "have we seen one turn yet?"
+    // and Reset drops the flag so the next turn creates a new session by
+    // omitting continuation.
     const supportsContinuation = agentSupportsContinuation(currentAgent);
-    const usesStickySession = currentAgent === 'claude';
+    const usesStickySession = currentAgent === 'claude' || currentAgent === 'openclaw';
     const continueSession = supportsContinuation && !usesStickySession && Boolean(agentSessions[currentAgent]);
 
     // Run the agent with the current session-id. On session-conflict
@@ -513,6 +596,11 @@ export async function runPrompt(text, {
 
       if (result?.ok) {
         addAssistantMessage(result.output || 'No output returned.', currentAgent);
+        try {
+          window.dispatchEvent(new CustomEvent('catabull:data-maybe-changed', {
+            detail: { source: 'chat', agent: currentAgent },
+          }));
+        } catch {}
         // For agents on the resume-last path (codex), mark the agent as
         // "seen" so the next turn requests continuation. Sticky-session
         // agents already had their uuid stamped via ensureSessionId.
@@ -576,11 +664,14 @@ export async function init() {
   agentsReady = loadAgents();
   await agentsReady;
 
-  initChatUi(document.getElementById('chat-pane'), {
-    onSubmit: submitFromChatView,
-    onNewChat: resetChatSession,
+  withTranscriptPersistencePaused(() => {
+    initChatUi(document.getElementById('chat-pane'), {
+      onSubmit: submitFromChatView,
+      onNewChat: resetChatSession,
+      onMessagesChange: persistCurrentTranscript,
+    });
+    syncChatUiToCurrentAgent();
   });
-  resetChatUi(currentAgent);
   applyViewMode(currentView);
 
   const drawer = document.getElementById('terminal-drawer');
@@ -594,7 +685,7 @@ export async function init() {
       currentAgent = event.target.value;
       localStorage.setItem(AGENT_STORAGE_KEY, currentAgent);
       setChatAgent(currentAgent);
-      clearSessionOutput();
+      clearSessionOutput({ resetChat: false });
       if (currentView === 'raw') {
         logSystem(`Switching to ${currentAgent}...`);
       }
@@ -615,7 +706,9 @@ export async function init() {
     }
   });
 
-  if (DEFAULT_OPEN) {
-    setTimeout(() => { show(); }, 0);
+  if (shouldAutoOpenDrawer()) {
+    setTimeout(() => { show({ persist: false }); }, 0);
+  } else {
+    hide({ persist: false });
   }
 }

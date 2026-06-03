@@ -1,4 +1,4 @@
-import { api } from '../api.mjs';
+import { api, waitForDashboardReload } from '../api.mjs';
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 
@@ -50,6 +50,8 @@ function renderSettings(container, settings, maintenance = {}) {
   const tailscale = settings.tailscale || {};
   const tailscaleStatus = tailscale.status || {};
   const tailscaleMode = tailscale.mode || 'off';
+  const workspace = settings.workspace || {};
+  const workspacePreference = workspace.globalInstallPreference || 'home';
   try { localStorage.setItem(SCAN_LIMIT_KEY, String(scanLimit)); } catch {}
 
   container.innerHTML = `
@@ -129,6 +131,31 @@ function renderSettings(container, settings, maintenance = {}) {
           <section class="settings-section settings-section-compact">
             <div class="settings-section-header">
               <div>
+                <h2>Global Install Workspace</h2>
+                <p>Controls where the npm-installed catabull CLI stores and reads your data.</p>
+              </div>
+            </div>
+            <div class="settings-grid settings-grid-compact settings-grid-inline">
+              <label class="settings-field">
+                <span class="form-label">Workspace preference</span>
+                <select class="form-select" id="workspace-preference">
+                  ${workspacePreferenceOption('home', `Home workspace (${workspace.homeRoot || '~/.catabull'})`, workspacePreference)}
+                  ${workspacePreferenceOption('cwd', 'Current CataBull folder when detected', workspacePreference)}
+                </select>
+                <span class="settings-help">Default is the safe home workspace. Choosing the current folder only affects global installs and never changes which code install gets updated.</span>
+              </label>
+              <div class="settings-field">
+                <div class="settings-field-top">
+                  <span class="form-label">Current workspace root</span>
+                </div>
+                <span class="settings-help"><code>${esc(workspace.currentRoot || '(unknown)')}</code></span>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section settings-section-compact">
+            <div class="settings-section-header">
+              <div>
                 <h2>Application Updates</h2>
                 <p>Check the CataBull repo and pull fast-forward updates into this install.</p>
               </div>
@@ -153,6 +180,7 @@ function renderSettings(container, settings, maintenance = {}) {
               <button class="btn btn-outline" type="button" id="check-updates-btn">Check for Updates</button>
               <button class="btn btn-primary" type="button" id="apply-update-btn" disabled>Update</button>
               <button class="btn btn-outline" type="button" id="git-pull-btn" disabled title="Dev installs only: runs git pull --ff-only against origin/main">Pull from git</button>
+              <button class="btn btn-outline" type="button" id="restart-dashboard-btn" disabled title="Restart available only when the dashboard was launched through catabull or start.mjs">Restart Dashboard</button>
             </div>
           </section>
         </div>
@@ -272,6 +300,7 @@ function renderSettings(container, settings, maintenance = {}) {
         freshnessDays: parseInt(container.querySelector('#freshness-days')?.value || '0', 10) || 0,
         tailscaleMode: container.querySelector('#tailscale-mode')?.value || 'off',
         autoUpdate: Boolean(container.querySelector('#auto-update')?.checked),
+        workspacePreference: container.querySelector('#workspace-preference')?.value || 'home',
       };
       const result = await api.updateSettings(payload);
       toast('Settings saved');
@@ -340,6 +369,10 @@ function tailscaleModeOption(value, label, current) {
   return `<option value="${value}" ${current === value ? 'selected' : ''}>${esc(label)}</option>`;
 }
 
+function workspacePreferenceOption(value, label, current) {
+  return `<option value="${value}" ${current === value ? 'selected' : ''}>${esc(label)}</option>`;
+}
+
 function configuredCount(secrets) {
   return Object.values(secrets || {}).filter((s) => s?.configured).length;
 }
@@ -376,6 +409,7 @@ function bindUpdateControls(container) {
   const checkBtn = container.querySelector('#check-updates-btn');
   const applyBtn = container.querySelector('#apply-update-btn');
   const gitPullBtn = container.querySelector('#git-pull-btn');
+  const restartBtn = container.querySelector('#restart-dashboard-btn');
   if (!card || !checkBtn || !applyBtn) return;
 
   const installKindLabel = (kind) => {
@@ -388,6 +422,12 @@ function bindUpdateControls(container) {
     const supported = status.supported !== false;
     const available = Boolean(status.updateAvailable);
     applyBtn.disabled = !supported || !available || status.canUpdate === false;
+    if (restartBtn) {
+      restartBtn.disabled = !status.restartSupported;
+      restartBtn.title = status.restartSupported
+        ? 'Restart the dashboard process and reconnect this page'
+        : 'Restart available only when the dashboard was launched through catabull or start.mjs';
+    }
     if (gitPullBtn) {
       gitPullBtn.disabled = !status.canGitPull;
       gitPullBtn.title = status.installKind === 'git-checkout'
@@ -463,6 +503,29 @@ function bindUpdateControls(container) {
         // Re-derive button state from a fresh status, since dirty/clean and
         // commit deltas may have shifted after a pull or a failure.
         try { renderStatus(await api.getUpdateStatus()); } catch { /* leave buttons disabled until next manual check */ }
+      }
+    });
+  }
+
+  if (restartBtn) {
+    restartBtn.addEventListener('click', async () => {
+      restartBtn.disabled = true;
+      checkBtn.disabled = true;
+      applyBtn.disabled = true;
+      if (gitPullBtn) gitPullBtn.disabled = true;
+      card.innerHTML = '<span><span class="spinner"></span> Restarting dashboard and waiting for it to come back</span>';
+      try {
+        const result = await api.restartDashboard();
+        toast(result.message || 'Dashboard restarting...');
+        await waitForDashboardReload();
+      } catch (err) {
+        card.innerHTML = `<strong>Restart failed</strong><span>${esc(err.message || 'Could not restart dashboard')}</span>`;
+        toast(err.message || 'Could not restart dashboard', 'error');
+        try { renderStatus(await api.getUpdateStatus()); } catch {
+          checkBtn.disabled = false;
+          applyBtn.disabled = false;
+          if (gitPullBtn) gitPullBtn.disabled = false;
+        }
       }
     });
   }

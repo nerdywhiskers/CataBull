@@ -9,6 +9,7 @@ import { DEFAULT_RUN_TIMEOUT_MS, MAX_RUN_TIMEOUT_MS } from './routes/terminal.mj
 import { defaultWorkspace } from '../lib/workspace.mjs';
 import { ensureWorkspace, syncSystemLayer } from '../lib/workspace-resolver.mjs';
 import { registerSecurity, logSessionToken } from './lib/security.mjs';
+import { readLaunchContext } from './lib/restart-control.mjs';
 import { loadEnvFile } from '../lib/load-env.mjs';
 import { startTailscaleServe } from '../lib/tailscale.mjs';
 import { readSettings } from './routes/settings.mjs';
@@ -34,6 +35,7 @@ const resolved = ensureWorkspace({
 });
 const workspace = defaultWorkspace(resolved.root);
 const CATA_BULL_ROOT = workspace.root;
+const launchContext = readLaunchContext(process.env);
 
 // In a home install the agent runs with cwd = workspace, but its system files
 // (modes/*.md, cv templates, the /catabull skill) ship in the package. Mirror
@@ -68,6 +70,7 @@ app.register(fastifyStatic, {
 app.decorate('cataBullRoot', CATA_BULL_ROOT);
 app.decorate('packageRoot', PROJECT_ROOT);
 app.decorate('workspace', workspace);
+app.decorate('launchContext', launchContext);
 
 // Register routes
 app.register(import('./routes/applications.mjs'), { prefix: '/api/v1' });

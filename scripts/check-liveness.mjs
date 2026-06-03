@@ -28,7 +28,20 @@ async function checkUrl(page, url) {
     await page.waitForTimeout(2000);
 
     const finalUrl = page.url();
+    const titleText = await page.title().catch(() => '');
     const bodyText = await page.evaluate(() => document.body?.innerText ?? '');
+    const extraText = await page.evaluate(() => {
+      const parts = [];
+      for (const frame of Array.from(document.querySelectorAll('iframe'))) {
+        const title = frame.getAttribute('title') || frame.title || '';
+        const aria = frame.getAttribute('aria-label') || '';
+        const src = frame.getAttribute('src') || '';
+        if (title) parts.push(`iframe title: ${title}`);
+        if (aria) parts.push(`iframe aria: ${aria}`);
+        if (src) parts.push(`iframe src: ${src}`);
+      }
+      return parts.join(' ');
+    });
     const applyControls = await page.evaluate(() => {
       const candidates = Array.from(
         document.querySelectorAll('a, button, input[type="submit"], input[type="button"], [role="button"]')
@@ -62,7 +75,7 @@ async function checkUrl(page, url) {
         .filter(Boolean);
     });
 
-    return classifyLiveness({ status, finalUrl, bodyText, applyControls });
+    return classifyLiveness({ status, finalUrl, bodyText, titleText, extraText, applyControls });
 
   } catch (err) {
     return { result: 'uncertain', reason: `navigation error: ${err.message.split('\n')[0]}` };

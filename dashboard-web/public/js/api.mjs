@@ -2,6 +2,39 @@ const BASE = '/api/v1';
 
 let reloadingForAuth = false;
 
+export function buildAuthRefreshLocation(location = window.location) {
+  const pathname = location?.pathname || '/';
+  const params = new URLSearchParams(location?.search || '');
+  params.set('cb_session_refresh', String(Date.now()));
+  const search = params.toString();
+  const hash = location?.hash || '';
+  return `${pathname}${search ? `?${search}` : ''}${hash}`;
+}
+
+export async function waitForDashboardReload({ timeoutMs = 30_000, intervalMs = 500, path } = {}) {
+  const target = path || buildAuthRefreshLocation(window.location);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(target, {
+        method: 'GET',
+        cache: 'no-store',
+        credentials: 'same-origin',
+        headers: { 'Cache-Control': 'no-store' },
+      });
+      if (res.ok) {
+        window.location.replace(target);
+        return true;
+      }
+    } catch {
+      // Server likely still restarting.
+    }
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  window.location.replace(target);
+  return false;
+}
+
 async function request(path, opts = {}) {
   const headers = { ...opts.headers };
   const body = opts.body ? JSON.stringify(opts.body) : undefined;
@@ -11,13 +44,14 @@ async function request(path, opts = {}) {
   // future caller hands us absolute URLs.
   const res = await fetch(BASE + path, { ...opts, headers, body, credentials: 'same-origin' });
   // If the server restarts mid-session, the cookie's token becomes
-  // stale and every subsequent API call returns 401. Reloading the
-  // page lets the new server set a fresh cookie before the browser
-  // tries again. Guard with a flag so a flurry of failed requests
-  // doesn't trigger a reload storm.
+  // stale and every subsequent API call returns 401. A plain reload can
+  // get a cached 304 for `/`, which does not reissue Set-Cookie and traps
+  // the page in a reload loop. Force a one-shot cache-busting navigation
+  // instead. Guard with a flag so a flurry of failed requests doesn't
+  // trigger a navigation storm.
   if (res.status === 401 && !reloadingForAuth) {
     reloadingForAuth = true;
-    try { window.location.reload(); } catch {}
+    try { window.location.replace(buildAuthRefreshLocation(window.location)); } catch {}
   }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
@@ -58,8 +92,8 @@ export const api = {
   applyPending: (url, company, role) => request('/pipeline/apply', { method: 'POST', body: { url, company, role } }),
   deleteAllPending: () => request('/pipeline/delete-pending', { method: 'POST', body: {} }),
   deletePending: (urls) => request('/pipeline/delete', { method: 'POST', body: { urls } }),
-  addPending: ({ url, company, role, postedAt } = {}) =>
-    request('/pipeline/add', { method: 'POST', body: { url, company, role, postedAt } }),
+  addPending: ({ url, company, role, postedAt, location } = {}) =>
+    request('/pipeline/add', { method: 'POST', body: { url, company, role, postedAt, location } }),
 
   // Reports
   getReports: () => request('/reports'),
@@ -85,6 +119,7 @@ export const api = {
   checkUpdates: () => request('/updates/check', { method: 'POST', body: {} }),
   applyUpdate: () => request('/updates/apply', { method: 'POST', body: {} }),
   gitPullUpdate: () => request('/updates/git-pull', { method: 'POST', body: {} }),
+  restartDashboard: () => request('/updates/restart', { method: 'POST', body: {} }),
   clearScanHistory: () => request('/settings/maintenance/clear-scan-history', { method: 'POST', body: {} }),
   rebuildScanHistory: () => request('/settings/maintenance/rebuild-scan-history', { method: 'POST', body: {} }),
 
@@ -117,8 +152,13 @@ export const api = {
 
   // Scan scheduler
   getScanStatus: () => request('/scan/status'),
+  getScanRunState: () => request('/scan/run-state'),
   setScanSchedule: (schedule) => request('/scan/schedule', { method: 'PUT', body: { schedule } }),
   runScanNow: (limit) => request('/scan/run', { method: 'POST', body: { limit: limit || 0 } }),
+  runQuickScanStream: ({ limit } = {}) => {
+    const qs = limit ? `?limit=${encodeURIComponent(limit)}` : '';
+    return new EventSource(`${BASE}/scan/run/stream${qs}`);
+  },
   runScanDiagnostics: (limit) => request('/scan/diagnose', { method: 'POST', body: { limit: limit || 0 } }),
 
   // Liveness
