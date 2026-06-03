@@ -100,18 +100,42 @@ const { agentPrintArgs } = await import(
 
 const codexFresh = agentPrintArgs('codex', ROOT, { continueSession: false });
 assert(
-  JSON.stringify(codexFresh.args) === JSON.stringify(['exec', '--skip-git-repo-check']),
-  'fresh Codex turn uses codex exec',
+  JSON.stringify(codexFresh.args) === JSON.stringify([
+    'exec',
+    '--skip-git-repo-check',
+    '--sandbox', 'workspace-write',
+    '--ask-for-approval', 'on-request',
+  ]),
+  'fresh Codex turn forces workspace-write + on-request',
 );
 
 const codexContinued = agentPrintArgs('codex', ROOT, { continueSession: true });
 assert(
-  JSON.stringify(codexContinued.args) === JSON.stringify(['exec', '--skip-git-repo-check', 'resume', '--last', '-']),
-  'continued Codex turn uses codex exec resume --last -',
+  JSON.stringify(codexContinued.args) === JSON.stringify([
+    'exec',
+    '--skip-git-repo-check',
+    '--sandbox', 'workspace-write',
+    '--ask-for-approval', 'on-request',
+    'resume', '--last', '-',
+  ]),
+  'continued Codex turn keeps workspace-write + on-request and resumes last',
 );
 assert(
   !codexContinued.args.includes('--continue'),
   'continued Codex turn does not use removed --continue flag',
+);
+
+const { agentPtyConfig } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web/lib/agents.mjs')).href
+);
+
+const codexPty = agentPtyConfig('codex', ROOT);
+assert(
+  JSON.stringify(codexPty?.args || []) === JSON.stringify([
+    '--sandbox', 'workspace-write',
+    '--ask-for-approval', 'on-request',
+  ]),
+  'Codex PTY session also forces workspace-write + on-request',
 );
 
 console.log('\n4. Claude chat-panel session args');
