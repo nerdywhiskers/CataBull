@@ -46,7 +46,7 @@ const listingRedirect = classifyLiveness({
   titleText: 'Jobs',
   applyControls: [],
 });
-assert(listingRedirect.result === 'expired', 'listing/search pages count as expired');
+assert(listingRedirect.result === 'uncertain', 'listing/search pages stay uncertain unless clearly gone or closed');
 
 const linkedInLoginWall = classifyLiveness({
   status: 200,
@@ -55,7 +55,7 @@ const linkedInLoginWall = classifyLiveness({
   titleText: 'LinkedIn Login, Sign in | LinkedIn',
   applyControls: [],
 });
-assert(linkedInLoginWall.result === 'expired', 'LinkedIn login wall does not count as a live posting');
+assert(linkedInLoginWall.result === 'uncertain', 'LinkedIn login wall stays uncertain, not expired');
 
 const botChallenge403 = classifyLiveness({
   status: 403,
@@ -64,7 +64,7 @@ const botChallenge403 = classifyLiveness({
   titleText: 'wellfound.com',
   applyControls: [],
 });
-assert(botChallenge403.result === 'expired', 'bot challenge wall does not count as a live posting');
+assert(botChallenge403.result === 'uncertain', 'bot challenge wall stays uncertain, not expired');
 
 const botChallenge403ViaIframe = classifyLiveness({
   status: 403,
@@ -74,7 +74,7 @@ const botChallenge403ViaIframe = classifyLiveness({
   extraText: 'iframe title: DataDome CAPTCHA iframe src: https://geo.captcha-delivery.com/captcha/...',
   applyControls: [],
 });
-assert(botChallenge403ViaIframe.result === 'expired', 'iframe captcha wall does not count as a live posting');
+assert(botChallenge403ViaIframe.result === 'uncertain', 'iframe captcha wall stays uncertain, not expired');
 
 const cloudflareChallenge403 = classifyLiveness({
   status: 403,
@@ -83,7 +83,7 @@ const cloudflareChallenge403 = classifyLiveness({
   titleText: 'Just a moment...',
   applyControls: [],
 });
-assert(cloudflareChallenge403.result === 'expired', 'security verification wall does not count as a live posting');
+assert(cloudflareChallenge403.result === 'uncertain', 'security verification wall stays uncertain, not expired');
 
 const activeWithApplyAndLoginNav = classifyLiveness({
   status: 200,

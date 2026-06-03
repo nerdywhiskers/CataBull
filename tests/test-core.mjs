@@ -118,18 +118,21 @@ assert(classifyLiveness({ status: 503 }).result === 'uncertain', '5xx transient 
 // URL patterns
 assert(classifyLiveness({ finalUrl: 'https://example.com?error=true' }).result === 'expired', 'URL with ?error=true → expired');
 
-// Body patterns — expired
-assert(classifyLiveness({ bodyText: 'The job is no longer available' }).result === 'expired', 'no longer available → expired');
-assert(classifyLiveness({ bodyText: 'This position has been filled' }).result === 'expired', 'position filled → expired');
-assert(classifyLiveness({ bodyText: 'This job posting has expired' }).result === 'expired', 'posting expired → expired');
+// Body patterns — expired only for clear gone/closed signals
 assert(classifyLiveness({ bodyText: 'No longer accepting applications' }).result === 'expired', 'no longer accepting → expired');
 assert(classifyLiveness({ bodyText: 'The page you are looking for does not exist' }).result === 'expired', 'page not found → expired');
-assert(classifyLiveness({ bodyText: 'Diese Stelle ist nicht mehr besetzt' }).result === 'expired', 'German expired → expired');
-assert(classifyLiveness({ bodyText: 'Cette offre expirée' }).result === 'expired', 'French expired → expired');
+assert(classifyLiveness({ bodyText: 'Job listing not found' }).result === 'expired', 'job listing not found → expired');
 
-// Body patterns — listing page (no specific job)
-assert(classifyLiveness({ bodyText: '663 JOBS FOUND' }).result === 'expired', 'listing page → expired');
-assert(classifyLiveness({ bodyText: 'Search for jobs page is loaded' }).result === 'expired', 'search page → expired');
+// Body patterns — uncertain when not clearly gone/closed
+assert(classifyLiveness({ bodyText: 'The job is no longer available' }).result === 'uncertain', 'no longer available stays uncertain');
+assert(classifyLiveness({ bodyText: 'This position has been filled' }).result === 'uncertain', 'position filled stays uncertain');
+assert(classifyLiveness({ bodyText: 'This job posting has expired' }).result === 'uncertain', 'posting expired stays uncertain');
+assert(classifyLiveness({ bodyText: 'Diese Stelle ist nicht mehr besetzt' }).result === 'uncertain', 'German closed phrasing stays uncertain');
+assert(classifyLiveness({ bodyText: 'Cette offre expirée' }).result === 'uncertain', 'French closed phrasing stays uncertain');
+
+// Listing/search shells are uncertain unless clearly gone/closed
+assert(classifyLiveness({ bodyText: '663 JOBS FOUND' }).result === 'uncertain', 'listing page → uncertain');
+assert(classifyLiveness({ bodyText: 'Search for jobs page is loaded' }).result === 'uncertain', 'search page → uncertain');
 
 // Body patterns — active (apply control)
 assert(classifyLiveness({ applyControls: ['Apply for this Job'] }).result === 'active', 'apply control → active');
@@ -139,8 +142,8 @@ assert(classifyLiveness({ applyControls: ['Easy Apply', 'Submit Application'] })
 const uncertain = classifyLiveness({ bodyText: 'This is a long company description with enough content to pass the minimum character threshold of 300 characters but has no visible apply button or control found on the page at all for the user to interact with in any meaningful way to apply for the position or learn more about the role and understand the company culture and values' });
 assert(uncertain.result === 'uncertain', 'long content no apply → uncertain');
 
-// Body patterns — expired (too little content)
-assert(classifyLiveness({ bodyText: 'Nav' }).result === 'expired', 'short content → expired');
+// Body patterns — uncertain (too little content to verify)
+assert(classifyLiveness({ bodyText: 'Nav' }).result === 'uncertain', 'short content → uncertain');
 
 console.log('\n3b. buildTitleFilter');
 
