@@ -63,6 +63,21 @@ console.log('\nupdate manager');
   assert.match(status.message, /Could not check GitHub|up to date/);
 }
 
+// --- install-kind override lets a linked dev checkout behave like npm-global ---
+{
+  const gitDir = mkdtempSync(join(tmpdir(), 'catabull-update-override-'));
+  run('git', ['init', '-b', 'main'], gitDir);
+  writeFileSync(join(gitDir, 'package.json'), JSON.stringify({ version: '1.0.0' }));
+
+  const status = await getUpdateStatus(gitDir, {
+    installKind: 'npm-global',
+    repo: 'invalid-owner/__catabull_test_override__',
+    httpTimeoutMs: 2_000,
+  });
+  assert.equal(status.installKind, 'npm-global');
+  assert.equal(status.canGitPull, false);
+}
+
 // --- git-checkout status + git pull happy path + dirty-block ---
 {
   const remote = mkdtempSync(join(tmpdir(), 'catabull-update-remote-'));
@@ -121,6 +136,28 @@ console.log('\nupdate manager');
   const blocked = await applyGitPull(local, opts);
   assert.equal(blocked.success, false);
   assert.equal(blocked.status, 'blocked');
+}
+
+// --- branch warning names the actual current branch, not main ---
+{
+  const local = mkdtempSync(join(tmpdir(), 'catabull-update-branch-local-'));
+  run('git', ['init', '-b', 'main'], local);
+  writeFileSync(join(local, 'package.json'), JSON.stringify({ version: '1.0.0' }));
+  run('git', ['add', 'package.json'], local);
+  run('git', ['-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'commit', '-m', 'initial'], local);
+  run('git', ['checkout', '-b', 'feature/restart-ui'], local);
+
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({ ok: true, json: async () => ({ version: '1.0.1' }) });
+  try {
+    const status = await getUpdateStatus(local, { repo: 'ignored/example' });
+    assert.equal(status.updateAvailable, true);
+    assert.equal(status.canGitPull, false);
+    assert.match(status.message, /feature\/restart-ui/);
+    assert.match(status.message, /Switch to main/);
+  } finally {
+    global.fetch = originalFetch;
+  }
 }
 
 console.log('  ok');

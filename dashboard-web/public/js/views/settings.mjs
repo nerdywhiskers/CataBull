@@ -1,4 +1,4 @@
-import { api } from '../api.mjs';
+import { api, waitForDashboardReload } from '../api.mjs';
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 
@@ -180,6 +180,7 @@ function renderSettings(container, settings, maintenance = {}) {
               <button class="btn btn-outline" type="button" id="check-updates-btn">Check for Updates</button>
               <button class="btn btn-primary" type="button" id="apply-update-btn" disabled>Update</button>
               <button class="btn btn-outline" type="button" id="git-pull-btn" disabled title="Dev installs only: runs git pull --ff-only against origin/main">Pull from git</button>
+              <button class="btn btn-outline" type="button" id="restart-dashboard-btn" disabled title="Restart available only when the dashboard was launched through catabull or start.mjs">Restart Dashboard</button>
             </div>
           </section>
         </div>
@@ -408,6 +409,7 @@ function bindUpdateControls(container) {
   const checkBtn = container.querySelector('#check-updates-btn');
   const applyBtn = container.querySelector('#apply-update-btn');
   const gitPullBtn = container.querySelector('#git-pull-btn');
+  const restartBtn = container.querySelector('#restart-dashboard-btn');
   if (!card || !checkBtn || !applyBtn) return;
 
   const installKindLabel = (kind) => {
@@ -420,6 +422,12 @@ function bindUpdateControls(container) {
     const supported = status.supported !== false;
     const available = Boolean(status.updateAvailable);
     applyBtn.disabled = !supported || !available || status.canUpdate === false;
+    if (restartBtn) {
+      restartBtn.disabled = !status.restartSupported;
+      restartBtn.title = status.restartSupported
+        ? 'Restart the dashboard process and reconnect this page'
+        : 'Restart available only when the dashboard was launched through catabull or start.mjs';
+    }
     if (gitPullBtn) {
       gitPullBtn.disabled = !status.canGitPull;
       gitPullBtn.title = status.installKind === 'git-checkout'
@@ -495,6 +503,29 @@ function bindUpdateControls(container) {
         // Re-derive button state from a fresh status, since dirty/clean and
         // commit deltas may have shifted after a pull or a failure.
         try { renderStatus(await api.getUpdateStatus()); } catch { /* leave buttons disabled until next manual check */ }
+      }
+    });
+  }
+
+  if (restartBtn) {
+    restartBtn.addEventListener('click', async () => {
+      restartBtn.disabled = true;
+      checkBtn.disabled = true;
+      applyBtn.disabled = true;
+      if (gitPullBtn) gitPullBtn.disabled = true;
+      card.innerHTML = '<span><span class="spinner"></span> Restarting dashboard and waiting for it to come back</span>';
+      try {
+        const result = await api.restartDashboard();
+        toast(result.message || 'Dashboard restarting...');
+        await waitForDashboardReload();
+      } catch (err) {
+        card.innerHTML = `<strong>Restart failed</strong><span>${esc(err.message || 'Could not restart dashboard')}</span>`;
+        toast(err.message || 'Could not restart dashboard', 'error');
+        try { renderStatus(await api.getUpdateStatus()); } catch {
+          checkBtn.disabled = false;
+          applyBtn.disabled = false;
+          if (gitPullBtn) gitPullBtn.disabled = false;
+        }
       }
     });
   }

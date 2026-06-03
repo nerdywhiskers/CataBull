@@ -8,6 +8,7 @@ import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync, spawn } from 'child_process';
 import { ensurePlaywrightChromium } from '../lib/runtime-deps.mjs';
+import { DEFAULT_RESTART_EXIT_CODE } from '../dashboard-web/lib/restart-control.mjs';
 
 const __dirname = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const nodeModules = join(__dirname, 'node_modules');
@@ -43,14 +44,35 @@ if (!browser.ok && browser.reason !== 'missing-playwright') {
 
 // Start the dashboard
 console.log('\n  Starting CataBull dashboard...\n');
-const child = spawn(process.execPath, [serverPath], {
-  cwd: __dirname,
-  stdio: 'inherit',
-  env: { ...process.env },
-});
+let child = null;
 
-child.on('close', (code) => process.exit(code));
+function startChild() {
+  return spawn(process.execPath, [serverPath], {
+    cwd: __dirname,
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      CATABULL_LAUNCHER: 'start-script',
+      CATABULL_RESTART_SUPPORTED: 'true',
+      CATABULL_RESTART_EXIT_CODE: String(DEFAULT_RESTART_EXIT_CODE),
+    },
+  });
+}
+
+function launch() {
+  child = startChild();
+  child.on('close', (code) => {
+    if (code === DEFAULT_RESTART_EXIT_CODE) {
+      console.log('\n  Restarting CataBull dashboard...\n');
+      launch();
+      return;
+    }
+    process.exit(code ?? 0);
+  });
+}
+
+launch();
 
 // Forward signals for clean shutdown
-process.on('SIGINT', () => child.kill('SIGINT'));
-process.on('SIGTERM', () => child.kill('SIGTERM'));
+process.on('SIGINT', () => child?.kill('SIGINT'));
+process.on('SIGTERM', () => child?.kill('SIGTERM'));

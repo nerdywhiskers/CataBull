@@ -29,6 +29,7 @@ import {
   detectInstallKind,
 } from '../lib/workspace-resolver.mjs';
 import { ensurePlaywrightChromium } from '../lib/runtime-deps.mjs';
+import { DEFAULT_RESTART_EXIT_CODE } from '../dashboard-web/lib/restart-control.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = join(__dirname, '..');
@@ -176,22 +177,39 @@ async function main() {
   // sub-process that re-resolves picks the same root. Inherit stdio so
   // the user sees output streaming live (dashboard logs, scan progress).
   const scriptPath = join(PACKAGE_ROOT, target.script);
-  const child = spawn(process.execPath, [scriptPath, ...passthrough], {
+  const baseEnv = {
+    ...process.env,
+    CATABULL_WORKSPACE_ROOT: ws.root,
+  };
+  if (subcommand === 'dashboard') {
+    baseEnv.CATABULL_LAUNCHER = 'global-cli';
+    baseEnv.CATABULL_RESTART_SUPPORTED = 'true';
+    baseEnv.CATABULL_RESTART_EXIT_CODE = String(DEFAULT_RESTART_EXIT_CODE);
+  }
+
+  const startChild = () => spawn(process.execPath, [scriptPath, ...passthrough], {
     stdio: 'inherit',
-    env: {
-      ...process.env,
-      CATABULL_WORKSPACE_ROOT: ws.root,
-    },
+    env: baseEnv,
   });
 
-  child.on('exit', (code, signal) => {
-    if (signal) process.exit(1);
-    process.exit(code ?? 0);
-  });
-  child.on('error', (err) => {
-    console.error(`Failed to start ${target.label}: ${err.message}`);
-    process.exit(1);
-  });
+  let child = startChild();
+  const attachLifecycle = () => {
+    child.on('exit', (code, signal) => {
+      if (signal) process.exit(1);
+      if (subcommand === 'dashboard' && code === DEFAULT_RESTART_EXIT_CODE) {
+        console.log('\nRestarting CataBull dashboard...\n');
+        child = startChild();
+        attachLifecycle();
+        return;
+      }
+      process.exit(code ?? 0);
+    });
+    child.on('error', (err) => {
+      console.error(`Failed to start ${target.label}: ${err.message}`);
+      process.exit(1);
+    });
+  };
+  attachLifecycle();
 }
 
 main().catch((err) => {
