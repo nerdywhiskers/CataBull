@@ -109,13 +109,35 @@ try {
 
   const expiredChromeApply = classifyLiveness({
     finalUrl: 'https://example.com/jobs/closed-role',
-    bodyText: 'Company Careers\nApply\nThe job you are looking for is no longer open.',
+    bodyText: 'Company Careers\nApply\nThis posting is no longer accepting applications.',
     applyControls: [],
   });
   if (expiredChromeApply.result === 'expired') {
-    pass('Expired pages are not revived by nav/footer "Apply" text');
+    pass('Explicit closed pages are not revived by nav/footer "Apply" text');
   } else {
-    fail(`Expired page misclassified as ${expiredChromeApply.result}`);
+    fail(`Explicitly closed page misclassified as ${expiredChromeApply.result}`);
+  }
+
+  const expiredLinkedInClosedVariant = classifyLiveness({
+    finalUrl: 'https://www.linkedin.com/jobs/view/456',
+    bodyText: 'The job you are looking for is no longer open. This role is no longer accepting candidates at this time.',
+    applyControls: ['Apply now'],
+  });
+  if (expiredLinkedInClosedVariant.result === 'expired') {
+    pass('Closed-posting phrase variants still expire links even if stale apply UI remains');
+  } else {
+    fail(`Closed-posting phrase variant misclassified as ${expiredLinkedInClosedVariant.result}`);
+  }
+
+  const expiredFilledOrExpiredPosting = classifyLiveness({
+    finalUrl: 'https://example.com/jobs/filled-role',
+    bodyText: 'This position has been filled. This posting has expired and is no longer available.',
+    applyControls: ['Apply now'],
+  });
+  if (expiredFilledOrExpiredPosting.result === 'expired') {
+    pass('Filled or expired posting text still expires links');
+  } else {
+    fail(`Filled/expired posting text misclassified as ${expiredFilledOrExpiredPosting.result}`);
   }
 
   const activeWorkdayPage = classifyLiveness({
