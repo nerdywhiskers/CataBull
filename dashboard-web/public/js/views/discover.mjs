@@ -22,6 +22,7 @@ import { openScoreModal } from '../components/score-modal.mjs';
 import { notifyScanComplete, requestPermission } from '../components/notifications.mjs';
 import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
+import { DEFAULT_PENDING_REFRESH_INTERVAL_MS, runPendingRefresh } from '../lib/pending-refresh.mjs';
 import {
   buildDiscoverFilter,
   groupPostingsByCompany,
@@ -39,6 +40,8 @@ let industryFilter = new Set();   // empty = no filter
 let companyFilter = '';          // free-text
 let searchQuery = '';
 let groupBy = 'flat';            // 'company' | 'flat' — flat by default per UX 2026-05-16
+let activeContainer = null;
+let pendingRefreshPoller = null;
 
 // Scan controls moved here from the Portals page (2026-05-16). The
 // `catabull-scan-limit` localStorage key stays shared with portals.mjs
@@ -52,6 +55,63 @@ const SCAN_LIMIT_OPTIONS = [
   { value: '100', label: '100' },
   { value: '0', label: 'All' },
 ];
+
+function isContainerActive(container) {
+  return Boolean(container?.isConnected && container.classList.contains('active'));
+}
+
+function rerenderIfActive(container) {
+  if (!isContainerActive(container)) return;
+  rerender(container);
+}
+
+async function refreshPendingPostings(container, { force = false, source = 'auto' } = {}) {
+  const manual = source === 'manual';
+  if (manual) toast('Refreshing — verifying pending postings…');
+  try {
+    const result = await runPendingRefresh({
+      pendingCount: pending.length,
+      force,
+      checkLivenessAll: () => api.checkLivenessAll(),
+      reload: loadData,
+      rerender: async () => rerenderIfActive(container),
+    });
+    if (manual) {
+      if (result?.error) toast(`Liveness check failed: ${result.error}`, 'error');
+      else if (result?.checked) toast(`Checked ${result.checked} jobs — ${result.expired} expired`);
+      else rerenderIfActive(container);
+    } else if (result?.error) {
+      toast(`Auto-refresh failed: ${result.error}`, 'error');
+    } else if (result?.expired) {
+      toast(`Auto-refresh expired ${result.expired} posting${result.expired === 1 ? '' : 's'}`);
+    } else if (result?.checked) {
+      rerenderIfActive(container);
+    }
+    return result;
+  } catch (err) {
+    const message = manual ? `Liveness check failed: ${err.message}` : `Auto-refresh failed: ${err.message}`;
+    toast(message, 'error');
+    throw err;
+  }
+}
+
+function ensurePendingRefresh(container) {
+  activeContainer = container;
+  if (!pendingRefreshPoller) {
+    pendingRefreshPoller = setInterval(() => {
+      if (!isContainerActive(activeContainer)) return;
+      refreshPendingPostings(activeContainer, { source: 'auto' }).catch(() => {});
+    }, DEFAULT_PENDING_REFRESH_INTERVAL_MS);
+  }
+  if (!window.__catabullDiscoverRefreshBound) {
+    window.__catabullDiscoverRefreshBound = true;
+    window.addEventListener('catabull:data-maybe-changed', () => {
+      if (!isContainerActive(activeContainer)) return;
+      loadData().then(() => rerenderIfActive(activeContainer)).catch(() => {});
+      refreshPendingPostings(activeContainer, { source: 'auto' }).catch(() => {});
+    });
+  }
+}
 
 function timeAgo(dateStr, future = false) {
   const diff = future ? new Date(dateStr) - Date.now() : Date.now() - new Date(dateStr);
@@ -187,7 +247,7 @@ function renderScanSchedule() {
           ${busy ? 'Scanning' : 'Quick Scan'}
         </button>
         <button class="btn btn-sm btn-secondary" id="deep-scan-btn" ${busy ? 'disabled' : ''} title="Quick Scan + WebSearch on job boards + JobSpy aggregator scrape. Several minutes; uses WebSearch quota.">Deep Scan</button>
-        <button class="btn-icon" id="discover-refresh-btn" title="Refresh pending list" ${busy ? 'disabled' : ''}>
+        <button class="btn-icon" id="discover-refresh-btn" title="Refresh + verify each pending posting is still live" ${busy ? 'disabled' : ''}>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 6a4.5 4.5 0 1 1-1.3-3.18"/><polyline points="11.5 1 11.5 4 8.5 4"/></svg>
         </button>
       </div>
@@ -333,10 +393,8 @@ function bindEvents(container) {
   container.querySelector('#discover-refresh-btn')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true;
-    toast('Refreshing pending list…');
     try {
-      await loadData();
-      rerender(container);
+      await refreshPendingPostings(container, { force: true, source: 'manual' });
     } finally {
       // rerender() replaces the node; nothing to re-enable.
     }
@@ -717,7 +775,9 @@ async function loadData() {
 }
 
 export async function render(container) {
+  ensurePendingRefresh(container);
   container.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
   await loadData();
   rerender(container);
+  refreshPendingPostings(container, { source: 'load' }).catch(() => {});
 }
