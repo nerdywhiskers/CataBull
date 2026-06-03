@@ -11,6 +11,30 @@ export function buildAuthRefreshLocation(location = window.location) {
   return `${pathname}${search ? `?${search}` : ''}${hash}`;
 }
 
+export async function waitForDashboardReload({ timeoutMs = 30_000, intervalMs = 500, path } = {}) {
+  const target = path || buildAuthRefreshLocation(window.location);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(target, {
+        method: 'GET',
+        cache: 'no-store',
+        credentials: 'same-origin',
+        headers: { 'Cache-Control': 'no-store' },
+      });
+      if (res.ok) {
+        window.location.replace(target);
+        return true;
+      }
+    } catch {
+      // Server likely still restarting.
+    }
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  window.location.replace(target);
+  return false;
+}
+
 async function request(path, opts = {}) {
   const headers = { ...opts.headers };
   const body = opts.body ? JSON.stringify(opts.body) : undefined;
@@ -95,6 +119,7 @@ export const api = {
   checkUpdates: () => request('/updates/check', { method: 'POST', body: {} }),
   applyUpdate: () => request('/updates/apply', { method: 'POST', body: {} }),
   gitPullUpdate: () => request('/updates/git-pull', { method: 'POST', body: {} }),
+  restartDashboard: () => request('/updates/restart', { method: 'POST', body: {} }),
   clearScanHistory: () => request('/settings/maintenance/clear-scan-history', { method: 'POST', body: {} }),
   rebuildScanHistory: () => request('/settings/maintenance/rebuild-scan-history', { method: 'POST', body: {} }),
 
