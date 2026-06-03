@@ -48,6 +48,52 @@ const listingRedirect = classifyLiveness({
 });
 assert(listingRedirect.result === 'expired', 'listing/search pages count as expired');
 
+const linkedInLoginWall = classifyLiveness({
+  status: 200,
+  finalUrl: 'https://www.linkedin.com/uas/login?session_redirect=%2Fjobs%2Fview%2F4402327200%2F&skipRedirect=true',
+  bodyText: 'Sign in Continue with Google Sign in with Apple Keep me logged in Forgot password?',
+  titleText: 'LinkedIn Login, Sign in | LinkedIn',
+  applyControls: [],
+});
+assert(linkedInLoginWall.result === 'expired', 'LinkedIn login wall does not count as a live posting');
+
+const botChallenge403 = classifyLiveness({
+  status: 403,
+  finalUrl: 'https://wellfound.com/jobs/1595869-art-director',
+  bodyText: 'DataDome CAPTCHA Submit feedback ID: 99004772-5919-42f2-aec2-e5f292d5b858',
+  titleText: 'wellfound.com',
+  applyControls: [],
+});
+assert(botChallenge403.result === 'expired', 'bot challenge wall does not count as a live posting');
+
+const botChallenge403ViaIframe = classifyLiveness({
+  status: 403,
+  finalUrl: 'https://wellfound.com/jobs/1595869-art-director',
+  bodyText: '',
+  titleText: 'wellfound.com',
+  extraText: 'iframe title: DataDome CAPTCHA iframe src: https://geo.captcha-delivery.com/captcha/...',
+  applyControls: [],
+});
+assert(botChallenge403ViaIframe.result === 'expired', 'iframe captcha wall does not count as a live posting');
+
+const cloudflareChallenge403 = classifyLiveness({
+  status: 403,
+  finalUrl: 'https://www.theladders.com/job/senior-concept-artist-characters-2xko-riotgames-los-angeles-ca_77041588',
+  bodyText: 'Performing security verification This website uses a security service to protect against malicious bots. Cloudflare Privacy Help',
+  titleText: 'Just a moment...',
+  applyControls: [],
+});
+assert(cloudflareChallenge403.result === 'expired', 'security verification wall does not count as a live posting');
+
+const activeWithApplyAndLoginNav = classifyLiveness({
+  status: 200,
+  finalUrl: 'https://remoteok.com/remote-jobs/example',
+  bodyText: 'Browse remote jobs Log in Sign up Full job description '.repeat(10),
+  titleText: 'RemoteOK job',
+  applyControls: ['Apply now'],
+});
+assert(activeWithApplyAndLoginNav.result === 'active', 'visible apply control beats generic login nav text on real job pages');
+
 const uncertainServerError = classifyLiveness({
   status: 503,
   finalUrl: 'https://company.com/jobs/123',
