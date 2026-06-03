@@ -31,6 +31,8 @@ function assert(cond, msg) {
 const {
   looksLikeWorkspace,
   resolveWorkspaceRoot,
+  resolveEffectiveHome,
+  isHermesProfileHome,
   scaffoldWorkspace,
   ensureWorkspace,
   RESOLUTION_REASONS,
@@ -192,6 +194,28 @@ withTemp((homeDir) => {
   const pref = readGlobalWorkspacePreference({ envText: 'CATABULL_GLOBAL_WORKSPACE_PREFERENCE=home\n', home: homeDir });
   assert(pref.preference === 'home', 'explicit home preference parses');
   assert(pref.persisted === true, 'explicit home preference marked persisted');
+});
+
+withTemp((realHome) => {
+  const hermesHome = join(realHome, '.hermes', 'profiles', 'julius-code', 'home');
+  mkdirSync(hermesHome, { recursive: true });
+  assert(isHermesProfileHome(hermesHome) === true, 'detects Hermes profile-scoped HOME');
+  assert(resolveEffectiveHome({ home: hermesHome, userHome: realHome }) === realHome, 'profile-scoped HOME remaps to real user home');
+});
+
+withTemp((realHome) => {
+  const hermesHome = join(realHome, '.hermes', 'profiles', 'julius-code', 'home');
+  mkdirSync(hermesHome, { recursive: true });
+  const r = resolveWorkspaceRoot({
+    env: {},
+    cwd: tmpdir(),
+    home: hermesHome,
+    userHome: realHome,
+    installKind: 'npm-global',
+    autoCreate: false,
+  });
+  assert(r.reason === 'home', 'profile-scoped npm-global run still resolves to home workspace');
+  assert(r.root === join(realHome, '.catabull'), 'profile-scoped HOME uses real user home workspace');
 });
 
 // ── 4. resolveWorkspaceRoot — home auto-create ────────────────────────
