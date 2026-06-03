@@ -27,6 +27,11 @@ console.log('\nupdate manager');
   writeFileSync(join(nmInstall, 'package.json'), JSON.stringify({ version: '1.0.0' }));
   assert.equal(detectInstallKind(nmInstall), 'npm-global', 'node_modules/catabull layout = npm-global');
 
+  // npm-global must win even if the packaged files happen to contain a .git dir
+  // (for example from an overly eager installer or copied checkout).
+  mkdirSync(join(nmInstall, '.git'), { recursive: true });
+  assert.equal(detectInstallKind(nmInstall), 'npm-global', 'npm-global layout beats accidental .git presence');
+
   // Git checkout: has .git directory.
   const gitDir = mkdtempSync(join(tmpdir(), 'catabull-update-git-'));
   run('git', ['init', '-b', 'main'], gitDir);

@@ -172,15 +172,19 @@ async function main() {
     }
   }
 
-  // Spawn the target script with CATABULL_WORKSPACE_ROOT set so any
-  // sub-process that re-resolves picks the same root. Inherit stdio so
-  // the user sees output streaming live (dashboard logs, scan progress).
+  // Spawn the target script with both workspace root and install root pinned
+  // so global runs stay attached to the packaged main install even when the
+  // command is launched from inside a git clone. Also set cwd to the install
+  // root so any child process that falls back to process.cwd() won't drift into
+  // the caller's repo checkout.
   const scriptPath = join(PACKAGE_ROOT, target.script);
   const child = spawn(process.execPath, [scriptPath, ...passthrough], {
+    cwd: PACKAGE_ROOT,
     stdio: 'inherit',
     env: {
       ...process.env,
       CATABULL_WORKSPACE_ROOT: ws.root,
+      CATABULL_INSTALL_ROOT: PACKAGE_ROOT,
     },
   });
 

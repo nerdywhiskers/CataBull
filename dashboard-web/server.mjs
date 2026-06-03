@@ -27,8 +27,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // global CLI passes false because globally installed users shouldn't
 // have their data leak into the npm install location.
 const PROJECT_ROOT = join(__dirname, '..');
+const INSTALL_ROOT = process.env.CATABULL_INSTALL_ROOT || PROJECT_ROOT;
 const resolved = ensureWorkspace({
-  packageRoot: PROJECT_ROOT,
+  packageRoot: INSTALL_ROOT,
   projectRoot: PROJECT_ROOT,
   allowProjectFallback: true,
 });
@@ -66,7 +67,8 @@ app.register(fastifyStatic, {
 // Share root path + workspace with routes. Existing routes use
 // `cataBullRoot`; new code should prefer `workspace` (lib/workspace.mjs).
 app.decorate('cataBullRoot', CATA_BULL_ROOT);
-app.decorate('packageRoot', PROJECT_ROOT);
+app.decorate('packageRoot', INSTALL_ROOT);
+app.decorate('projectRoot', PROJECT_ROOT);
 app.decorate('workspace', workspace);
 
 // Register routes
