@@ -118,6 +118,17 @@ try {
     fail(`Explicitly closed page misclassified as ${expiredChromeApply.result}`);
   }
 
+  const expiredLinkedInClosedVariant = classifyLiveness({
+    finalUrl: 'https://www.linkedin.com/jobs/view/456',
+    bodyText: 'The job you are looking for is no longer open. This role is no longer accepting candidates at this time.',
+    applyControls: ['Apply now'],
+  });
+  if (expiredLinkedInClosedVariant.result === 'expired') {
+    pass('Closed-posting phrase variants still expire links even if stale apply UI remains');
+  } else {
+    fail(`Closed-posting phrase variant misclassified as ${expiredLinkedInClosedVariant.result}`);
+  }
+
   const activeWorkdayPage = classifyLiveness({
     finalUrl: 'https://example.workday.com/job/123',
     bodyText: [

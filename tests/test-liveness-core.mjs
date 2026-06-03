@@ -30,6 +30,24 @@ const linkedInClosed = classifyLiveness({
 });
 assert(linkedInClosed.result === 'expired', 'LinkedIn closed title beats visible apply control');
 
+const linkedInNoLongerOpen = classifyLiveness({
+  status: 200,
+  finalUrl: 'https://www.linkedin.com/jobs/view/456',
+  bodyText: 'The job you are looking for is no longer open.',
+  titleText: 'LinkedIn job search',
+  applyControls: [],
+});
+assert(linkedInNoLongerOpen.result === 'expired', 'explicit no longer open text expires posting');
+
+const linkedInOpenVariantWithApply = classifyLiveness({
+  status: 200,
+  finalUrl: 'https://www.linkedin.com/jobs/view/789',
+  bodyText: 'This role is no longer accepting candidates at this time.',
+  titleText: 'Product Designer role',
+  applyControls: ['Apply now'],
+});
+assert(linkedInOpenVariantWithApply.result === 'expired', 'closed-text variants beat visible apply control');
+
 const activeWithApply = classifyLiveness({
   status: 200,
   finalUrl: 'https://company.com/jobs/123',
