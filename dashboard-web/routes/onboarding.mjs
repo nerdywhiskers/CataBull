@@ -61,6 +61,22 @@ function unique(values) {
   return [...new Set(normalizeList(values))];
 }
 
+export function computeOnboardingStatus(root, { exists = (relPath) => existsSync(join(root, relPath)) } = {}) {
+  const steps = {
+    cv: exists('cv.md'),
+    profile: exists('config/profile.yml'),
+    profileMd: exists('modes/_profile.md'),
+    portals: exists('portals.yml'),
+    tracker: exists('data/applications.md') || exists('applications.md'),
+  };
+  // A restored/exported profile should be able to skip onboarding even if the
+  // applications tracker file was never created yet. We still report tracker in
+  // steps so the UI can show it, but completion only depends on core profile
+  // assets being present.
+  const complete = steps.cv && steps.profile && steps.profileMd && steps.portals;
+  return { complete, steps };
+}
+
 function providerKey(company = {}) {
   if (company.provider) return String(company.provider).toLowerCase();
   if (company.scan_method === 'websearch') return 'webfetch';
@@ -198,15 +214,7 @@ export default async function (app) {
   const root = app.cataBullRoot;
 
   app.get('/onboarding/status', async () => {
-    const steps = {
-      cv: existsSync(join(root, 'cv.md')),
-      profile: existsSync(join(root, 'config', 'profile.yml')),
-      profileMd: existsSync(join(root, 'modes', '_profile.md')),
-      portals: existsSync(join(root, 'portals.yml')),
-      tracker: existsSync(join(root, 'data', 'applications.md')) || existsSync(join(root, 'applications.md')),
-    };
-    const complete = Object.values(steps).every(Boolean);
-    return { complete, steps };
+    return computeOnboardingStatus(root);
   });
 
   app.post('/onboarding/cv', async (req) => {

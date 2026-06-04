@@ -122,6 +122,7 @@ function dots() {
   }).join('');
   return `
     <div class="onboarding-progress" role="list" aria-label="Onboarding progress">
+      ${currentStep === STEPS.indexOf('welcome') ? '<button type="button" class="onboarding-import-btn" id="onboarding-import-btn">Import existing profile</button><input type="file" id="onboarding-import-input" accept=".zip,application/zip" style="display:none">' : ''}
       ${pills}
       <button type="button" class="onboarding-reset-btn" id="onboarding-reset-btn" title="Wipe your local data and restart onboarding from scratch">Start over</button>
     </div>
@@ -675,6 +676,15 @@ function renderStep(container) {
   // Bind here (not in bindEvents) since dots() is rendered outside the
   // .onboarding-step the per-step bindEvents focuses on.
   document.getElementById('onboarding-reset-btn')?.addEventListener('click', handleStartOver);
+  document.getElementById('onboarding-import-btn')?.addEventListener('click', () => {
+    document.getElementById('onboarding-import-input')?.click();
+  });
+  document.getElementById('onboarding-import-input')?.addEventListener('change', async (event) => {
+    const file = event.target?.files?.[0];
+    const progressed = await handleImportExistingProfile(file);
+    if (progressed) renderStep(container);
+    if (event.target) event.target.value = '';
+  });
 }
 
 async function handleStartOver() {
@@ -705,6 +715,37 @@ async function handleStartOver() {
     setTimeout(() => window.location.reload(), 600);
   } catch (err) {
     toast(`Reset failed: ${err.message}`, 'error');
+  }
+}
+
+async function handleImportExistingProfile(file) {
+  if (!file) return false;
+  try {
+    const result = await api.restoreBackup(file);
+    const refreshed = await api.onboardingStatus();
+    status = refreshed.steps || status;
+    try {
+      const profData = await api.getProfile();
+      if (profData.profile) {
+        profileData = profData.profile;
+        if (Array.isArray(profileData.target_industries)) selectedIndustries = profileData.target_industries;
+      }
+    } catch { /* imported backup may still be partial */ }
+    try {
+      settingsData = await api.getSettings();
+    } catch { /* optional during onboarding */ }
+    if (refreshed.complete) {
+      toast(`Imported profile (${result.written || 0} file${result.written === 1 ? '' : 's'}). Opening dashboard...`);
+      window.location.hash = '#/discover';
+      setTimeout(() => window.location.reload(), 350);
+      return false;
+    }
+    toast(`Imported ${result.written || 0} file${result.written === 1 ? '' : 's'}. Finishing remaining onboarding steps...`);
+    currentStep = STEPS.indexOf('profile');
+    return true;
+  } catch (err) {
+    toast(`Import failed: ${err.message}`, 'error');
+    return false;
   }
 }
 

@@ -32,9 +32,35 @@ function assert(condition, msg) {
 
 console.log('\nonboarding helpers (W2)');
 
-const { extractCandidatesArray, sanitizeCandidates } = await import(
+const { extractCandidatesArray, sanitizeCandidates, computeOnboardingStatus } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'routes', 'onboarding.mjs')).href
 );
+
+// ── 0. STATUS ───────────────────────────────────────────────────────
+
+console.log('\n0. computeOnboardingStatus');
+
+const importedCoreOnly = computeOnboardingStatus(ROOT, {
+  exists: (relPath) => [
+    'cv.md',
+    'config/profile.yml',
+    'modes/_profile.md',
+    'portals.yml',
+  ].includes(relPath),
+});
+
+assert(importedCoreOnly.complete === true, 'core imported profile files are enough to bypass onboarding');
+assert(importedCoreOnly.steps.tracker === false, 'tracker remains optional for completion');
+
+const missingPortals = computeOnboardingStatus(ROOT, {
+  exists: (relPath) => [
+    'cv.md',
+    'config/profile.yml',
+    'modes/_profile.md',
+  ].includes(relPath),
+});
+
+assert(missingPortals.complete === false, 'missing a core file keeps onboarding incomplete');
 
 // ── 1. EXTRACT ──────────────────────────────────────────────────────
 
