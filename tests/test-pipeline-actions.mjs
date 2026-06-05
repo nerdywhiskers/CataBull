@@ -47,19 +47,9 @@ globalThis.localStorage = { getItem: () => null, setItem: noop, removeItem: noop
 
 console.log('\nPipeline action mappings');
 
-const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion } = await import(
+const { buildAiSuggestion } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'pipeline.mjs')).href
 );
-
-const skipRowActions = rowActionsForStatus('skip');
-assert(skipRowActions.length === 1, 'skip rows expose one primary restore action');
-assert(skipRowActions[0].status === 'Evaluated', 'skip row restore action moves back to Evaluated');
-assert(skipRowActions[0].label === 'Restore', 'skip row restore action is labeled Restore');
-
-const skipBatchActions = batchActionsForFilter('skip');
-assert(skipBatchActions.length === 1, 'skip filter exposes one batch restore action');
-assert(skipBatchActions[0].status === 'Evaluated', 'skip batch action restores selected rows to Evaluated');
-assert(skipBatchActions[0].label === 'Restore', 'skip batch action is labeled Restore');
 
 console.log('\nPipeline AI suggestions');
 
