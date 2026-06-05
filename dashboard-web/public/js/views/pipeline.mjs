@@ -1182,6 +1182,55 @@ function overflowMenu(items, triggerClass = '') {
   `;
 }
 
+export function positionOverflowDropdown(trigger, dropdown, viewport = window) {
+  if (!trigger || !dropdown) return 'down';
+  const padding = 8;
+  const gap = 4;
+  dropdown.style.position = 'fixed';
+  dropdown.style.visibility = 'hidden';
+  dropdown.style.display = 'block';
+
+  const triggerRect = trigger.getBoundingClientRect();
+  const dropdownRect = dropdown.getBoundingClientRect();
+  const openUp = triggerRect.bottom + dropdownRect.height > (viewport.innerHeight - padding)
+    && triggerRect.top - dropdownRect.height >= padding;
+  const top = openUp
+    ? Math.max(padding, triggerRect.top - dropdownRect.height - gap)
+    : Math.min(viewport.innerHeight - dropdownRect.height - padding, triggerRect.bottom + gap);
+  const left = Math.min(
+    viewport.innerWidth - dropdownRect.width - padding,
+    Math.max(padding, triggerRect.right - dropdownRect.width)
+  );
+
+  dropdown.style.top = `${top}px`;
+  dropdown.style.left = `${left}px`;
+  dropdown.style.right = 'auto';
+  dropdown.style.visibility = 'visible';
+  dropdown.dataset.placement = openUp ? 'up' : 'down';
+  return dropdown.dataset.placement;
+}
+
+function hideOverflowDropdown(menu) {
+  if (!menu) return;
+  menu.dataset.menuOpen = 'false';
+  const dropdown = menu.querySelector('.overflow-dropdown');
+  if (!dropdown) return;
+  dropdown.style.display = 'none';
+  dropdown.style.position = '';
+  dropdown.style.top = '';
+  dropdown.style.left = '';
+  dropdown.style.right = '';
+  dropdown.style.visibility = '';
+  delete dropdown.dataset.placement;
+}
+
+function closeOverflowMenus(exceptMenu = null) {
+  document.querySelectorAll('.overflow-menu').forEach((menu) => {
+    if (menu === exceptMenu) return;
+    hideOverflowDropdown(menu);
+  });
+}
+
 function attachOverflowListeners(container) {
   container.querySelectorAll('.overflow-menu').forEach(menu => {
     const trigger = menu.querySelector('.overflow-trigger');
@@ -1192,14 +1241,12 @@ function attachOverflowListeners(container) {
     trigger?.addEventListener('click', (e) => {
       e.stopPropagation();
       const isOpen = menu.dataset.menuOpen === 'true';
-      // Close all menus first
-      document.querySelectorAll('.overflow-menu').forEach(m => {
-        m.dataset.menuOpen = 'false';
-        m.querySelector('.overflow-dropdown').style.display = 'none';
-      });
+      closeOverflowMenus(menu);
       if (!isOpen) {
         menu.dataset.menuOpen = 'true';
-        dropdown.style.display = 'block';
+        positionOverflowDropdown(trigger, dropdown);
+      } else {
+        hideOverflowDropdown(menu);
       }
     });
 
@@ -1211,18 +1258,14 @@ function attachOverflowListeners(container) {
         if (cfg?.onClick) {
           try { cfg.onClick(e); } catch (err) { console.error('overflow click failed', err); }
         }
-        menu.dataset.menuOpen = 'false';
-        dropdown.style.display = 'none';
+        hideOverflowDropdown(menu);
       });
     });
   });
 
   // Close menus on outside click
   document.addEventListener('click', () => {
-    document.querySelectorAll('.overflow-menu').forEach(m => {
-      m.dataset.menuOpen = 'false';
-      m.querySelector('.overflow-dropdown').style.display = 'none';
-    });
+    closeOverflowMenus();
   });
 }
 
