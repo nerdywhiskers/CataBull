@@ -643,6 +643,36 @@ function bindFilterPopover(container) {
   }
 }
 
+async function openPendingEditModal(item) {
+  if (!item) return;
+  const result = await confirmModal({
+    title: 'Edit pending role',
+    confirmText: 'Save changes',
+    body: `
+      <div class="form-group"><label class="form-label">Company</label><input class="form-input" data-return="company" type="text" value="${esc(item.company || '')}" autocomplete="off" autofocus></div>
+      <div class="form-group"><label class="form-label">Role</label><input class="form-input" data-return="role" type="text" value="${esc(item.role || '')}" autocomplete="off"></div>
+      <div class="form-group"><label class="form-label">Posted date</label><input class="form-input" data-return="postedAt" type="date" value="${esc(item.postedAt || '')}" autocomplete="off"></div>
+      <div class="form-group"><label class="form-label">Location</label><input class="form-input" data-return="location" type="text" value="${esc(item.location || '')}" autocomplete="off" placeholder="Remote / Los Angeles / Hybrid"></div>
+    `,
+  });
+  if (!result?.data) return;
+  const company = String(result.data.company || '').trim();
+  const role = String(result.data.role || '').trim();
+  const postedAt = String(result.data.postedAt || '').trim();
+  const location = String(result.data.location || '').trim();
+  if (!company || !role) {
+    toast('Company and role are required.', 'error');
+    return;
+  }
+  try {
+    await api.updatePending({ url: item.url, company, role, postedAt, location });
+    toast('Pending role updated');
+    await refreshData(activeContainer);
+  } catch (err) {
+    toast(`Failed to update pending role: ${err.message}`, 'error');
+  }
+}
+
 function renderPending(pageItems = null) {
   if (!pending.length) return `<div class="empty-state"><h3>No pending jobs</h3><p>Run a scan to discover new roles, or paste a job description in the chat.</p></div>`;
 
@@ -671,7 +701,7 @@ function renderPending(pageItems = null) {
   const rows = filtered.map(p => {
     const tone = relevanceClass(p.relevance ?? 0);
     return `
-    <tr data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}">
+    <tr data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" data-posted-at="${esc(p.postedAt || '')}" data-location="${esc(p.location || '')}">
       <td class="col-check"><input type="checkbox" class="pending-check" data-url="${esc(p.url)}" ${selected.has(p.url) ? 'checked' : ''}></td>
       <td class="col-company">
         <span class="cell-company">
@@ -691,6 +721,7 @@ function renderPending(pageItems = null) {
           <button class="btn btn-sm btn-secondary pending-tailor-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Score this role and draft a tailored CV when it is a strong fit">Tailor</button>
           <button class="btn btn-sm btn-soft pending-apply-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Mark as Applied">Applied</button>
           ${overflowMenu([
+            { label: 'Edit role', onClick: () => openPendingEditModal(p) },
             { label: 'Deep Research', onClick: () => runModePrompt('deep', { company: p.company, role: p.role, url: p.url }) },
             { label: 'Outreach',      onClick: () => runModePrompt('outreach', { company: p.company, role: p.role, url: p.url }) },
           ])}

@@ -317,6 +317,56 @@ export function addPendingItem(root, { url, company, role, postedAt = null, loca
   return { added: true, duplicate: false };
 }
 
+/**
+ * Update a pending (unchecked) pipeline item without losing optional metadata
+ * like posted date, location, or match tier.
+ */
+export function updatePendingItem(root, { url, company, role, postedAt = null, location = null }) {
+  if (!url || !company || !role) return { updated: false, error: 'url, company, and role are required' };
+  const ws = asWorkspace(root);
+  const content = ws.read('data/pipeline.md');
+  if (content == null) return { updated: false, error: 'pipeline.md not found' };
+
+  const companyClean = String(company).replace(/[\n\r|]/g, '').trim();
+  const roleClean = String(role).replace(/[\n\r|]/g, '').trim();
+  const postedClean = postedAt ? String(postedAt).replace(/[\n\r|]/g, '').trim() : '';
+  const locationClean = location ? String(location).replace(/[\n\r|]/g, '').trim() : '';
+
+  const lines = content.split('\n');
+  let found = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const match = line.match(/^-\s+\[\s\]\s+(https?:\/\/\S+)\s*\|\s*([^|]+)\s*\|\s*(.+)$/);
+    if (!match || match[1].trim() !== url) continue;
+
+    const restFields = match[3].split('|').map(field => field.trim());
+    const extras = [];
+    for (let j = 1; j < restFields.length; j++) {
+      const field = restFields[j];
+      if (/^posted:/.test(field)) continue;
+      if (/^loc:/.test(field)) continue;
+      extras.push(field);
+    }
+
+    if (postedClean) extras.unshift(`posted:${postedClean}`);
+    if (locationClean) {
+      const insertAt = postedClean ? 1 : 0;
+      extras.splice(insertAt, 0, `loc:${locationClean}`);
+    }
+
+    lines[i] = [`- [ ] ${url}`, companyClean, roleClean, ...extras]
+      .filter(Boolean)
+      .join(' | ');
+    found = true;
+    break;
+  }
+
+  if (!found) return { updated: false, error: 'pending item not found' };
+  ws.write('data/pipeline.md', lines.join('\n'));
+  return { updated: true };
+}
+
 /** Mark a pending offer in pipeline.md with a status (SKIP or EXPIRED) and date */
 export function markPipelineItem(root, url, status) {
   const ws = asWorkspace(root);
