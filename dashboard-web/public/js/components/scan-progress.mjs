@@ -109,3 +109,19 @@ export function deepProgressFromEvent(data = {}) {
   if (stage === 'l4:done') return { visible: true, tone: 'running', eyebrow: 'Deep Scan · Level 4', title: 'Aggregator phase complete', detail: `${Number(data.added) || 0} new roles kept`, meta: 'Finalizing scan…' };
   return null;
 }
+
+export function pendingRefreshProgressFromState(state = {}) {
+  if (!state?.active) return { visible: false };
+  const pendingCount = Number(state.pendingCount) || 0;
+  const mode = state.source === 'manual' ? 'Manual Refresh' : 'Auto Refresh';
+  const since = Number(state.startedAt) || 0;
+  const elapsedSeconds = since ? Math.max(0, Math.round((Date.now() - since) / 1000)) : 0;
+  return {
+    visible: true,
+    tone: 'running',
+    eyebrow: mode,
+    title: `Verifying ${pendingCount} pending posting${pendingCount === 1 ? '' : 's'}…`,
+    detail: 'Playwright checks run one job page at a time. This can take a few minutes.',
+    meta: elapsedSeconds > 0 ? `${elapsedSeconds}s elapsed` : '',
+  };
+}

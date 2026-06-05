@@ -1,12 +1,12 @@
 import { api } from '../api.mjs';
-import { deepProgressFromEvent, quickProgressFromEvent, renderScanProgress } from '../components/scan-progress.mjs';
+import { deepProgressFromEvent, pendingRefreshProgressFromState, quickProgressFromEvent, renderScanProgress } from '../components/scan-progress.mjs';
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 import { openScoreModal } from '../components/score-modal.mjs';
 import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
 import { INDUSTRIES } from '../lib/industries.mjs';
-import { DEFAULT_PENDING_REFRESH_INTERVAL_MS, runPendingRefresh } from '../lib/pending-refresh.mjs';
+import { DEFAULT_PENDING_REFRESH_INTERVAL_MS, getPendingRefreshState, runPendingRefresh, subscribePendingRefresh } from '../lib/pending-refresh.mjs';
 
 let apps = [];
 let pending = [];
@@ -26,6 +26,7 @@ let activeContainer = null;
 let scanRunStatePoller = null;
 let pendingRefreshPoller = null;
 let lastObservedScanFinishedAt = '';
+let pendingRefreshState = getPendingRefreshState();
 
 async function loadData() {
   try {
@@ -70,6 +71,7 @@ async function refreshPendingPostings(container, { force = false, source = 'auto
     const result = await runPendingRefresh({
       pendingCount: pending.length,
       force,
+      source,
       checkLivenessAll: () => api.checkLivenessAll(),
       reload: loadData,
       rerender: async () => {
@@ -134,6 +136,11 @@ function ensureLiveRefresh(container) {
   }
   if (!window.__catabullPipelineRefreshBound) {
     window.__catabullPipelineRefreshBound = true;
+    subscribePendingRefresh((state) => {
+      pendingRefreshState = state;
+      if (!activeContainer?.isConnected || !activeContainer.classList.contains('active')) return;
+      update(activeContainer);
+    });
     window.addEventListener('catabull:data-maybe-changed', () => {
       if (!activeContainer?.isConnected || !activeContainer.classList.contains('active')) return;
       refreshData(activeContainer).catch(() => {});
@@ -1156,6 +1163,7 @@ function update(container) {
   const totalCount = apps.length + pending.length;
 
   const scanBanner = renderScanProgress(scanProgress);
+  const pendingRefreshBanner = renderScanProgress(pendingRefreshProgressFromState(pendingRefreshState));
 
   const showRange = totalRows === 0
     ? '0 of 0'
@@ -1206,6 +1214,7 @@ function update(container) {
       </header>
 
       <div class="scan-progress-slot">${scanBanner}</div>
+      <div class="scan-progress-slot">${pendingRefreshBanner}</div>
 
       <section class="pipeline-toolbar${filterPopoverOpen ? ' has-popover' : ''}">
         <div class="pipeline-toolbar-row">
@@ -1225,12 +1234,12 @@ function update(container) {
             <span>Top matches only (4+)</span>
           </label>
           <div style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-sm btn-primary" id="quick-scan-btn" title="ATS-only quick scan. Direct providers only; no branded-page scraping."${scanProgress?.visible ? ' disabled' : ''}>
+            <button class="btn btn-sm btn-primary" id="quick-scan-btn" title="ATS-only quick scan. Direct providers only; no branded-page scraping."${scanProgress?.visible || pendingRefreshState?.active ? ' disabled' : ''}>
               <svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor" aria-hidden="true"><path d="M7.5 0L0 7.5h4L3.5 14 11 6.5H7L7.5 0z"/></svg>
               ${scanProgress?.visible ? 'Scanning' : 'Quick Scan'}
             </button>
-            <button class="btn btn-sm btn-secondary" id="deep-scan-btn" title="Runs the same quick scan first, then broader WebSearch + JobSpy discovery."${scanProgress?.visible ? ' disabled' : ''}>Deep Scan</button>
-            <button class="btn-icon" id="refresh-btn" title="${isPending && pending.length > 0 ? 'Refresh + verify each pending posting is still live' : 'Refresh'}"${scanProgress?.visible ? ' disabled' : ''}>
+            <button class="btn btn-sm btn-secondary" id="deep-scan-btn" title="Runs the same quick scan first, then broader WebSearch + JobSpy discovery."${scanProgress?.visible || pendingRefreshState?.active ? ' disabled' : ''}>Deep Scan</button>
+            <button class="btn-icon" id="refresh-btn" title="${isPending && pending.length > 0 ? 'Refresh + verify each pending posting is still live' : 'Refresh'}"${scanProgress?.visible || pendingRefreshState?.active ? ' disabled' : ''}>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 6a4.5 4.5 0 1 1-1.3-3.18"/><polyline points="11.5 1 11.5 4 8.5 4"/></svg>
             </button>
           </div>
