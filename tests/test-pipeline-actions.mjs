@@ -47,8 +47,11 @@ globalThis.localStorage = { getItem: () => null, setItem: noop, removeItem: noop
 
 console.log('\nPipeline action mappings');
 
-const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion } = await import(
+const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'pipeline.mjs')).href
+);
+const { api } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'api.mjs')).href
 );
 
 const skipRowActions = rowActionsForStatus('skip');
@@ -94,6 +97,30 @@ const rationaleSuggestion = buildAiSuggestion([
 ]);
 assert(rationaleSuggestion.targetFilter === 'evaluated', 'evaluated suggestion routes back to evaluated tab');
 assert(rationaleSuggestion.body.includes('Needs clearer leadership examples.'), 'AI suggestion falls back to rationale excerpt when block scores are missing');
+
+console.log('\nPending tailor watcher');
+
+const originalGetApplications = api.getApplications;
+let getApplicationsCalls = 0;
+api.getApplications = async () => {
+  getApplicationsCalls += 1;
+  if (getApplicationsCalls === 1) {
+    return { applications: [], pending: [{ url: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer' }], skipped: [], expired: [] };
+  }
+  return {
+    applications: [{ num: 42, jobUrl: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer', statusNormalized: 'evaluated' }],
+    pending: [],
+    skipped: [],
+    expired: [],
+  };
+};
+const watchResult = await watchPendingTailorCompletion(
+  { url: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer' },
+  { timeoutMs: 50, intervalMs: 0 }
+);
+assert(watchResult === true, 'pending tailor watcher resolves when evaluated row appears');
+assert(getApplicationsCalls === 2, 'pending tailor watcher polls until the evaluated row exists');
+api.getApplications = originalGetApplications;
 
 console.log(`\nPassed: ${passed} / ${total}`);
 if (failed > 0) process.exitCode = 1;
