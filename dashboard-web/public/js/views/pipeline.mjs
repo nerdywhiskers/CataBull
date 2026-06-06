@@ -1028,11 +1028,16 @@ function renderTable(items) {
   return html;
 }
 
-function rowActionsForStatus(status) {
+export function rowActionsForStatus(status) {
   if (status === 'evaluated') {
     return [
       { status: 'Applied', label: 'Applied', tone: 'soft', title: 'Mark as Applied' },
       { status: 'SKIP', label: 'Skip', tone: 'outline', title: 'Move to Skip' },
+    ];
+  }
+  if (status === 'skip') {
+    return [
+      { status: 'Evaluated', label: 'Restore', tone: 'soft', title: 'Move back to Evaluated' },
     ];
   }
   if (status === 'applied' || status === 'responded') {
@@ -1050,11 +1055,16 @@ function rowActionsForStatus(status) {
   return [];
 }
 
-function batchActionsForFilter(filter) {
+export function batchActionsForFilter(filter) {
   if (filter === 'evaluated') {
     return [
       { status: 'Applied', label: 'Applied', tone: 'soft' },
       { status: 'SKIP', label: 'Skip', tone: 'outline' },
+    ];
+  }
+  if (filter === 'skip') {
+    return [
+      { status: 'Evaluated', label: 'Restore', tone: 'soft' },
     ];
   }
   if (filter === 'applied' || filter === 'responded') {
