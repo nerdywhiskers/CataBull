@@ -45,6 +45,37 @@ globalThis.document = {
 globalThis.window = { document: globalThis.document, addEventListener: noop, dispatchEvent: noop };
 globalThis.localStorage = { getItem: () => null, setItem: noop, removeItem: noop };
 
+console.log('\nPending tailor watcher');
+
+const { watchPendingTailorCompletion } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'pipeline.mjs')).href
+);
+const { api } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'api.mjs')).href
+);
+
+const originalGetApplications = api.getApplications;
+let getApplicationsCalls = 0;
+api.getApplications = async () => {
+  getApplicationsCalls += 1;
+  if (getApplicationsCalls === 1) {
+    return { applications: [], pending: [{ url: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer' }], skipped: [], expired: [] };
+  }
+  return {
+    applications: [{ num: 42, jobUrl: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer', statusNormalized: 'evaluated' }],
+    pending: [],
+    skipped: [],
+    expired: [],
+  };
+};
+const watchResult = await watchPendingTailorCompletion(
+  { url: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer' },
+  { timeoutMs: 50, intervalMs: 0 }
+);
+assert(watchResult === true, 'pending tailor watcher resolves when evaluated row appears');
+assert(getApplicationsCalls === 2, 'pending tailor watcher polls until the evaluated row exists');
+api.getApplications = originalGetApplications;
+
 console.log('\nPipeline action mappings');
 
 const { buildAiSuggestion } = await import(

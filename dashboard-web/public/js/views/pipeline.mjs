@@ -691,6 +691,38 @@ function bindFilterPopover(container) {
   }
 }
 
+export async function watchPendingTailorCompletion(item, { timeoutMs = 300_000, intervalMs = 2500 } = {}) {
+  if (!item?.url) return false;
+  const startedAt = Date.now();
+  const normalizedCompany = String(item.company || '').trim().toLowerCase();
+  const normalizedRole = String(item.role || '').trim().toLowerCase();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+    const data = await api.getApplications().catch(() => null);
+    if (!data) continue;
+    const found = (data.applications || []).find((app) => (
+      app.jobUrl === item.url
+      || (
+        String(app.company || '').trim().toLowerCase() === normalizedCompany
+        && String(app.role || '').trim().toLowerCase() === normalizedRole
+      )
+    ));
+    if (!found) continue;
+    apps = data.applications || [];
+    pending = data.pending || [];
+    skipped = data.skipped || [];
+    expired = data.expired || [];
+    currentFilter = 'evaluated';
+    expandedRow = found.num;
+    if (activeContainer) update(activeContainer);
+    toast(`${found.company} moved to Evaluated`);
+    return true;
+  }
+
+  return false;
+}
+
 async function openPendingEditModal(item) {
   if (!item) return;
   const result = await confirmModal({
@@ -1595,11 +1627,17 @@ function update(container) {
   // now; tailoring also drafts a CV downstream when the score is strong.
   container.querySelectorAll('.pending-tailor-btn').forEach(btn => {
     btn.onclick = async () => {
-      const doTailor = () => runModePrompt('evaluate', {
+      const pendingItem = {
         url: btn.dataset.url,
         company: btn.dataset.company,
         role: btn.dataset.role,
-      });
+      };
+      const doTailor = async () => {
+        const started = await runModePrompt('evaluate', pendingItem);
+        if (started && !isAlreadyEvaluated(pendingItem.company, pendingItem.role)) {
+          watchPendingTailorCompletion(pendingItem).catch(() => {});
+        }
+      };
 
       if (isAlreadyEvaluated(btn.dataset.company, btn.dataset.role)) {
         const ok = await confirmModal({
