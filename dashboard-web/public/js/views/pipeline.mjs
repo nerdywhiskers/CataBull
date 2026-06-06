@@ -367,6 +367,57 @@ function wrapTable(tableMarkup, className = 'table-scroll') {
   return `<div class="${className}">${tableMarkup}</div>`;
 }
 
+const SUGGESTION_BLOCK_META = {
+  A: 'Tighten the CV bullets so they mirror the must-have experience in the job description.',
+  B: 'Rewrite the positioning so the role clearly connects to your long-term direction, not just a generic fit.',
+  C: 'Clarify comp expectations or target roles where the band better matches your range.',
+  D: 'Adjust the narrative to explain why this team, product, or environment is a strong fit for you.',
+  E: 'Address the red flags directly before spending more time on this role.',
+};
+
+function weakestScoreBlock(blocks = {}) {
+  let weakest = null;
+  for (const key of ['A', 'B', 'C', 'D', 'E']) {
+    if (!Number.isFinite(blocks?.[key])) continue;
+    if (!weakest || blocks[key] < weakest.value) weakest = { key, value: blocks[key] };
+  }
+  return weakest;
+}
+
+export function buildAiSuggestion(targetApps = []) {
+  const candidates = targetApps
+    .filter(a => ['applied', 'evaluated'].includes(a.statusNormalized) && a.score > 0)
+    .sort((a, b) => a.score - b.score);
+  const target = candidates[0] || null;
+  if (!target) {
+    return {
+      body: 'No active applications to optimize yet — evaluate a top match and apply to start getting tailored suggestions.',
+      ctaLabel: 'Optimize Now',
+      targetNum: null,
+      targetFilter: null,
+      openScoreModal: false,
+    };
+  }
+
+  const weakest = weakestScoreBlock(target.scoreBlocks);
+  let body = '';
+  if (weakest) {
+    body = `${esc(target.company)} · ${esc(target.role)} is weakest on ${weakest.key} (${weakest.value.toFixed(1)}/5). ${SUGGESTION_BLOCK_META[weakest.key]}`;
+  } else if (target.rationaleExcerpt) {
+    body = `${esc(target.company)} · ${esc(target.role)} needs work: ${esc(target.rationaleExcerpt)}`;
+  } else {
+    body = `${esc(target.company)} · ${esc(target.role)} is your weakest active application at ${target.score.toFixed(1)}/5. Open the score breakdown and tighten the weakest part before you apply again.`;
+  }
+
+  return {
+    body,
+    ctaLabel: 'Open Score Breakdown',
+    targetNum: target.num,
+    targetFilter: target.statusNormalized === 'evaluated' ? 'evaluated' : 'applied',
+    openScoreModal: true,
+  };
+}
+
 // Renders the three-up insight row at the bottom of the Pipeline page —
 // Match Insight, AI Suggestion, and the Add Entry CTA. Content adapts to
 // whatever slice the pipeline is showing.
@@ -388,11 +439,8 @@ function renderInsightCards() {
     ? `Roles matching <strong>"${esc(topRoleWord)}"</strong> are seeing the strongest engagement in your pipeline this week.`
     : `Apply to a few more roles to unlock pattern insights about which titles convert best for you.`;
 
-  const lowestScored = apps.filter(a => a.statusNormalized === 'applied' && a.score > 0)
-    .sort((a, b) => a.score - b.score)[0];
-  const aiSuggestionBody = lowestScored
-    ? `Update your portfolio link in the <strong>"${esc(lowestScored.company)}"</strong> application to lift its score above ${(lowestScored.score + 0.5).toFixed(1)}.`
-    : `No active applications to optimize yet — evaluate a top match and apply to start getting tailored suggestions.`;
+  const aiSuggestion = buildAiSuggestion(apps);
+  const aiSuggestionBody = aiSuggestion.body;
 
   return `
     <section class="pipeline-insights">
@@ -415,7 +463,7 @@ function renderInsightCards() {
           <h3 class="insight-card-title">AI Suggestion</h3>
           <p class="insight-card-body">${aiSuggestionBody}</p>
         </div>
-        <button class="insight-card-cta" id="insight-optimize-btn" type="button">Optimize Now</button>
+        <button class="insight-card-cta" id="insight-optimize-btn" type="button">${esc(aiSuggestion.ctaLabel)}</button>
       </article>
 
       <button class="insight-card is-empty insight-card-button" id="add-entry-btn" type="button">
@@ -643,6 +691,68 @@ function bindFilterPopover(container) {
   }
 }
 
+export async function watchPendingTailorCompletion(item, { timeoutMs = 300_000, intervalMs = 2500 } = {}) {
+  if (!item?.url) return false;
+  const startedAt = Date.now();
+  const normalizedCompany = String(item.company || '').trim().toLowerCase();
+  const normalizedRole = String(item.role || '').trim().toLowerCase();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+    const data = await api.getApplications().catch(() => null);
+    if (!data) continue;
+    const found = (data.applications || []).find((app) => (
+      app.jobUrl === item.url
+      || (
+        String(app.company || '').trim().toLowerCase() === normalizedCompany
+        && String(app.role || '').trim().toLowerCase() === normalizedRole
+      )
+    ));
+    if (!found) continue;
+    apps = data.applications || [];
+    pending = data.pending || [];
+    skipped = data.skipped || [];
+    expired = data.expired || [];
+    currentFilter = 'evaluated';
+    expandedRow = found.num;
+    if (activeContainer) update(activeContainer);
+    toast(`${found.company} moved to Evaluated`);
+    return true;
+  }
+
+  return false;
+}
+
+async function openPendingEditModal(item) {
+  if (!item) return;
+  const result = await confirmModal({
+    title: 'Edit pending role',
+    confirmText: 'Save changes',
+    body: `
+      <div class="form-group"><label class="form-label">Company</label><input class="form-input" data-return="company" type="text" value="${esc(item.company || '')}" autocomplete="off" autofocus></div>
+      <div class="form-group"><label class="form-label">Role</label><input class="form-input" data-return="role" type="text" value="${esc(item.role || '')}" autocomplete="off"></div>
+      <div class="form-group"><label class="form-label">Posted date</label><input class="form-input" data-return="postedAt" type="date" value="${esc(item.postedAt || '')}" autocomplete="off"></div>
+      <div class="form-group"><label class="form-label">Location</label><input class="form-input" data-return="location" type="text" value="${esc(item.location || '')}" autocomplete="off" placeholder="Remote / Los Angeles / Hybrid"></div>
+    `,
+  });
+  if (!result?.data) return;
+  const company = String(result.data.company || '').trim();
+  const role = String(result.data.role || '').trim();
+  const postedAt = String(result.data.postedAt || '').trim();
+  const location = String(result.data.location || '').trim();
+  if (!company || !role) {
+    toast('Company and role are required.', 'error');
+    return;
+  }
+  try {
+    await api.updatePending({ url: item.url, company, role, postedAt, location });
+    toast('Pending role updated');
+    await refreshData(activeContainer);
+  } catch (err) {
+    toast(`Failed to update pending role: ${err.message}`, 'error');
+  }
+}
+
 function renderPending(pageItems = null) {
   if (!pending.length) return `<div class="empty-state"><h3>No pending jobs</h3><p>Run a scan to discover new roles, or paste a job description in the chat.</p></div>`;
 
@@ -671,7 +781,7 @@ function renderPending(pageItems = null) {
   const rows = filtered.map(p => {
     const tone = relevanceClass(p.relevance ?? 0);
     return `
-    <tr data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}">
+    <tr data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" data-posted-at="${esc(p.postedAt || '')}" data-location="${esc(p.location || '')}">
       <td class="col-check"><input type="checkbox" class="pending-check" data-url="${esc(p.url)}" ${selected.has(p.url) ? 'checked' : ''}></td>
       <td class="col-company">
         <span class="cell-company">
@@ -691,6 +801,7 @@ function renderPending(pageItems = null) {
           <button class="btn btn-sm btn-secondary pending-tailor-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Score this role and draft a tailored CV when it is a strong fit">Tailor</button>
           <button class="btn btn-sm btn-soft pending-apply-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Mark as Applied">Applied</button>
           ${overflowMenu([
+            { label: 'Edit role', onClick: () => openPendingEditModal(p) },
             { label: 'Deep Research', onClick: () => runModePrompt('deep', { company: p.company, role: p.role, url: p.url }) },
             { label: 'Outreach',      onClick: () => runModePrompt('outreach', { company: p.company, role: p.role, url: p.url }) },
           ])}
@@ -1526,11 +1637,17 @@ function update(container) {
   // now; tailoring also drafts a CV downstream when the score is strong.
   container.querySelectorAll('.pending-tailor-btn').forEach(btn => {
     btn.onclick = async () => {
-      const doTailor = () => runModePrompt('evaluate', {
+      const pendingItem = {
         url: btn.dataset.url,
         company: btn.dataset.company,
         role: btn.dataset.role,
-      });
+      };
+      const doTailor = async () => {
+        const started = await runModePrompt('evaluate', pendingItem);
+        if (started && !isAlreadyEvaluated(pendingItem.company, pendingItem.role)) {
+          watchPendingTailorCompletion(pendingItem).catch(() => {});
+        }
+      };
 
       if (isAlreadyEvaluated(btn.dataset.company, btn.dataset.role)) {
         const ok = await confirmModal({
@@ -1793,20 +1910,23 @@ function update(container) {
     };
   }
 
-  // Insight-card CTA: jump to the lowest-scoring active application so the
-  // user can act on the AI suggestion immediately.
+  // Insight-card CTA: open the most actionable weak application directly in
+  // the score breakdown instead of just expanding a row with no next step.
   const optimizeBtn = container.querySelector('#insight-optimize-btn');
   if (optimizeBtn) {
     optimizeBtn.onclick = () => {
-      const target = apps.filter(a => a.statusNormalized === 'applied' && a.score > 0)
-        .sort((a, b) => a.score - b.score)[0];
-      if (target) {
-        currentFilter = 'applied';
-        expandedRow = target.num;
-        update(container);
-      } else {
+      const suggestion = buildAiSuggestion(apps);
+      const target = suggestion.targetNum != null
+        ? apps.find(a => a.num === suggestion.targetNum)
+        : null;
+      if (!target) {
         toast('No active applications to optimize yet.');
+        return;
       }
+      currentFilter = suggestion.targetFilter || target.statusNormalized || 'applied';
+      expandedRow = target.num;
+      update(container);
+      if (suggestion.openScoreModal) openScoreModal(target, { kind: 'evaluated' });
     };
   }
 }

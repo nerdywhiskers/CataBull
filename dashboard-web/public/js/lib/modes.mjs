@@ -85,6 +85,9 @@ const INLINE_EXPANSIONS = {
       '  3. modes/humanizer.md (writing style)\n' +
       '  4. cv.md              (candidate background)',
     'Then evaluate this offer following _shared.md exactly. Save the report to reports/{###}-{company-slug}-{YYYY-MM-DD}.md using the next available report number.',
+    'Register the evaluation in the tracker. Do not stop after saving the report.',
+    'Write one tracker addition TSV under batch/tracker-additions/ using the canonical columns: num\tdate\tcompany\trole\tstatus\tscore\tpdf\treport\tnotes. Use status Evaluated, include the report markdown link, and set PDF based on whether a tailored PDF was actually generated.',
+    'After writing the TSV, run node merge-tracker.mjs so data/applications.md reflects the new evaluated role before you finish.',
     metaBlock([['URL', target], ['Company', ctx.company], ['Role', ctx.role]]),
   ]),
 
@@ -141,6 +144,12 @@ function buildInlinePrompt(mode, context = {}) {
   const target = resolveTarget(mode, context);
   const builder = INLINE_EXPANSIONS[mode.slash];
   return builder ? builder(target, context) : genericInlinePrompt(mode, target, context);
+}
+
+export function inlinePromptForMode(modeId, context = {}) {
+  const mode = getMode(modeId);
+  if (!mode) return '';
+  return buildInlinePrompt(mode, context);
 }
 
 export function listModes() {
