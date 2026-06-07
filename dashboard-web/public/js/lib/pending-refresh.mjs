@@ -65,10 +65,15 @@ export async function runPendingRefresh({
   reload,
   rerender,
 } = {}) {
+  if (sharedState.inFlight) {
+    const result = await sharedState.inFlight;
+    if (typeof reload === 'function') await reload();
+    if (typeof rerender === 'function') await rerender(result);
+    return result;
+  }
   if (!shouldRunPendingRefresh({ pendingCount, force, now, intervalMs })) {
     return { skipped: pendingCount <= 0 ? 'empty' : 'throttled' };
   }
-  if (sharedState.inFlight) return sharedState.inFlight;
   if (typeof checkLivenessAll !== 'function') throw new Error('checkLivenessAll is required');
 
   sharedState.lastRunAt = now;
