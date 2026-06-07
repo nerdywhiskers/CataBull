@@ -1,12 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { homedir } from 'os';
 import { join } from 'path';
 import { parseApplications, parsePipeline } from '../lib/parsers.mjs';
 import { normalizeUrl } from '../../scan/level3.mjs';
 import { DEFAULT_MIN_RELEVANCE } from '../../lib/relevance.mjs';
 import {
   GLOBAL_WORKSPACE_PREFERENCE_KEY,
+  globalPreferenceEnvPath,
+  homeWorkspaceRoot,
   normalizeGlobalWorkspacePreference,
+  resolveEffectiveHome,
 } from '../../lib/workspace-resolver.mjs';
 import {
   detectTailscale,
@@ -132,7 +134,7 @@ export default async function (app) {
       const envPath = globalSettingsEnvPath();
       const current = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : '';
       const next = applyEnvUpdates(current, globalEnvUpdates);
-      mkdirSync(join(homedir(), '.catabull'), { recursive: true });
+      mkdirSync(homeWorkspaceRoot(resolveEffectiveHome()), { recursive: true });
       writeFileSync(envPath, next, 'utf-8');
     }
 
@@ -210,7 +212,7 @@ export function readSettingsFromEnv(text, runtimeEnv = {}, { detectTailnet = fal
     workspace: {
       globalInstallPreference,
       currentRoot: root || '',
-      homeRoot: join(homedir(), '.catabull'),
+      homeRoot: homeWorkspaceRoot(resolveEffectiveHome()),
     },
     envFile: '.env',
   };
@@ -291,7 +293,7 @@ function settingsEnvPath(root) {
 }
 
 function globalSettingsEnvPath() {
-  return join(homedir(), '.catabull', '.env');
+  return globalPreferenceEnvPath(resolveEffectiveHome());
 }
 
 function sanitizeSecret(value) {
