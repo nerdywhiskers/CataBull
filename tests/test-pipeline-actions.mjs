@@ -45,38 +45,14 @@ globalThis.document = {
 globalThis.window = { document: globalThis.document, addEventListener: noop, dispatchEvent: noop };
 globalThis.localStorage = { getItem: () => null, setItem: noop, removeItem: noop };
 
-console.log('\nPending tailor watcher');
+console.log('\nPipeline action mappings');
 
-const { watchPendingTailorCompletion, rowActionsForStatus, batchActionsForFilter, buildAiSuggestion } = await import(
+const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'pipeline.mjs')).href
 );
 const { api } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'api.mjs')).href
 );
-
-const originalGetApplications = api.getApplications;
-let getApplicationsCalls = 0;
-api.getApplications = async () => {
-  getApplicationsCalls += 1;
-  if (getApplicationsCalls === 1) {
-    return { applications: [], pending: [{ url: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer' }], skipped: [], expired: [] };
-  }
-  return {
-    applications: [{ num: 42, jobUrl: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer', statusNormalized: 'evaluated' }],
-    pending: [],
-    skipped: [],
-    expired: [],
-  };
-};
-const watchResult = await watchPendingTailorCompletion(
-  { url: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer' },
-  { timeoutMs: 50, intervalMs: 0 }
-);
-assert(watchResult === true, 'pending tailor watcher resolves when evaluated row appears');
-assert(getApplicationsCalls === 2, 'pending tailor watcher polls until the evaluated row exists');
-api.getApplications = originalGetApplications;
-
-console.log('\nPipeline action mappings');
 
 const skipRowActions = rowActionsForStatus('skip');
 assert(skipRowActions.length === 1, 'skip rows expose one primary restore action');
@@ -121,6 +97,46 @@ const rationaleSuggestion = buildAiSuggestion([
 ]);
 assert(rationaleSuggestion.targetFilter === 'evaluated', 'evaluated suggestion routes back to evaluated tab');
 assert(rationaleSuggestion.body.includes('Needs clearer leadership examples.'), 'AI suggestion falls back to rationale excerpt when block scores are missing');
+
+console.log('\nOverflow dropdown placement');
+
+const downDropdown = { style: {}, dataset: {}, getBoundingClientRect: () => ({ width: 160, height: 120 }) };
+const downTrigger = { getBoundingClientRect: () => ({ top: 120, bottom: 148, right: 520 }) };
+const downPlacement = positionOverflowDropdown(downTrigger, downDropdown, { innerWidth: 800, innerHeight: 900 });
+assert(downPlacement === 'down', 'overflow dropdown opens downward when there is room below');
+assert(downDropdown.style.top === '152px', 'downward overflow dropdown sits just below the trigger');
+assert(downDropdown.style.left === '360px', 'overflow dropdown stays aligned to the trigger edge');
+
+const upDropdown = { style: {}, dataset: {}, getBoundingClientRect: () => ({ width: 180, height: 140 }) };
+const upTrigger = { getBoundingClientRect: () => ({ top: 760, bottom: 788, right: 700 }) };
+const upPlacement = positionOverflowDropdown(upTrigger, upDropdown, { innerWidth: 900, innerHeight: 820 });
+assert(upPlacement === 'up', 'overflow dropdown opens upward near the bottom of the viewport');
+assert(upDropdown.style.top === '616px', 'upward overflow dropdown sits above the trigger');
+assert(upDropdown.dataset.placement === 'up', 'overflow dropdown records upward placement for styling');
+
+console.log('\nPending tailor watcher');
+
+const originalGetApplications = api.getApplications;
+let getApplicationsCalls = 0;
+api.getApplications = async () => {
+  getApplicationsCalls += 1;
+  if (getApplicationsCalls === 1) {
+    return { applications: [], pending: [{ url: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer' }], skipped: [], expired: [] };
+  }
+  return {
+    applications: [{ num: 42, jobUrl: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer', statusNormalized: 'evaluated' }],
+    pending: [],
+    skipped: [],
+    expired: [],
+  };
+};
+const watchResult = await watchPendingTailorCompletion(
+  { url: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer' },
+  { timeoutMs: 50, intervalMs: 0 }
+);
+assert(watchResult === true, 'pending tailor watcher resolves when evaluated row appears');
+assert(getApplicationsCalls === 2, 'pending tailor watcher polls until the evaluated row exists');
+api.getApplications = originalGetApplications;
 
 console.log(`\nPassed: ${passed} / ${total}`);
 if (failed > 0) process.exitCode = 1;
