@@ -14,6 +14,12 @@ const VERBOSE = process.argv.includes('--verbose');
 let passed = 0;
 let failed = 0;
 let total = 0;
+const storage = new Map();
+globalThis.__catabullPendingRefreshStorage = {
+  getItem: (key) => storage.has(key) ? storage.get(key) : null,
+  setItem: (key, value) => storage.set(key, String(value)),
+  removeItem: (key) => storage.delete(key),
+};
 
 function assert(cond, msg) {
   total++;
@@ -58,6 +64,7 @@ assert(reloads === 1, 'reload callback runs after liveness');
 assert(rerenders === 1, 'rerender callback runs after reload');
 assert(statusEvents.some((event) => event.active === true && event.pendingCount === 3 && event.source === 'manual'), 'status publishes active manual refresh state');
 assert(getPendingRefreshState().active === false, 'status resets to inactive after completion');
+assert(storage.get('catabull-pending-refresh-last-run-at') === '100', 'successful refresh persists throttle timestamp');
 unsubscribe();
 
 const throttled = await runPendingRefresh({
@@ -84,6 +91,7 @@ assert(forced.checked === 3, 'force reruns inside throttle window');
 assert(checks === 2, 'force triggers second liveness call');
 
 __resetPendingRefreshState();
+assert(!storage.has('catabull-pending-refresh-last-run-at'), 'reset clears persisted throttle timestamp');
 let concurrentChecks = 0;
 let firstReloads = 0;
 let firstRerenders = 0;

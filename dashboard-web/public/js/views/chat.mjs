@@ -857,7 +857,7 @@ export async function init() {
       setChatAgent(currentAgent);
       clearSessionOutput({ resetChat: false });
       if (currentView === 'raw') {
-        logSystem(`Switching to ${currentAgent}...`);
+        writeRawLine(`\x1b[38;5;141m  Switching to ${currentAgent}...\x1b[0m`);
       }
       disconnectSession({ state: drawerVisible ? 'connecting' : 'disconnected' });
       if (drawerVisible) connect();

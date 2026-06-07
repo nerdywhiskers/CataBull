@@ -166,7 +166,7 @@ function renderCompaniesHeader() {
     <header class="section-header">
       <div>
         <h1 class="section-title">Portals</h1>
-        <p class="section-sub">Manage tracked companies, sources, and title keywords. ${tracked} compan${tracked === 1 ? 'y' : 'ies'} tracked.</p>
+        <p class="section-sub">Manage tracked companies and sources. ${tracked} compan${tracked === 1 ? 'y' : 'ies'} tracked.</p>
       </div>
     </header>
   `;
@@ -394,40 +394,6 @@ function renderCompanyGrid() {
         <div class="company-grid">${entries.map(renderCompanyCard).join('')}</div>
       </details>
     `).join('');
-}
-
-function renderFilters() {
-  if (!portals?.title_filter) return '';
-  const titleFilter = portals.title_filter;
-  return `
-    <div class="card" style="margin-bottom:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <h3 style="font-size:14px;font-weight:600;color:var(--subtext);margin:0">Positive Keywords</h3>
-        <button class="btn btn-ghost btn-sm" id="clear-positive-btn" ${(titleFilter.positive || []).length ? '' : 'disabled'} style="font-size:11px;color:var(--red)">Clear all</button>
-      </div>
-      <div class="tag-list">${(titleFilter.positive || []).map(keyword => `<span class="tag">${esc(keyword)}<span class="tag-remove" data-type="positive" data-keyword="${esc(keyword)}">&times;</span></span>`).join('')}</div>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <input class="form-input" id="add-positive" placeholder="Add keyword..." style="flex:1">
-        <button class="btn btn-sm" id="add-positive-btn">Add</button>
-      </div>
-    </div>
-
-    <div class="card" style="margin-bottom:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <h3 style="font-size:14px;font-weight:600;color:var(--subtext);margin:0">Negative Keywords</h3>
-        <button class="btn btn-ghost btn-sm" id="clear-negative-btn" ${(titleFilter.negative || []).length ? '' : 'disabled'} style="font-size:11px;color:var(--red)">Clear all</button>
-      </div>
-      <div class="tag-list">${(titleFilter.negative || []).map(keyword => `<span class="tag">${esc(keyword)}<span class="tag-remove" data-type="negative" data-keyword="${esc(keyword)}">&times;</span></span>`).join('')}</div>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <input class="form-input" id="add-negative" placeholder="Add keyword..." style="flex:1">
-        <button class="btn btn-sm" id="add-negative-btn">Add</button>
-      </div>
-    </div>
-
-    <div style="display:flex;justify-content:flex-end">
-      <button class="btn btn-primary" id="save-filters">Save Filters</button>
-    </div>
-  `;
 }
 
 function renderSources() {
@@ -673,10 +639,10 @@ export async function render(container) {
 }
 
 function update(container) {
+  if (activeTab === 'filters') activeTab = 'companies';
   let body;
   if (activeTab === 'companies') body = `${renderHealthTools()}${renderCompanyToolbar()}${renderCompanyGrid()}`;
-  else if (activeTab === 'sources') body = renderSources();
-  else body = renderFilters();
+  else body = renderSources();
 
   container.innerHTML = `
     ${renderCompaniesHeader()}
@@ -684,7 +650,6 @@ function update(container) {
       <div class="filter-tabs">
         <button class="filter-tab${activeTab === 'companies' ? ' active' : ''}" data-tab="companies">Companies</button>
         <button class="filter-tab${activeTab === 'sources' ? ' active' : ''}" data-tab="sources">Sources</button>
-        <button class="filter-tab${activeTab === 'filters' ? ' active' : ''}" data-tab="filters">Title Keywords</button>
       </div>
       <button class="btn btn-soft btn-sm" id="add-company-btn"><span style="font-weight:700">+</span> Add Company</button>
     </div>
@@ -1254,59 +1219,4 @@ function update(container) {
     };
   });
 
-  container.querySelectorAll('.tag-remove').forEach(button => {
-    button.onclick = () => {
-      const type = button.dataset.type;
-      const keyword = button.dataset.keyword;
-      portals.title_filter[type] = portals.title_filter[type].filter(item => item !== keyword);
-      update(container);
-    };
-  });
-
-  const addKeyword = (type, inputSelector) => {
-    const input = container.querySelector(inputSelector);
-    if (!input) return;
-    const value = input.value.trim();
-    if (value && !portals.title_filter[type].includes(value)) {
-      portals.title_filter[type].push(value);
-      update(container);
-    }
-  };
-
-  container.querySelector('#add-positive-btn')?.addEventListener('click', () => addKeyword('positive', '#add-positive'));
-  container.querySelector('#add-negative-btn')?.addEventListener('click', () => addKeyword('negative', '#add-negative'));
-  container.querySelector('#add-positive')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') addKeyword('positive', '#add-positive'); });
-  container.querySelector('#add-negative')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') addKeyword('negative', '#add-negative'); });
-
-  container.querySelector('#save-filters')?.addEventListener('click', async () => {
-    try {
-      await api.updateFilters(portals.title_filter);
-      toast('Filters saved');
-    } catch {
-      toast('Failed to save', 'error');
-    }
-  });
-
-  const clearKeywords = async (type) => {
-    const count = (portals.title_filter?.[type] || []).length;
-    if (!count) return;
-    const ok = await confirmModal({
-      title: `Clear all ${type} keywords?`,
-      body: `<p style="font-size:14px;color:var(--subtext)">This will remove all <strong>${count}</strong> ${type} keywords from your filter list.</p>`,
-      confirmText: 'Clear all',
-      danger: true,
-    });
-    if (!ok) return;
-    portals.title_filter[type] = [];
-    try {
-      await api.updateFilters(portals.title_filter);
-      toast(`Cleared ${count} ${type} keyword${count !== 1 ? 's' : ''}`);
-      update(container);
-    } catch {
-      toast('Failed to save', 'error');
-    }
-  };
-
-  container.querySelector('#clear-positive-btn')?.addEventListener('click', () => clearKeywords('positive'));
-  container.querySelector('#clear-negative-btn')?.addEventListener('click', () => clearKeywords('negative'));
 }

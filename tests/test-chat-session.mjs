@@ -148,21 +148,24 @@ const opencodeFresh = agentPrintArgs('opencode', ROOT, { continueSession: false 
 assert(
   JSON.stringify(opencodeFresh.args) === JSON.stringify([
     'run',
-    '--format', 'default',
+    '--format', 'json',
     '--dir', ROOT,
+    '',
   ]),
-  'fresh Opencode turn omits unsupported --pure flag',
+  'fresh Opencode turn uses JSON format and positional prompt',
 );
+assert(opencodeFresh.promptVia === 'argv', 'fresh Opencode prompt is passed via argv');
 
 const opencodeContinued = agentPrintArgs('opencode', ROOT, { continueSession: true });
 assert(
   JSON.stringify(opencodeContinued.args) === JSON.stringify([
     'run',
-    '--format', 'default',
+    '--format', 'json',
     '--dir', ROOT,
     '--continue',
+    '',
   ]),
-  'continued Opencode turn resumes without unsupported --pure flag',
+  'continued Opencode turn resumes and still passes prompt via argv',
 );
 
 const opencodePty = agentPtyConfig('opencode', ROOT);
@@ -325,6 +328,8 @@ chatUi.restoreMessages([
   { role: 'user', text: 'hello' },
   { role: 'assistant', text: 'hi back', agent: 'claude' },
   { role: 'working', text: 'should not persist' },
+  { role: 'system', text: 'Connection error', tone: 'error' },
+  { role: 'system', text: 'Switching to codex...', tone: 'default' },
   { role: 'system', text: 'Heads up', tone: 'error' },
   { role: 'bogus', text: 'drop me' },
 ]);
@@ -335,7 +340,7 @@ assert(
     { role: 'assistant', text: 'hi back', tone: 'default', agent: 'claude' },
     { role: 'system', text: 'Heads up', tone: 'error', agent: '' },
   ]),
-  'chat transcript restore drops non-persistable roles and preserves valid messages',
+  'chat transcript restore drops non-persistable roles, stale connection errors, and preserves valid messages',
 );
 
 console.log(`\n${'─'.repeat(40)}`);

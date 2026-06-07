@@ -1769,6 +1769,7 @@
 .scan-card-last {
   font-size: 12px;
   color: var(--subtext0);
+  white-space: nowrap;
 }
 .scan-card-controls {
   display: flex;
@@ -1780,6 +1781,9 @@
   font-size: 12px;
   color: var(--subtext);
   margin-right: 2px;
+}
+.scan-card-last-label {
+  margin-left: 4px;
 }
 .scan-card-select {
   width: auto;
@@ -1793,6 +1797,48 @@
   /* Chevron a little closer in on the compact selects, scaled down to match. */
   background-position: right 10px center;
   background-size: 9px 5px;
+}
+
+.search-keywords-modal {
+  max-width: 620px;
+}
+.keyword-modal-copy {
+  margin: -6px 0 16px;
+  font-size: 13px;
+  color: var(--subtext);
+  line-height: 1.5;
+}
+.keyword-modal-section {
+  padding: 12px;
+  margin-bottom: 12px;
+  background: var(--surface0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.keyword-modal-section-head,
+.keyword-modal-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.keyword-modal-section-head {
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.keyword-modal-section-head h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--subtext);
+}
+.keyword-modal-tags {
+  min-height: 28px;
+}
+.keyword-modal-add-row {
+  margin-top: 10px;
+}
+.keyword-modal-add-row .form-input {
+  flex: 1;
 }
 #scan-schedule-select { min-width: 128px; }   /* "Every 3 days" widest option */
 #scan-limit-select    { min-width: 96px; }    /* "Max: 100" widest option */
