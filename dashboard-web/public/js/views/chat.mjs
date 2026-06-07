@@ -1,7 +1,9 @@
 import { api } from '../api.mjs';
+import { isPermissionLine, stripAnsi } from '../lib/ansi.mjs';
 import { isSessionConflict } from '../lib/session-conflict.mjs';
 import {
   addAssistantMessage,
+  addPermissionMessage,
   addSystemMessage,
   addUserMessage,
   focusInput as focusChatInput,
@@ -39,6 +41,9 @@ function shouldAutoOpenDrawer() {
 const AGENT_STORAGE_KEY = 'catabull-terminal-agent';
 const AGENT_SESSIONS_STORAGE_KEY = 'catabull-chat-agent-sessions';
 const CHAT_TRANSCRIPTS_STORAGE_KEY = 'catabull-chat-transcripts';
+const CHAT_RECORDS_STORAGE_KEY = 'catabull-chat-session-records';
+const CURRENT_CHAT_RECORD_STORAGE_KEY = 'catabull-chat-current-session-record';
+const MAX_SESSION_RECORDS = 20;
 
 const DEFAULT_COLS = 120;
 const DEFAULT_ROWS = 20;
@@ -51,7 +56,9 @@ let continuationSupport = {};
 // codex falls back to "resume last" (no per-id session control in exec mode),
 // so for codex this map only tracks "have we seen at least one turn yet?".
 const agentSessions = loadAgentSessions();
-const chatTranscripts = loadChatTranscripts();
+const chatRecords = loadChatRecords();
+let currentChatRecordId = loadCurrentChatRecordId();
+ensureCurrentChatRecord();
 pruneOrphanedAgentSessions();
 
 function loadAgentSessions() {
@@ -69,7 +76,7 @@ function saveAgentSessions() {
   try { localStorage.setItem(AGENT_SESSIONS_STORAGE_KEY, JSON.stringify(agentSessions)); } catch {}
 }
 
-function loadChatTranscripts() {
+function loadLegacyChatTranscripts() {
   try {
     const raw = localStorage.getItem(CHAT_TRANSCRIPTS_STORAGE_KEY);
     if (!raw) return {};
@@ -80,8 +87,55 @@ function loadChatTranscripts() {
   }
 }
 
-function saveChatTranscripts() {
-  try { localStorage.setItem(CHAT_TRANSCRIPTS_STORAGE_KEY, JSON.stringify(chatTranscripts)); } catch {}
+function saveChatRecords() {
+  try { localStorage.setItem(CHAT_RECORDS_STORAGE_KEY, JSON.stringify(chatRecords)); } catch {}
+}
+
+function saveCurrentChatRecordId() {
+  try { localStorage.setItem(CURRENT_CHAT_RECORD_STORAGE_KEY, currentChatRecordId || ''); } catch {}
+}
+
+function loadCurrentChatRecordId() {
+  try { return localStorage.getItem(CURRENT_CHAT_RECORD_STORAGE_KEY) || ''; } catch { return ''; }
+}
+
+function createChatRecord({ agent = currentAgent || '', sessionId = null, messages = [] } = {}) {
+  return {
+    id: newSessionId(),
+    agent,
+    sessionId,
+    messages,
+    title: sessionRecordTitle(messages, agent),
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+}
+
+function loadChatRecords() {
+  try {
+    const raw = localStorage.getItem(CHAT_RECORDS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.filter(record => record && record.id);
+    }
+  } catch {}
+
+  const legacy = loadLegacyChatTranscripts();
+  const migrated = Object.entries(legacy)
+    .filter(([, value]) => Array.isArray(value?.messages) && value.messages.length > 0)
+    .map(([agent, value]) => ({
+      id: newSessionId(),
+      agent,
+      sessionId: agentSessions[agent] || null,
+      messages: value.messages,
+      title: sessionRecordTitle(value.messages, agent),
+      createdAt: value.updatedAt || Date.now(),
+      updatedAt: value.updatedAt || Date.now(),
+    }));
+  if (migrated.length) {
+    try { localStorage.setItem(CHAT_RECORDS_STORAGE_KEY, JSON.stringify(migrated.slice(0, MAX_SESSION_RECORDS))); } catch {}
+  }
+  return migrated.slice(0, MAX_SESSION_RECORDS);
 }
 
 function withTranscriptPersistencePaused(callback) {
@@ -93,14 +147,14 @@ function withTranscriptPersistencePaused(callback) {
   }
 }
 
-function transcriptHasMessages(name) {
-  return Array.isArray(chatTranscripts[name]?.messages) && chatTranscripts[name].messages.length > 0;
+function recordHasAgentSession(name) {
+  return chatRecords.some(record => record.agent === name && record.sessionId === agentSessions[name]);
 }
 
 function pruneOrphanedAgentSessions() {
   let changed = false;
   for (const name of Object.keys(agentSessions)) {
-    if (transcriptHasMessages(name)) continue;
+    if (recordHasAgentSession(name)) continue;
     delete agentSessions[name];
     changed = true;
   }
@@ -108,25 +162,98 @@ function pruneOrphanedAgentSessions() {
 }
 
 function persistCurrentTranscript(snapshot = getMessagesSnapshot()) {
-  if (suppressTranscriptPersistence || !currentAgent) return;
-  if (Array.isArray(snapshot) && snapshot.length) {
-    chatTranscripts[currentAgent] = {
-      messages: snapshot,
-      updatedAt: Date.now(),
-    };
-  } else {
-    delete chatTranscripts[currentAgent];
-  }
-  saveChatTranscripts();
+  if (suppressTranscriptPersistence) return;
+  const record = ensureCurrentChatRecord();
+  record.agent = currentAgent || record.agent || '';
+  record.sessionId = agentSessions[currentAgent] || record.sessionId || null;
+  record.messages = Array.isArray(snapshot) ? snapshot : [];
+  record.title = sessionRecordTitle(record.messages, record.agent);
+  record.updatedAt = Date.now();
+  trimChatRecords();
+  saveChatRecords();
 }
 
-function restoreChatTranscript(name) {
-  const snapshot = Array.isArray(chatTranscripts[name]?.messages)
-    ? chatTranscripts[name].messages
-    : [];
+function sessionRecordTitle(messages = [], agent = '') {
+  const firstUser = messages.find(message => message?.role === 'user' && message.text);
+  const text = String(firstUser?.text || agent || 'Chat').replace(/\s+/g, ' ').trim();
+  return text.length > 44 ? `${text.slice(0, 43)}...` : text;
+}
+
+function ensureCurrentChatRecord() {
+  let record = chatRecords.find(item => item.id === currentChatRecordId);
+  if (!record) {
+    record = createChatRecord();
+    chatRecords.unshift(record);
+    currentChatRecordId = record.id;
+    saveCurrentChatRecordId();
+    trimChatRecords();
+    saveChatRecords();
+  }
+  return record;
+}
+
+function trimChatRecords() {
+  chatRecords.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  chatRecords.splice(MAX_SESSION_RECORDS);
+}
+
+function restoreCurrentChatTranscript() {
+  const record = ensureCurrentChatRecord();
+  const snapshot = Array.isArray(record.messages) ? record.messages : [];
   withTranscriptPersistencePaused(() => {
-    restoreChatMessages(snapshot, name);
+    restoreChatMessages(snapshot, currentAgent);
   });
+}
+
+export function formatSessionRecordForMenu(record = {}, now = Date.now()) {
+  const updatedAt = Number(record.updatedAt || 0);
+  const ageMs = Math.max(0, now - updatedAt);
+  const minutes = Math.floor(ageMs / 60_000);
+  const hours = Math.floor(ageMs / 3_600_000);
+  const days = Math.floor(ageMs / 86_400_000);
+  const updatedLabel = !updatedAt
+    ? ''
+    : minutes < 1
+    ? 'just now'
+    : minutes < 60
+    ? `${minutes}m ago`
+    : hours < 24
+    ? `${hours}h ago`
+    : `${days}d ago`;
+  return {
+    id: record.id,
+    title: record.title || sessionRecordTitle(record.messages, record.agent),
+    agent: record.agent || '',
+    updatedLabel,
+  };
+}
+
+function listSessionRecordsForMenu() {
+  return chatRecords
+    .filter(record => Array.isArray(record.messages) && record.messages.length > 0)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .map(record => formatSessionRecordForMenu(record));
+}
+
+function selectChatRecord(recordId) {
+  const record = chatRecords.find(item => item.id === recordId);
+  if (!record) return;
+  currentChatRecordId = record.id;
+  saveCurrentChatRecordId();
+  if (record.agent && agents.includes(record.agent)) {
+    currentAgent = record.agent;
+    localStorage.setItem(AGENT_STORAGE_KEY, currentAgent);
+    document.getElementById('agent-select') && (document.getElementById('agent-select').value = currentAgent);
+  }
+  if (record.agent && record.sessionId) {
+    agentSessions[record.agent] = record.sessionId;
+    saveAgentSessions();
+  }
+  setChatAgent(currentAgent);
+  clearTerminalOutput();
+  restoreCurrentChatTranscript();
+  disconnectSession({ state: drawerVisible ? 'connecting' : 'disconnected' });
+  if (drawerVisible) connect();
 }
 
 function agentSupportsContinuation(name) {
@@ -147,7 +274,27 @@ function ensureSessionId(name) {
     agentSessions[name] = newSessionId();
     saveAgentSessions();
   }
+  if (name === currentAgent) {
+    const record = ensureCurrentChatRecord();
+    record.agent = name;
+    record.sessionId = agentSessions[name];
+    record.updatedAt = Date.now();
+    saveChatRecords();
+  }
   return agentSessions[name];
+}
+
+export function shouldContinueAgentSession({ supportsContinuation, hasSession }) {
+  // Sticky-session agents create a named session on turn one, then must resume
+  // that same id on follow-up turns. Resume-last agents only need a boolean
+  // "seen before" marker. In both cases, an existing marker means continue.
+  return Boolean(supportsContinuation && hasSession);
+}
+
+export function textContainsPermissionPrompt(value = '') {
+  return stripAnsi(String(value || ''))
+    .split(/\r?\n/)
+    .some(line => isPermissionLine(line));
 }
 
 async function loadAgents() {
@@ -216,7 +363,7 @@ function clearTerminalOutput() {
 }
 
 function syncChatUiToCurrentAgent() {
-  restoreChatTranscript(currentAgent);
+  restoreCurrentChatTranscript();
 }
 
 function clearSessionOutput({ resetChat = true } = {}) {
@@ -231,10 +378,14 @@ function clearSessionOutput({ resetChat = true } = {}) {
 function resetChatSession() {
   if (currentAgent) {
     delete agentSessions[currentAgent];
-    delete chatTranscripts[currentAgent];
     saveAgentSessions();
-    saveChatTranscripts();
   }
+  const record = createChatRecord({ agent: currentAgent });
+  chatRecords.unshift(record);
+  currentChatRecordId = record.id;
+  saveCurrentChatRecordId();
+  trimChatRecords();
+  saveChatRecords();
   clearTerminalOutput();
   syncChatUiToCurrentAgent();
 }
@@ -558,7 +709,11 @@ export async function runPrompt(text, {
     // omitting continuation.
     const supportsContinuation = agentSupportsContinuation(currentAgent);
     const usesStickySession = currentAgent === 'claude' || currentAgent === 'openclaw';
-    const continueSession = supportsContinuation && !usesStickySession && Boolean(agentSessions[currentAgent]);
+    const hadSession = Boolean(agentSessions[currentAgent]);
+    const continueSession = shouldContinueAgentSession({
+      supportsContinuation,
+      hasSession: hadSession,
+    });
 
     // Run the agent with the current session-id. On session-conflict
     // errors (another claude process holding the same uuid — typically
@@ -596,6 +751,9 @@ export async function runPrompt(text, {
 
       if (result?.ok) {
         addAssistantMessage(result.output || 'No output returned.', currentAgent);
+        if (textContainsPermissionPrompt(result.output)) {
+          addPermissionMessage('Approval prompt detected in agent output. Open Raw terminal to answer interactive prompts.');
+        }
         try {
           window.dispatchEvent(new CustomEvent('catabull:data-maybe-changed', {
             detail: { source: 'chat', agent: currentAgent },
@@ -606,11 +764,21 @@ export async function runPrompt(text, {
         // agents already had their uuid stamped via ensureSessionId.
         if (supportsContinuation && !usesStickySession && !agentSessions[currentAgent]) {
           agentSessions[currentAgent] = newSessionId();
+          const record = ensureCurrentChatRecord();
+          record.agent = currentAgent;
+          record.sessionId = agentSessions[currentAgent];
+          record.updatedAt = Date.now();
           saveAgentSessions();
+          saveChatRecords();
         }
         return true;
       }
       hideWorkingMessage();
+      if (textContainsPermissionPrompt(result?.error)) {
+        addPermissionMessage(result.error);
+        addSystemMessage('Approval required. Switch to Raw terminal to answer interactive prompts.', 'error');
+        return false;
+      }
       addSystemMessage(result?.error || `${currentAgent} request failed.`, 'error');
       return false;
     } catch (error) {
@@ -668,6 +836,8 @@ export async function init() {
     initChatUi(document.getElementById('chat-pane'), {
       onSubmit: submitFromChatView,
       onNewChat: resetChatSession,
+      onListSessions: listSessionRecordsForMenu,
+      onSelectSession: selectChatRecord,
       onMessagesChange: persistCurrentTranscript,
     });
     syncChatUiToCurrentAgent();

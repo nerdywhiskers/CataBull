@@ -146,7 +146,7 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
       'exec',
       '--skip-git-repo-check',
       '--sandbox', 'workspace-write',
-      '--ask-for-approval', 'on-request',
+      '-c', 'approval_policy="on-request"',
     ];
     // CataBull wants Codex sessions to always be able to write inside the
     // workspace while still prompting when the model decides approval is
@@ -161,7 +161,7 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
   }
 
   if (agentName === 'opencode') {
-    const args = ['run', '--pure', '--format', 'default', '--dir', root];
+    const args = ['run', '--format', 'default', '--dir', root];
     // opencode's --session expects an EXISTING session id (silently no-ops
     // on an unknown uuid), so we can't use the sticky-uuid pattern claude
     // supports. Fall back to --continue, which resumes "the last session"
@@ -251,7 +251,7 @@ export function agentPtyConfig(agentName, root) {
   if (!command) return null;
 
   if (agentName === 'opencode') {
-    const args = ['--pure'];
+    const args = [];
     const shell = isWin ? winShell(command, args) : { command, args };
     return {
       command: shell.command,
