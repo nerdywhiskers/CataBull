@@ -142,12 +142,16 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     // home workspace (~/.catabull) isn't a git repo, so without this every
     // exec aborts non-zero and the caller surfaces a 502. Harmless when the
     // workspace *is* a git tree (dev/project-tree mode).
-    const args = ['exec', '--skip-git-repo-check'];
-    // --full-auto grants the workspace-write sandbox codex needs to edit
-    // files (profile.yml, modes/_profile.md) during generation. Read-only
-    // steps (e.g. JSON CV extraction) don't pass allowEdits and stay in the
-    // default read-only sandbox.
-    if (allowEdits) args.push('--full-auto');
+    const args = [
+      'exec',
+      '--skip-git-repo-check',
+      '--sandbox', 'workspace-write',
+      '--ask-for-approval', 'on-request',
+    ];
+    // CataBull wants Codex sessions to always be able to write inside the
+    // workspace while still prompting when the model decides approval is
+    // needed. Pass the policy explicitly so chat runs do not drift with user
+    // config defaults or fall back to read-only.
     // Codex exec does not expose a sticky session-id flag in this mode. The
     // modern CLI resumes with a subcommand rather than the removed --continue
     // flag. "-" makes the resumed turn read the prompt from stdin, matching
@@ -264,7 +268,14 @@ export function agentPtyConfig(agentName, root) {
   // OpenClaw's conversational entrypoint is `openclaw chat`, not the
   // bare binary (confirmed). Without the subcommand the CLI prints
   // help and exits, which the rail surfaces as an immediate disconnect.
-  const ptyArgs = agentName === 'openclaw' ? ['chat'] : [];
+  // Codex interactive sessions need the same workspace-write + on-request
+  // policy as one-shot runs so the terminal rail does not silently fall back
+  // to read-only or some host-level config default.
+  const ptyArgs = agentName === 'openclaw'
+    ? ['chat']
+    : agentName === 'codex'
+      ? ['--sandbox', 'workspace-write', '--ask-for-approval', 'on-request']
+      : [];
   const shell = isWin ? winShell(command, ptyArgs) : { command, args: ptyArgs };
   return {
     command: shell.command,

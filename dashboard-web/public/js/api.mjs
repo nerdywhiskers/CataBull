@@ -92,6 +92,8 @@ export const api = {
   applyPending: (url, company, role) => request('/pipeline/apply', { method: 'POST', body: { url, company, role } }),
   deleteAllPending: () => request('/pipeline/delete-pending', { method: 'POST', body: {} }),
   deletePending: (urls) => request('/pipeline/delete', { method: 'POST', body: { urls } }),
+  updatePending: ({ url, company, role, postedAt, location } = {}) =>
+    request('/pipeline/item', { method: 'PATCH', body: { url, company, role, postedAt, location } }),
   addPending: ({ url, company, role, postedAt, location } = {}) =>
     request('/pipeline/add', { method: 'POST', body: { url, company, role, postedAt, location } }),
 
@@ -196,7 +198,7 @@ export const api = {
   restoreBackup: async (file) => {
     const fd = new FormData();
     fd.append('file', file);
-    const res = await fetch('/api/v1/backup/restore', { method: 'POST', body: fd });
+    const res = await fetch('/api/v1/backup/restore', { method: 'POST', body: fd, credentials: 'same-origin' });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     return res.json();
   },

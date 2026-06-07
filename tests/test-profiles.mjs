@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync, existsSync } from 'fs';
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import {
@@ -21,6 +21,8 @@ function writeProfile(name, email) {
   writeFileSync(join(root, 'modes/_profile.md'), `# ${name} framing\n`);
   writeFileSync(join(root, 'data/scan-health.json'), `{"candidate":"${name}"}\n`);
   writeFileSync(join(root, 'data/scan-health.log'), `${name} scan ok\n`);
+  mkdirSync(join(root, 'data', 'outreach'), { recursive: true });
+  writeFileSync(join(root, 'data', 'outreach', 'contacts.md'), `# ${name} outreach\n`);
 }
 
 await import('fs').then(fs => {
@@ -50,5 +52,6 @@ assert.match(readFileSync(join(root, 'config/profile.yml'), 'utf-8'), /Ada Lovel
 assert.match(readFileSync(join(root, 'cv.md'), 'utf-8'), /Ada Lovelace/);
 assert.match(readFileSync(join(root, 'data/scan-health.json'), 'utf-8'), /Ada Lovelace/);
 assert.match(readFileSync(join(root, 'data/scan-health.log'), 'utf-8'), /Ada Lovelace/);
+assert.match(readFileSync(join(root, 'data/outreach/contacts.md'), 'utf-8'), /Ada Lovelace/);
 
 console.log('profile store tests passed');

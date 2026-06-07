@@ -49,15 +49,17 @@ function switchView(name, param) {
 }
 
 async function init() {
+  const onboardingBypass = sessionStorage.getItem('catabull-onboarding-bypass') === '1';
   // Check onboarding status
   try {
     const { complete } = await api.onboardingStatus();
-    if (!complete) {
+    if (!complete && !onboardingBypass) {
       document.getElementById('onboarding-container').style.display = 'block';
       document.getElementById('dashboard-container').style.display = 'none';
       renderOnboarding(document.getElementById('onboarding-container'));
       return;
     }
+    if (complete) sessionStorage.removeItem('catabull-onboarding-bypass');
   } catch { /* proceed to dashboard */ }
 
   // Show dashboard

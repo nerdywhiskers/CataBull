@@ -1,5 +1,5 @@
 import { parseApplications, loadReportSummary, parsePipeline } from '../lib/parsers.mjs';
-import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem } from '../lib/writers.mjs';
+import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem, updatePendingItem } from '../lib/writers.mjs';
 import { readProfile, readPortals } from '../lib/writers.mjs';
 import { scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../lib/relevance.mjs';
 import { enrichJobUrl } from '../lib/job-url-metadata.mjs';
@@ -142,5 +142,20 @@ export default async function (app) {
     } catch (err) {
       return reply.code(500).send({ error: err.message });
     }
+  });
+
+  app.patch('/pipeline/item', async (req, reply) => {
+    const { url, company, role, postedAt, location } = req.body || {};
+    if (!url || !company || !role) {
+      return reply.code(400).send({ error: 'url, company, and role are required' });
+    }
+    if ([url, company, role, location].some((value) => /[\n\r|]/.test(value || ''))) {
+      return reply.code(400).send({ error: 'fields must not contain newlines or pipe characters' });
+    }
+    const result = updatePendingItem(root, { url, company, role, postedAt, location });
+    if (!result.updated) {
+      return reply.code(result.error === 'pending item not found' ? 404 : 400).send({ error: result.error || 'Failed to update pending item' });
+    }
+    return { success: true };
   });
 }

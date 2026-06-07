@@ -15,14 +15,14 @@
  */
 
 import { api } from '../api.mjs';
-import { deepProgressFromEvent, quickProgressFromEvent, renderScanProgress } from '../components/scan-progress.mjs';
+import { deepProgressFromEvent, pendingRefreshProgressFromState, quickProgressFromEvent, renderScanProgress } from '../components/scan-progress.mjs';
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 import { openScoreModal } from '../components/score-modal.mjs';
 import { notifyScanComplete, requestPermission } from '../components/notifications.mjs';
 import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
-import { DEFAULT_PENDING_REFRESH_INTERVAL_MS, runPendingRefresh } from '../lib/pending-refresh.mjs';
+import { DEFAULT_PENDING_REFRESH_INTERVAL_MS, getPendingRefreshState, runPendingRefresh, subscribePendingRefresh } from '../lib/pending-refresh.mjs';
 import {
   buildDiscoverFilter,
   groupPostingsByCompany,
@@ -42,6 +42,7 @@ let searchQuery = '';
 let groupBy = 'flat';            // 'company' | 'flat' — flat by default per UX 2026-05-16
 let activeContainer = null;
 let pendingRefreshPoller = null;
+let pendingRefreshState = getPendingRefreshState();
 
 // Scan controls moved here from the Portals page (2026-05-16). The
 // `catabull-scan-limit` localStorage key stays shared with portals.mjs
@@ -72,6 +73,7 @@ async function refreshPendingPostings(container, { force = false, source = 'auto
     const result = await runPendingRefresh({
       pendingCount: pending.length,
       force,
+      source,
       checkLivenessAll: () => api.checkLivenessAll(),
       reload: loadData,
       rerender: async () => rerenderIfActive(container),
@@ -105,6 +107,10 @@ function ensurePendingRefresh(container) {
   }
   if (!window.__catabullDiscoverRefreshBound) {
     window.__catabullDiscoverRefreshBound = true;
+    subscribePendingRefresh((state) => {
+      pendingRefreshState = state;
+      rerenderIfActive(activeContainer);
+    });
     window.addEventListener('catabull:data-maybe-changed', () => {
       if (!isContainerActive(activeContainer)) return;
       loadData().then(() => rerenderIfActive(activeContainer)).catch(() => {});
@@ -214,7 +220,7 @@ function renderScanSchedule() {
   const scheduleLabels = { off: 'Off', daily: 'Daily', 'every-3-days': 'Every 3 days', weekly: 'Weekly' };
   const current = scanStatus.schedule || 'off';
   const savedLimit = localStorage.getItem(SCAN_LIMIT_KEY) || '0';
-  const busy = scanStatus.running || scanProgress?.visible;
+  const busy = scanStatus.running || scanProgress?.visible || pendingRefreshState?.active;
 
   let lastScanBadge = '';
   if (scanStatus.lastScanAt) {
@@ -278,6 +284,7 @@ function renderTopBar() {
     ${renderHeader()}
     ${renderScanSchedule()}
     <div class="scan-progress-slot">${renderScanProgress(scanProgress)}</div>
+    <div class="scan-progress-slot">${renderScanProgress(pendingRefreshProgressFromState(pendingRefreshState))}</div>
     <div class="discover-toolbar">
       <div class="discover-toolbar-row">
         <input class="form-input discover-search" id="discover-search" placeholder="Search company or role…" value="${esc(searchQuery)}" />
@@ -396,7 +403,7 @@ function bindEvents(container) {
     try {
       await refreshPendingPostings(container, { force: true, source: 'manual' });
     } finally {
-      // rerender() replaces the node; nothing to re-enable.
+      if (btn.isConnected) btn.disabled = false;
     }
   });
 
