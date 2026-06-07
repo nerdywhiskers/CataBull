@@ -85,6 +85,10 @@ assert(checks === 2, 'force triggers second liveness call');
 
 __resetPendingRefreshState();
 let concurrentChecks = 0;
+let firstReloads = 0;
+let firstRerenders = 0;
+let secondReloads = 0;
+let secondRerenders = 0;
 let release;
 const blocker = new Promise((resolve) => { release = resolve; });
 const first = runPendingRefresh({
@@ -95,6 +99,8 @@ const first = runPendingRefresh({
     await blocker;
     return { checked: 2, expired: 0 };
   },
+  reload: async () => { firstReloads++; },
+  rerender: async () => { firstRerenders++; },
 });
 const second = runPendingRefresh({
   pendingCount: 2,
@@ -103,10 +109,14 @@ const second = runPendingRefresh({
     concurrentChecks++;
     return { checked: 2, expired: 0 };
   },
+  reload: async () => { secondReloads++; },
+  rerender: async () => { secondRerenders++; },
 });
 release();
 await Promise.all([first, second]);
 assert(concurrentChecks === 1, 'in-flight run is shared across callers');
+assert(firstReloads === 1 && firstRerenders === 1, 'first caller runs its reload and rerender callbacks');
+assert(secondReloads === 1 && secondRerenders === 1, 'second caller joining in-flight run still gets reload and rerender callbacks');
 
 console.log(`\nPassed: ${passed} / ${total}`);
 if (failed > 0) process.exitCode = 1;
