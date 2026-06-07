@@ -1,12 +1,12 @@
 import { api } from '../api.mjs';
-import { deepProgressFromEvent, quickProgressFromEvent, renderScanProgress } from '../components/scan-progress.mjs';
+import { deepProgressFromEvent, pendingRefreshProgressFromState, quickProgressFromEvent, renderScanProgress } from '../components/scan-progress.mjs';
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 import { openScoreModal } from '../components/score-modal.mjs';
 import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
 import { INDUSTRIES } from '../lib/industries.mjs';
-import { DEFAULT_PENDING_REFRESH_INTERVAL_MS, runPendingRefresh } from '../lib/pending-refresh.mjs';
+import { DEFAULT_PENDING_REFRESH_INTERVAL_MS, getPendingRefreshState, runPendingRefresh, subscribePendingRefresh } from '../lib/pending-refresh.mjs';
 
 let apps = [];
 let pending = [];
@@ -26,6 +26,7 @@ let activeContainer = null;
 let scanRunStatePoller = null;
 let pendingRefreshPoller = null;
 let lastObservedScanFinishedAt = '';
+let pendingRefreshState = getPendingRefreshState();
 
 async function loadData() {
   try {
@@ -70,6 +71,7 @@ async function refreshPendingPostings(container, { force = false, source = 'auto
     const result = await runPendingRefresh({
       pendingCount: pending.length,
       force,
+      source,
       checkLivenessAll: () => api.checkLivenessAll(),
       reload: loadData,
       rerender: async () => {
@@ -134,6 +136,11 @@ function ensureLiveRefresh(container) {
   }
   if (!window.__catabullPipelineRefreshBound) {
     window.__catabullPipelineRefreshBound = true;
+    subscribePendingRefresh((state) => {
+      pendingRefreshState = state;
+      if (!activeContainer?.isConnected || !activeContainer.classList.contains('active')) return;
+      update(activeContainer);
+    });
     window.addEventListener('catabull:data-maybe-changed', () => {
       if (!activeContainer?.isConnected || !activeContainer.classList.contains('active')) return;
       refreshData(activeContainer).catch(() => {});
@@ -367,6 +374,57 @@ function wrapTable(tableMarkup, className = 'table-scroll') {
   return `<div class="${className}">${tableMarkup}</div>`;
 }
 
+const SUGGESTION_BLOCK_META = {
+  A: 'Tighten the CV bullets so they mirror the must-have experience in the job description.',
+  B: 'Rewrite the positioning so the role clearly connects to your long-term direction, not just a generic fit.',
+  C: 'Clarify comp expectations or target roles where the band better matches your range.',
+  D: 'Adjust the narrative to explain why this team, product, or environment is a strong fit for you.',
+  E: 'Address the red flags directly before spending more time on this role.',
+};
+
+function weakestScoreBlock(blocks = {}) {
+  let weakest = null;
+  for (const key of ['A', 'B', 'C', 'D', 'E']) {
+    if (!Number.isFinite(blocks?.[key])) continue;
+    if (!weakest || blocks[key] < weakest.value) weakest = { key, value: blocks[key] };
+  }
+  return weakest;
+}
+
+export function buildAiSuggestion(targetApps = []) {
+  const candidates = targetApps
+    .filter(a => ['applied', 'evaluated'].includes(a.statusNormalized) && a.score > 0)
+    .sort((a, b) => a.score - b.score);
+  const target = candidates[0] || null;
+  if (!target) {
+    return {
+      body: 'No active applications to optimize yet — evaluate a top match and apply to start getting tailored suggestions.',
+      ctaLabel: 'Optimize Now',
+      targetNum: null,
+      targetFilter: null,
+      openScoreModal: false,
+    };
+  }
+
+  const weakest = weakestScoreBlock(target.scoreBlocks);
+  let body = '';
+  if (weakest) {
+    body = `${esc(target.company)} · ${esc(target.role)} is weakest on ${weakest.key} (${weakest.value.toFixed(1)}/5). ${SUGGESTION_BLOCK_META[weakest.key]}`;
+  } else if (target.rationaleExcerpt) {
+    body = `${esc(target.company)} · ${esc(target.role)} needs work: ${esc(target.rationaleExcerpt)}`;
+  } else {
+    body = `${esc(target.company)} · ${esc(target.role)} is your weakest active application at ${target.score.toFixed(1)}/5. Open the score breakdown and tighten the weakest part before you apply again.`;
+  }
+
+  return {
+    body,
+    ctaLabel: 'Open Score Breakdown',
+    targetNum: target.num,
+    targetFilter: target.statusNormalized === 'evaluated' ? 'evaluated' : 'applied',
+    openScoreModal: true,
+  };
+}
+
 // Renders the three-up insight row at the bottom of the Pipeline page —
 // Match Insight, AI Suggestion, and the Add Entry CTA. Content adapts to
 // whatever slice the pipeline is showing.
@@ -388,11 +446,8 @@ function renderInsightCards() {
     ? `Roles matching <strong>"${esc(topRoleWord)}"</strong> are seeing the strongest engagement in your pipeline this week.`
     : `Apply to a few more roles to unlock pattern insights about which titles convert best for you.`;
 
-  const lowestScored = apps.filter(a => a.statusNormalized === 'applied' && a.score > 0)
-    .sort((a, b) => a.score - b.score)[0];
-  const aiSuggestionBody = lowestScored
-    ? `Update your portfolio link in the <strong>"${esc(lowestScored.company)}"</strong> application to lift its score above ${(lowestScored.score + 0.5).toFixed(1)}.`
-    : `No active applications to optimize yet — evaluate a top match and apply to start getting tailored suggestions.`;
+  const aiSuggestion = buildAiSuggestion(apps);
+  const aiSuggestionBody = aiSuggestion.body;
 
   return `
     <section class="pipeline-insights">
@@ -415,7 +470,7 @@ function renderInsightCards() {
           <h3 class="insight-card-title">AI Suggestion</h3>
           <p class="insight-card-body">${aiSuggestionBody}</p>
         </div>
-        <button class="insight-card-cta" id="insight-optimize-btn" type="button">Optimize Now</button>
+        <button class="insight-card-cta" id="insight-optimize-btn" type="button">${esc(aiSuggestion.ctaLabel)}</button>
       </article>
 
       <button class="insight-card is-empty insight-card-button" id="add-entry-btn" type="button">
@@ -643,6 +698,68 @@ function bindFilterPopover(container) {
   }
 }
 
+export async function watchPendingTailorCompletion(item, { timeoutMs = 300_000, intervalMs = 2500 } = {}) {
+  if (!item?.url) return false;
+  const startedAt = Date.now();
+  const normalizedCompany = String(item.company || '').trim().toLowerCase();
+  const normalizedRole = String(item.role || '').trim().toLowerCase();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+    const data = await api.getApplications().catch(() => null);
+    if (!data) continue;
+    const found = (data.applications || []).find((app) => (
+      app.jobUrl === item.url
+      || (
+        String(app.company || '').trim().toLowerCase() === normalizedCompany
+        && String(app.role || '').trim().toLowerCase() === normalizedRole
+      )
+    ));
+    if (!found) continue;
+    apps = data.applications || [];
+    pending = data.pending || [];
+    skipped = data.skipped || [];
+    expired = data.expired || [];
+    currentFilter = 'evaluated';
+    expandedRow = found.num;
+    if (activeContainer) update(activeContainer);
+    toast(`${found.company} moved to Evaluated`);
+    return true;
+  }
+
+  return false;
+}
+
+async function openPendingEditModal(item) {
+  if (!item) return;
+  const result = await confirmModal({
+    title: 'Edit pending role',
+    confirmText: 'Save changes',
+    body: `
+      <div class="form-group"><label class="form-label">Company</label><input class="form-input" data-return="company" type="text" value="${esc(item.company || '')}" autocomplete="off" autofocus></div>
+      <div class="form-group"><label class="form-label">Role</label><input class="form-input" data-return="role" type="text" value="${esc(item.role || '')}" autocomplete="off"></div>
+      <div class="form-group"><label class="form-label">Posted date</label><input class="form-input" data-return="postedAt" type="date" value="${esc(item.postedAt || '')}" autocomplete="off"></div>
+      <div class="form-group"><label class="form-label">Location</label><input class="form-input" data-return="location" type="text" value="${esc(item.location || '')}" autocomplete="off" placeholder="Remote / Los Angeles / Hybrid"></div>
+    `,
+  });
+  if (!result?.data) return;
+  const company = String(result.data.company || '').trim();
+  const role = String(result.data.role || '').trim();
+  const postedAt = String(result.data.postedAt || '').trim();
+  const location = String(result.data.location || '').trim();
+  if (!company || !role) {
+    toast('Company and role are required.', 'error');
+    return;
+  }
+  try {
+    await api.updatePending({ url: item.url, company, role, postedAt, location });
+    toast('Pending role updated');
+    await refreshData(activeContainer);
+  } catch (err) {
+    toast(`Failed to update pending role: ${err.message}`, 'error');
+  }
+}
+
 function renderPending(pageItems = null) {
   if (!pending.length) return `<div class="empty-state"><h3>No pending jobs</h3><p>Run a scan to discover new roles, or paste a job description in the chat.</p></div>`;
 
@@ -671,7 +788,7 @@ function renderPending(pageItems = null) {
   const rows = filtered.map(p => {
     const tone = relevanceClass(p.relevance ?? 0);
     return `
-    <tr data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}">
+    <tr data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" data-posted-at="${esc(p.postedAt || '')}" data-location="${esc(p.location || '')}">
       <td class="col-check"><input type="checkbox" class="pending-check" data-url="${esc(p.url)}" ${selected.has(p.url) ? 'checked' : ''}></td>
       <td class="col-company">
         <span class="cell-company">
@@ -691,6 +808,7 @@ function renderPending(pageItems = null) {
           <button class="btn btn-sm btn-secondary pending-tailor-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Score this role and draft a tailored CV when it is a strong fit">Tailor</button>
           <button class="btn btn-sm btn-soft pending-apply-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Mark as Applied">Applied</button>
           ${overflowMenu([
+            { label: 'Edit role', onClick: () => openPendingEditModal(p) },
             { label: 'Deep Research', onClick: () => runModePrompt('deep', { company: p.company, role: p.role, url: p.url }) },
             { label: 'Outreach',      onClick: () => runModePrompt('outreach', { company: p.company, role: p.role, url: p.url }) },
           ])}
@@ -917,11 +1035,16 @@ function renderTable(items) {
   return html;
 }
 
-function rowActionsForStatus(status) {
+export function rowActionsForStatus(status) {
   if (status === 'evaluated') {
     return [
       { status: 'Applied', label: 'Applied', tone: 'soft', title: 'Mark as Applied' },
       { status: 'SKIP', label: 'Skip', tone: 'outline', title: 'Move to Skip' },
+    ];
+  }
+  if (status === 'skip') {
+    return [
+      { status: 'Evaluated', label: 'Restore', tone: 'soft', title: 'Move back to Evaluated' },
     ];
   }
   if (status === 'applied' || status === 'responded') {
@@ -939,11 +1062,16 @@ function rowActionsForStatus(status) {
   return [];
 }
 
-function batchActionsForFilter(filter) {
+export function batchActionsForFilter(filter) {
   if (filter === 'evaluated') {
     return [
       { status: 'Applied', label: 'Applied', tone: 'soft' },
       { status: 'SKIP', label: 'Skip', tone: 'outline' },
+    ];
+  }
+  if (filter === 'skip') {
+    return [
+      { status: 'Evaluated', label: 'Restore', tone: 'soft' },
     ];
   }
   if (filter === 'applied' || filter === 'responded') {
@@ -1047,11 +1175,72 @@ function overflowMenu(items, triggerClass = '') {
   return `
     <div class="overflow-menu" data-menu-open="false" data-overflow-id="${id}">
       <button class="btn btn-ghost btn-sm overflow-trigger ${triggerClass}" title="More actions">\u22EE</button>
-      <div class="overflow-dropdown">
+      <div class="overflow-dropdown" data-overflow-owner="${id}">
         ${btns}
       </div>
     </div>
   `;
+}
+
+export function positionOverflowDropdown(trigger, dropdown, viewport = window) {
+  if (!trigger || !dropdown) return 'down';
+  const padding = 8;
+  const gap = 4;
+  if (document.body?.appendChild && dropdown.parentElement !== document.body) document.body.appendChild(dropdown);
+  dropdown.style.position = 'fixed';
+  dropdown.style.visibility = 'hidden';
+  dropdown.style.display = 'block';
+
+  const triggerRect = trigger.getBoundingClientRect();
+  const dropdownRect = dropdown.getBoundingClientRect();
+  const openUp = triggerRect.bottom + dropdownRect.height > (viewport.innerHeight - padding)
+    && triggerRect.top - dropdownRect.height >= padding;
+  const top = openUp
+    ? Math.max(padding, triggerRect.top - dropdownRect.height - gap)
+    : Math.min(viewport.innerHeight - dropdownRect.height - padding, triggerRect.bottom + gap);
+  const left = Math.min(
+    viewport.innerWidth - dropdownRect.width - padding,
+    Math.max(padding, triggerRect.right - dropdownRect.width)
+  );
+
+  dropdown.style.top = `${top}px`;
+  dropdown.style.left = `${left}px`;
+  dropdown.style.right = 'auto';
+  dropdown.style.visibility = 'visible';
+  dropdown.dataset.placement = openUp ? 'up' : 'down';
+  return dropdown.dataset.placement;
+}
+
+function hideOverflowDropdown(menu) {
+  if (!menu) return;
+  menu.dataset.menuOpen = 'false';
+  const id = menu.dataset.overflowId;
+  const dropdown = menu.querySelector('.overflow-dropdown')
+    || document.querySelector(`.overflow-dropdown[data-overflow-owner="${id}"]`);
+  if (!dropdown) return;
+  dropdown.style.display = 'none';
+  dropdown.style.position = '';
+  dropdown.style.top = '';
+  dropdown.style.left = '';
+  dropdown.style.right = '';
+  dropdown.style.visibility = '';
+  delete dropdown.dataset.placement;
+}
+
+function closeOverflowMenus(exceptMenu = null) {
+  document.querySelectorAll('.overflow-menu').forEach((menu) => {
+    if (menu === exceptMenu) return;
+    hideOverflowDropdown(menu);
+  });
+}
+
+function removeDetachedOverflowDropdowns() {
+  document.querySelectorAll('.overflow-dropdown[data-overflow-owner]').forEach((dropdown) => {
+    const owner = dropdown.dataset.overflowOwner;
+    if (dropdown.parentElement === document.body || !document.querySelector(`.overflow-menu[data-overflow-id="${owner}"]`)) {
+      dropdown.remove();
+    }
+  });
 }
 
 function attachOverflowListeners(container) {
@@ -1064,18 +1253,16 @@ function attachOverflowListeners(container) {
     trigger?.addEventListener('click', (e) => {
       e.stopPropagation();
       const isOpen = menu.dataset.menuOpen === 'true';
-      // Close all menus first
-      document.querySelectorAll('.overflow-menu').forEach(m => {
-        m.dataset.menuOpen = 'false';
-        m.querySelector('.overflow-dropdown').style.display = 'none';
-      });
+      closeOverflowMenus(menu);
       if (!isOpen) {
         menu.dataset.menuOpen = 'true';
-        dropdown.style.display = 'block';
+        positionOverflowDropdown(trigger, dropdown);
+      } else {
+        hideOverflowDropdown(menu);
       }
     });
 
-    dropdown.querySelectorAll('.overflow-item').forEach(item => {
+    dropdown?.querySelectorAll('.overflow-item').forEach(item => {
       item.addEventListener('click', (e) => {
         e.stopPropagation();
         const idx = parseInt(item.dataset.overflowIdx, 10);
@@ -1083,18 +1270,14 @@ function attachOverflowListeners(container) {
         if (cfg?.onClick) {
           try { cfg.onClick(e); } catch (err) { console.error('overflow click failed', err); }
         }
-        menu.dataset.menuOpen = 'false';
-        dropdown.style.display = 'none';
+        hideOverflowDropdown(menu);
       });
     });
   });
 
   // Close menus on outside click
   document.addEventListener('click', () => {
-    document.querySelectorAll('.overflow-menu').forEach(m => {
-      m.dataset.menuOpen = 'false';
-      m.querySelector('.overflow-dropdown').style.display = 'none';
-    });
+    closeOverflowMenus();
   });
 }
 
@@ -1132,6 +1315,8 @@ export async function render(container) {
 }
 
 function update(container) {
+  closeOverflowMenus();
+  removeDetachedOverflowDropdowns();
   const isPending = currentFilter === 'pending';
   // Build the full filtered + sorted list, then slice into the active page.
   // Pending uses a different data source (renderPending pulls from `pending`
@@ -1156,6 +1341,7 @@ function update(container) {
   const totalCount = apps.length + pending.length;
 
   const scanBanner = renderScanProgress(scanProgress);
+  const pendingRefreshBanner = renderScanProgress(pendingRefreshProgressFromState(pendingRefreshState));
 
   const showRange = totalRows === 0
     ? '0 of 0'
@@ -1206,6 +1392,7 @@ function update(container) {
       </header>
 
       <div class="scan-progress-slot">${scanBanner}</div>
+      <div class="scan-progress-slot">${pendingRefreshBanner}</div>
 
       <section class="pipeline-toolbar${filterPopoverOpen ? ' has-popover' : ''}">
         <div class="pipeline-toolbar-row">
@@ -1225,12 +1412,12 @@ function update(container) {
             <span>Top matches only (4+)</span>
           </label>
           <div style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-sm btn-primary" id="quick-scan-btn" title="ATS-only quick scan. Direct providers only; no branded-page scraping."${scanProgress?.visible ? ' disabled' : ''}>
+            <button class="btn btn-sm btn-primary" id="quick-scan-btn" title="ATS-only quick scan. Direct providers only; no branded-page scraping."${scanProgress?.visible || pendingRefreshState?.active ? ' disabled' : ''}>
               <svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor" aria-hidden="true"><path d="M7.5 0L0 7.5h4L3.5 14 11 6.5H7L7.5 0z"/></svg>
               ${scanProgress?.visible ? 'Scanning' : 'Quick Scan'}
             </button>
-            <button class="btn btn-sm btn-secondary" id="deep-scan-btn" title="Runs the same quick scan first, then broader WebSearch + JobSpy discovery."${scanProgress?.visible ? ' disabled' : ''}>Deep Scan</button>
-            <button class="btn-icon" id="refresh-btn" title="${isPending && pending.length > 0 ? 'Refresh + verify each pending posting is still live' : 'Refresh'}"${scanProgress?.visible ? ' disabled' : ''}>
+            <button class="btn btn-sm btn-secondary" id="deep-scan-btn" title="Runs the same quick scan first, then broader WebSearch + JobSpy discovery."${scanProgress?.visible || pendingRefreshState?.active ? ' disabled' : ''}>Deep Scan</button>
+            <button class="btn-icon" id="refresh-btn" title="${isPending && pending.length > 0 ? 'Refresh + verify each pending posting is still live' : 'Refresh'}"${scanProgress?.visible || pendingRefreshState?.active ? ' disabled' : ''}>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 6a4.5 4.5 0 1 1-1.3-3.18"/><polyline points="11.5 1 11.5 4 8.5 4"/></svg>
             </button>
           </div>
@@ -1516,11 +1703,17 @@ function update(container) {
   // now; tailoring also drafts a CV downstream when the score is strong.
   container.querySelectorAll('.pending-tailor-btn').forEach(btn => {
     btn.onclick = async () => {
-      const doTailor = () => runModePrompt('evaluate', {
+      const pendingItem = {
         url: btn.dataset.url,
         company: btn.dataset.company,
         role: btn.dataset.role,
-      });
+      };
+      const doTailor = async () => {
+        const started = await runModePrompt('evaluate', pendingItem);
+        if (started && !isAlreadyEvaluated(pendingItem.company, pendingItem.role)) {
+          watchPendingTailorCompletion(pendingItem).catch(() => {});
+        }
+      };
 
       if (isAlreadyEvaluated(btn.dataset.company, btn.dataset.role)) {
         const ok = await confirmModal({
@@ -1783,20 +1976,23 @@ function update(container) {
     };
   }
 
-  // Insight-card CTA: jump to the lowest-scoring active application so the
-  // user can act on the AI suggestion immediately.
+  // Insight-card CTA: open the most actionable weak application directly in
+  // the score breakdown instead of just expanding a row with no next step.
   const optimizeBtn = container.querySelector('#insight-optimize-btn');
   if (optimizeBtn) {
     optimizeBtn.onclick = () => {
-      const target = apps.filter(a => a.statusNormalized === 'applied' && a.score > 0)
-        .sort((a, b) => a.score - b.score)[0];
-      if (target) {
-        currentFilter = 'applied';
-        expandedRow = target.num;
-        update(container);
-      } else {
+      const suggestion = buildAiSuggestion(apps);
+      const target = suggestion.targetNum != null
+        ? apps.find(a => a.num === suggestion.targetNum)
+        : null;
+      if (!target) {
         toast('No active applications to optimize yet.');
+        return;
       }
+      currentFilter = suggestion.targetFilter || target.statusNormalized || 'applied';
+      expandedRow = target.num;
+      update(container);
+      if (suggestion.openScoreModal) openScoreModal(target, { kind: 'evaluated' });
     };
   }
 }

@@ -1,0 +1,19 @@
+name: Enforce main from dev
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  guard:
+    name: Only allow dev -> main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate head branch
+        run: |
+          echo "Base branch: ${{ github.base_ref }}"
+          echo "Head branch: ${{ github.head_ref }}"
+          if [ "${{ github.head_ref }}" != "dev" ]; then
+            echo "Only dev -> main pull requests are allowed."
+            exit 1
+          fi

@@ -8,6 +8,7 @@ Where to look depending on what you need.
 2. [design/ARCHITECTURE.md](design/ARCHITECTURE.md) - current system snapshot
 3. [guides/CUSTOMIZATION.md](guides/CUSTOMIZATION.md) - profile, portals, and template customization
 4. [guides/SCRIPTS.md](guides/SCRIPTS.md) - npm scripts and test commands
+5. [guides/DEVELOPMENT_WORKFLOW.md](guides/DEVELOPMENT_WORKFLOW.md) - dev branch workflow, CLI policy consistency, and dev-to-main promotion
 
 ## By directory
 
@@ -26,6 +27,7 @@ Where to look depending on what you need.
 | [SETUP.md](guides/SETUP.md) | Global CLI install and source-tree development install |
 | [CUSTOMIZATION.md](guides/CUSTOMIZATION.md) | Profile, archetype table, portals, CV template, and hooks |
 | [SCRIPTS.md](guides/SCRIPTS.md) | Every npm script and test suite |
+| [DEVELOPMENT_WORKFLOW.md](guides/DEVELOPMENT_WORKFLOW.md) | Branching model, CLI policy contract, and `dev` to `main` release flow |
 
 ## Conventions
 

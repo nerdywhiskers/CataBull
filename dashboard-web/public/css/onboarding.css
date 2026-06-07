@@ -101,12 +101,13 @@
   flex-wrap: wrap;
 }
 
-/* Anchored to the right edge of the progress bar so the step pills can
-   stay perfectly centered as a group regardless of how many steps are in
-   the wizard. */
+/* Left/right utility actions on the fixed progress bar. Keep the step pills
+   centered while exposing a tiny import escape hatch on the welcome screen
+   and the destructive reset action on every screen. */
+.onboarding-import-btn,
+.onboarding-exit-btn,
 .onboarding-reset-btn {
   position: absolute;
-  right: 16px;
   top: 50%;
   transform: translateY(-50%);
   appearance: none;
@@ -120,17 +121,46 @@
   border-radius: 4px;
   transition: color var(--transition), background var(--transition);
 }
+
+.onboarding-import-btn {
+  left: 16px;
+}
+.onboarding-exit-btn {
+  left: 168px;
+}
+.onboarding-import-btn:hover {
+  color: var(--blue);
+  background: rgba(137, 180, 250, 0.10);
+}
+.onboarding-exit-btn:hover {
+  color: var(--yellow);
+  background: rgba(249, 226, 175, 0.10);
+}
+
+.onboarding-reset-btn {
+  right: 16px;
+}
 .onboarding-reset-btn:hover {
   color: var(--red);
   background: rgba(243, 139, 168, 0.10);
 }
 
 @media (max-width: 720px) {
-  /* On narrow screens fall back to inline layout so the reset button
-     doesn't overlap the wrapped step pills. */
+  /* On narrow screens fall back to inline layout so the utility buttons
+     don't overlap the wrapped step pills. */
+  .onboarding-import-btn,
+  .onboarding-exit-btn,
   .onboarding-reset-btn {
     position: static;
     transform: none;
+  }
+  .onboarding-import-btn {
+    margin-right: 0;
+  }
+  .onboarding-exit-btn {
+    margin-right: auto;
+  }
+  .onboarding-reset-btn {
     margin-left: auto;
   }
 }
