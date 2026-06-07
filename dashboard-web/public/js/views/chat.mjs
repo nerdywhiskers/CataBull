@@ -150,6 +150,13 @@ function ensureSessionId(name) {
   return agentSessions[name];
 }
 
+export function shouldContinueAgentSession({ supportsContinuation, hasSession }) {
+  // Sticky-session agents create a named session on turn one, then must resume
+  // that same id on follow-up turns. Resume-last agents only need a boolean
+  // "seen before" marker. In both cases, an existing marker means continue.
+  return Boolean(supportsContinuation && hasSession);
+}
+
 async function loadAgents() {
   try {
     const [agentsRes, profileRes] = await Promise.all([
@@ -558,7 +565,11 @@ export async function runPrompt(text, {
     // omitting continuation.
     const supportsContinuation = agentSupportsContinuation(currentAgent);
     const usesStickySession = currentAgent === 'claude' || currentAgent === 'openclaw';
-    const continueSession = supportsContinuation && !usesStickySession && Boolean(agentSessions[currentAgent]);
+    const hadSession = Boolean(agentSessions[currentAgent]);
+    const continueSession = shouldContinueAgentSession({
+      supportsContinuation,
+      hasSession: hadSession,
+    });
 
     // Run the agent with the current session-id. On session-conflict
     // errors (another claude process holding the same uuid — typically
