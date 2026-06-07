@@ -105,6 +105,7 @@
    centered while exposing a tiny import escape hatch on the welcome screen
    and the destructive reset action on every screen. */
 .onboarding-import-btn,
+.onboarding-exit-btn,
 .onboarding-reset-btn {
   position: absolute;
   top: 50%;
@@ -124,9 +125,16 @@
 .onboarding-import-btn {
   left: 16px;
 }
+.onboarding-exit-btn {
+  left: 168px;
+}
 .onboarding-import-btn:hover {
   color: var(--blue);
   background: rgba(137, 180, 250, 0.10);
+}
+.onboarding-exit-btn:hover {
+  color: var(--yellow);
+  background: rgba(249, 226, 175, 0.10);
 }
 
 .onboarding-reset-btn {
@@ -141,11 +149,15 @@
   /* On narrow screens fall back to inline layout so the utility buttons
      don't overlap the wrapped step pills. */
   .onboarding-import-btn,
+  .onboarding-exit-btn,
   .onboarding-reset-btn {
     position: static;
     transform: none;
   }
   .onboarding-import-btn {
+    margin-right: 0;
+  }
+  .onboarding-exit-btn {
     margin-right: auto;
   }
   .onboarding-reset-btn {

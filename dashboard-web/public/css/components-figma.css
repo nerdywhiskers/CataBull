@@ -747,7 +747,16 @@ input[type="checkbox"]:checked::after {
 .pipeline-shell {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
+}
+.pipeline-shell > .scan-progress-slot:empty {
+  display: none;
+}
+.pipeline-shell > .scan-progress-slot {
+  margin: 0;
+}
+.pipeline-shell > .scan-progress-slot + .scan-progress-slot {
+  margin-top: -12px;
 }
 
 .pipeline-header {

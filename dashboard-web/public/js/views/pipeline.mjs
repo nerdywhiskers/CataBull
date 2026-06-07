@@ -1175,7 +1175,7 @@ function overflowMenu(items, triggerClass = '') {
   return `
     <div class="overflow-menu" data-menu-open="false" data-overflow-id="${id}">
       <button class="btn btn-ghost btn-sm overflow-trigger ${triggerClass}" title="More actions">\u22EE</button>
-      <div class="overflow-dropdown">
+      <div class="overflow-dropdown" data-overflow-owner="${id}">
         ${btns}
       </div>
     </div>
@@ -1186,6 +1186,7 @@ export function positionOverflowDropdown(trigger, dropdown, viewport = window) {
   if (!trigger || !dropdown) return 'down';
   const padding = 8;
   const gap = 4;
+  if (document.body?.appendChild && dropdown.parentElement !== document.body) document.body.appendChild(dropdown);
   dropdown.style.position = 'fixed';
   dropdown.style.visibility = 'hidden';
   dropdown.style.display = 'block';
@@ -1213,7 +1214,9 @@ export function positionOverflowDropdown(trigger, dropdown, viewport = window) {
 function hideOverflowDropdown(menu) {
   if (!menu) return;
   menu.dataset.menuOpen = 'false';
-  const dropdown = menu.querySelector('.overflow-dropdown');
+  const id = menu.dataset.overflowId;
+  const dropdown = menu.querySelector('.overflow-dropdown')
+    || document.querySelector(`.overflow-dropdown[data-overflow-owner="${id}"]`);
   if (!dropdown) return;
   dropdown.style.display = 'none';
   dropdown.style.position = '';
@@ -1228,6 +1231,15 @@ function closeOverflowMenus(exceptMenu = null) {
   document.querySelectorAll('.overflow-menu').forEach((menu) => {
     if (menu === exceptMenu) return;
     hideOverflowDropdown(menu);
+  });
+}
+
+function removeDetachedOverflowDropdowns() {
+  document.querySelectorAll('.overflow-dropdown[data-overflow-owner]').forEach((dropdown) => {
+    const owner = dropdown.dataset.overflowOwner;
+    if (dropdown.parentElement === document.body || !document.querySelector(`.overflow-menu[data-overflow-id="${owner}"]`)) {
+      dropdown.remove();
+    }
   });
 }
 
@@ -1250,7 +1262,7 @@ function attachOverflowListeners(container) {
       }
     });
 
-    dropdown.querySelectorAll('.overflow-item').forEach(item => {
+    dropdown?.querySelectorAll('.overflow-item').forEach(item => {
       item.addEventListener('click', (e) => {
         e.stopPropagation();
         const idx = parseInt(item.dataset.overflowIdx, 10);
@@ -1303,6 +1315,8 @@ export async function render(container) {
 }
 
 function update(container) {
+  closeOverflowMenus();
+  removeDetachedOverflowDropdowns();
   const isPending = currentFilter === 'pending';
   // Build the full filtered + sorted list, then slice into the active page.
   // Pending uses a different data source (renderPending pulls from `pending`
