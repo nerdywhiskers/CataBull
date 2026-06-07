@@ -261,7 +261,7 @@ globalThis.localStorage = {
   removeItem() {},
 };
 
-const { shouldContinueAgentSession } = await import(
+const { formatSessionRecordForMenu, shouldContinueAgentSession, textContainsPermissionPrompt } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web/public/js/views/chat.mjs')).href
 );
 
@@ -278,7 +278,44 @@ assert(
   'agents without continuation support never request continuation',
 );
 
-console.log('\n9. Chat transcript persistence sanitization');
+console.log('\n9. Approval prompt detection');
+
+assert(
+  textContainsPermissionPrompt('Permission request: run command?'),
+  'detects explicit permission request text',
+);
+assert(
+  textContainsPermissionPrompt('Allow this command? (y/n)'),
+  'detects y/n approval prompts',
+);
+assert(
+  textContainsPermissionPrompt('Approval required before running this command. Proceed?'),
+  'detects approval/proceed prompt text',
+);
+assert(
+  !textContainsPermissionPrompt('plain assistant output with no prompt'),
+  'ignores normal assistant output',
+);
+
+console.log('\n10. Session menu record formatting');
+
+const menuRecord = formatSessionRecordForMenu({
+  id: 'record-1',
+  agent: 'claude',
+  title: 'Evaluate this role',
+  updatedAt: 1_000_000,
+}, 1_000_000 + 2 * 60_000);
+assert(
+  JSON.stringify(menuRecord) === JSON.stringify({
+    id: 'record-1',
+    title: 'Evaluate this role',
+    agent: 'claude',
+    updatedLabel: '2m ago',
+  }),
+  'formats session menu records with relative age',
+);
+
+console.log('\n11. Chat transcript persistence sanitization');
 
 const chatUi = await import(
   pathToFileURL(join(ROOT, 'dashboard-web/public/js/views/chatui.mjs')).href
