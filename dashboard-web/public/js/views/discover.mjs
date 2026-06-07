@@ -403,7 +403,7 @@ function bindEvents(container) {
     try {
       await refreshPendingPostings(container, { force: true, source: 'manual' });
     } finally {
-      // rerender() replaces the node; nothing to re-enable.
+      if (btn.isConnected) btn.disabled = false;
     }
   });
 
