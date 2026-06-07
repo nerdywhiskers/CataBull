@@ -3,8 +3,10 @@
 import {
   __resetPendingRefreshState,
   DEFAULT_PENDING_REFRESH_INTERVAL_MS,
+  getPendingRefreshState,
   runPendingRefresh,
   shouldRunPendingRefresh,
+  subscribePendingRefresh,
 } from '../dashboard-web/public/js/lib/pending-refresh.mjs';
 
 const VERBOSE = process.argv.includes('--verbose');
@@ -35,9 +37,14 @@ __resetPendingRefreshState();
 let checks = 0;
 let reloads = 0;
 let rerenders = 0;
+const statusEvents = [];
+const unsubscribe = subscribePendingRefresh((state) => {
+  statusEvents.push({ active: state.active, pendingCount: state.pendingCount, source: state.source, error: state.error });
+});
 const result = await runPendingRefresh({
   pendingCount: 3,
   now: 100,
+  source: 'manual',
   checkLivenessAll: async () => {
     checks++;
     return { checked: 3, expired: 1 };
@@ -49,6 +56,9 @@ assert(result.checked === 3 && result.expired === 1, 'returns liveness summary')
 assert(checks === 1, 'calls liveness once');
 assert(reloads === 1, 'reload callback runs after liveness');
 assert(rerenders === 1, 'rerender callback runs after reload');
+assert(statusEvents.some((event) => event.active === true && event.pendingCount === 3 && event.source === 'manual'), 'status publishes active manual refresh state');
+assert(getPendingRefreshState().active === false, 'status resets to inactive after completion');
+unsubscribe();
 
 const throttled = await runPendingRefresh({
   pendingCount: 3,
