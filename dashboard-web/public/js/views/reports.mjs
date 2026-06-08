@@ -73,6 +73,22 @@ function renderArtifacts(artifacts) {
   `;
 }
 
+function renderTailorBundle(tailorBundle) {
+  if (!tailorBundle?.paths) return '';
+  const links = [
+    tailorBundle.paths.cv ? `<a class="btn btn-sm" href="${api.tailorFileUrl(tailorBundle.paths.cv)}" target="_blank" style="text-decoration:none">Tailored CV</a>` : '',
+    tailorBundle.paths.coverLetter ? `<a class="btn btn-sm" href="${api.tailorFileUrl(tailorBundle.paths.coverLetter)}" target="_blank" style="text-decoration:none">Cover letter</a>` : '',
+    tailorBundle.paths.qa ? `<a class="btn btn-sm" href="${api.tailorFileUrl(tailorBundle.paths.qa)}" target="_blank" style="text-decoration:none">Application Q&A</a>` : '',
+  ].filter(Boolean).join('');
+  if (!links) return '';
+  return `
+    <div class="card" style="margin-bottom:16px;background:var(--surface0)">
+      <h3 style="font-size:13px;font-weight:600;color:var(--subtext);margin-bottom:10px">Tailor bundle</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">${links}</div>
+    </div>
+  `;
+}
+
 async function renderReport(container, filename) {
   container.innerHTML = '<div class="empty-state"><p>Loading report...</p></div>';
   try {
@@ -82,6 +98,7 @@ async function renderReport(container, filename) {
         <button class="btn btn-sm" id="back-to-reports">\u2190 Back</button>
         <span style="font-size:13px;color:var(--subtext)">${filename}</span>
       </div>
+      ${renderTailorBundle(data.tailorBundle)}
       ${renderArtifacts(data.artifacts)}
       <div class="card markdown-body" style="padding:24px 32px">
         ${renderMarkdown(data.raw)}

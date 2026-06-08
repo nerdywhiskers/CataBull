@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, existsSync, statSync } from 'fs';
 import { join, extname } from 'path';
-import { loadReportSummary } from '../lib/parsers.mjs';
+import { loadReportSummary, parseApplications } from '../lib/parsers.mjs';
 
 // Find files in output/ that look like they belong to this report. We match
 // by company slug (the middle segment of the report filename), looking for
@@ -76,6 +76,7 @@ export default async function (app) {
 
     const raw = readFileSync(path, 'utf-8');
     const artifacts = findArtifactsForReport(root, filename);
-    return { raw, filename, artifacts };
+    const reportApp = parseApplications(root).find((app) => app.reportPath === `reports/${filename}`);
+    return { raw, filename, artifacts, tailorBundle: reportApp?.tailorBundle || null };
   });
 }

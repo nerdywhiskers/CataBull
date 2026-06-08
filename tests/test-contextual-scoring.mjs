@@ -27,6 +27,11 @@ const {
   extractJsonObject,
   normalizeContextualScores,
 } = await import('../lib/contextual-scoring.mjs');
+const {
+  applyContextualScoreResults,
+  mergePendingContextualState,
+  resetPendingToHeuristicScores,
+} = await import('../dashboard-web/public/js/lib/pending-contextual-scoring.mjs');
 
 console.log('\nlib/contextual-scoring.mjs');
 
@@ -77,6 +82,24 @@ const many = Array.from({ length: MAX_CONTEXTUAL_POSTINGS + 5 }, (_, i) => ({ ur
 const cappedPrompt = buildContextualScoringPrompt({ postings: many });
 assert(cappedPrompt.includes(`"id": "u${MAX_CONTEXTUAL_POSTINGS - 1}"`), 'includes final capped posting');
 assert(!cappedPrompt.includes(`"id": "u${MAX_CONTEXTUAL_POSTINGS}"`), 'drops postings beyond cap');
+
+const merged = mergePendingContextualState(
+  [{ url: 'https://jobs.example/a', relevance: 3.5, heuristicRelevance: 3.5 }],
+  [{ url: 'https://jobs.example/a', relevance: 4.4, contextualScore: 4.4, contextualScoreSource: 'llm', contextualRationale: 'Strong fit', contextualSignals: ['scope'], heuristicRelevance: 3.5 }]
+);
+assert(merged[0].relevance === 4.4, 'merge preserves prior LLM score for same pending URL');
+assert(merged[0].contextualScoreSource === 'llm', 'merge preserves LLM score source');
+
+const applied = applyContextualScoreResults(
+  [{ url: 'https://jobs.example/a', relevance: 3.5, heuristicRelevance: 3.5, contextualScoring: true }],
+  [{ id: 'https://jobs.example/a', score: 4.6, rationale: 'High fit', signals: ['leadership'] }]
+);
+assert(applied[0].relevance === 4.6, 'applyContextualScoreResults replaces relevance with LLM score');
+assert(applied[0].contextualScoring === false, 'applyContextualScoreResults clears loading state');
+
+const reset = resetPendingToHeuristicScores([{ relevance: 4.6, heuristicRelevance: 3.5, contextualScore: 4.6, contextualScoreSource: 'llm' }]);
+assert(reset[0].relevance === 3.5, 'resetPendingToHeuristicScores restores heuristic score');
+assert(reset[0].contextualScoreSource === undefined, 'resetPendingToHeuristicScores clears LLM source');
 
 console.log(`\n${'-'.repeat(40)}`);
 console.log(`Passed: ${passed} / ${total}`);

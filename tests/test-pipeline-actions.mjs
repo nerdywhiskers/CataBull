@@ -47,8 +47,11 @@ globalThis.localStorage = { getItem: () => null, setItem: noop, removeItem: noop
 
 console.log('\nPipeline action mappings');
 
-const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown } = await import(
+const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'pipeline.mjs')).href
+);
+const { shouldAutoExpireLivenessResult } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web', 'routes', 'actions.mjs')).href
 );
 const { api } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'api.mjs')).href
@@ -113,6 +116,107 @@ const upPlacement = positionOverflowDropdown(upTrigger, upDropdown, { innerWidth
 assert(upPlacement === 'up', 'overflow dropdown opens upward near the bottom of the viewport');
 assert(upDropdown.style.top === '616px', 'upward overflow dropdown sits above the trigger');
 assert(upDropdown.dataset.placement === 'up', 'overflow dropdown records upward placement for styling');
+
+console.log('\nPending liveness auto-expiry policy');
+
+assert(
+  shouldWarnLowTailorScore(2.9) === true,
+  'tailor flow warns when score is below 3.0'
+);
+assert(
+  shouldWarnLowTailorScore(3.0) === false,
+  'tailor flow does not warn at the 3.0 threshold'
+);
+assert(
+  shouldEnableTailorArtifacts({ statusNormalized: 'evaluated', score: 3.1 }) === true,
+  'evaluated roles above 3.0 unlock tailor artifacts'
+);
+assert(
+  shouldEnableTailorArtifacts({ statusNormalized: 'evaluated', score: 3.0 }) === false,
+  'evaluated roles at exactly 3.0 stay below the tailor artifact threshold'
+);
+assert(
+  shouldEnableTailorArtifacts({ statusNormalized: 'applied', score: 4.8 }) === false,
+  'tailor artifacts stay scoped to evaluated roles'
+);
+assert(
+  shouldShowTailorArtifactLinks({ statusNormalized: 'evaluated', score: 3.8, tailorBundle: { paths: { cv: 'output/tailor-bundles/x/cv.md' } } }) === true,
+  'evaluated roles above 3 show tailored artifact links when bundle files exist'
+);
+assert(
+  shouldShowTailorArtifactLinks({ statusNormalized: 'evaluated', score: 3.8, tailorBundle: null }) === false,
+  'tailored artifact links stay hidden when no bundle exists'
+);
+assert(
+  shouldShowTailorArtifactLinks({ statusNormalized: 'evaluated', score: 2.8, tailorBundle: { paths: { cv: 'output/tailor-bundles/x/cv.md' } } }) === false,
+  'tailored artifact links stay hidden below the >3 threshold even if files exist'
+);
+const llmTailorDecision = pendingTailorDecision({
+  url: 'https://jobs.example/llm',
+  relevance: 2.7,
+  contextualScore: 3.8,
+  contextualScoreSource: 'llm',
+});
+assert(llmTailorDecision.score === 3.8, 'pending tailor prefers the LLM score when present');
+assert(llmTailorDecision.scoreSource === 'llm', 'pending tailor decision marks LLM-backed scores');
+assert(llmTailorDecision.shouldWarn === false, 'pending tailor does not warn when the LLM score clears the threshold');
+
+const heuristicTailorDecision = pendingTailorDecision({
+  url: 'https://jobs.example/heuristic',
+  relevance: 2.6,
+});
+assert(heuristicTailorDecision.score === 2.6, 'pending tailor falls back to heuristic relevance when no LLM score exists');
+assert(heuristicTailorDecision.scoreSource === 'heuristic', 'pending tailor decision labels heuristic fallback');
+assert(heuristicTailorDecision.shouldWarn === true, 'pending tailor warns on low heuristic fallback scores');
+
+assert(
+  pendingNeedsContextualScore({ url: 'https://jobs.example/a', contextualScoreSource: undefined }) === true,
+  'pending roles without LLM score still need contextual scoring'
+);
+assert(
+  pendingNeedsContextualScore({ url: 'https://jobs.example/a', contextualScoreSource: 'llm' }) === false,
+  'pending roles with LLM score do not get auto-rescored on refresh'
+);
+assert(
+  pendingNeedsContextualScore({ url: 'https://jobs.example/a', contextualScoreSource: 'llm' }, { force: true }) === true,
+  'forced rescoring can override prior LLM score state'
+);
+
+const loadingScoreButton = renderPendingScoreButton({ url: 'https://jobs.example/a', contextualScoring: true });
+assert(loadingScoreButton.includes('score-ring-loading'), 'pending score button renders loading state while contextual scoring runs');
+
+assert(
+  shouldAutoExpireLivenessResult(
+    { status: 'expired', detail: 'pattern matched: filled' },
+    { postedAt: '2026-01-01' },
+    new Date('2026-06-08T00:00:00Z')
+  ) === true,
+  'explicit expired results always auto-expire'
+);
+assert(
+  shouldAutoExpireLivenessResult(
+    { status: 'uncertain', detail: 'HTTP 403 · barrier: captcha' },
+    { postedAt: '2026-04-01' },
+    new Date('2026-06-08T00:00:00Z')
+  ) === true,
+  'old barrier-based uncertain results age out'
+);
+assert(
+  shouldAutoExpireLivenessResult(
+    { status: 'uncertain', detail: 'HTTP 403 · barrier: captcha' },
+    { postedAt: '2026-05-25' },
+    new Date('2026-06-08T00:00:00Z')
+  ) === false,
+  'fresh barrier-based uncertain results stay pending'
+);
+assert(
+  shouldAutoExpireLivenessResult(
+    { status: 'uncertain', detail: 'content present but no explicit closed signal found' },
+    { postedAt: '2026-01-01' },
+    new Date('2026-06-08T00:00:00Z')
+  ) === false,
+  'generic uncertain results do not auto-expire'
+);
 
 console.log('\nPending tailor watcher');
 

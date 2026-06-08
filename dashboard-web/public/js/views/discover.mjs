@@ -24,6 +24,13 @@ import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
 import { DEFAULT_PENDING_REFRESH_INTERVAL_MS, getPendingRefreshState, runPendingRefresh, subscribePendingRefresh } from '../lib/pending-refresh.mjs';
 import {
+  applyContextualScoreResults,
+  contextualScoringEnabled,
+  mergePendingContextualState,
+  resetPendingToHeuristicScores,
+  setContextualScoringEnabled,
+} from '../lib/pending-contextual-scoring.mjs';
+import {
   buildDiscoverFilter,
   groupPostingsByCompany,
   sortByRelevance,
@@ -51,7 +58,6 @@ let contextualScoringError = '';
 // `catabull-scan-limit` localStorage key stays shared with portals.mjs
 // so the per-company Scan button there honors the same cap.
 const SCAN_LIMIT_KEY = 'catabull-scan-limit';
-const CONTEXTUAL_SCORING_KEY = 'catabull-contextual-scoring';
 const SCAN_LIMIT_OPTIONS = [
   { value: '5', label: '5' },
   { value: '10', label: '10' },
@@ -135,14 +141,6 @@ function timeAgo(dateStr, future = false) {
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function contextualScoringEnabled() {
-  return localStorage.getItem(CONTEXTUAL_SCORING_KEY) !== '0';
-}
-
-function setContextualScoringEnabled(enabled) {
-  localStorage.setItem(CONTEXTUAL_SCORING_KEY, enabled ? '1' : '0');
 }
 
 function scoreValue(p) {
@@ -591,15 +589,7 @@ function bindEvents(container) {
     if (!enabled) {
       contextualScoringRun++;
       contextualScoringActive = false;
-      pending = pending.map((p) => ({
-        ...p,
-        relevance: Number.isFinite(p.heuristicRelevance) ? p.heuristicRelevance : p.relevance,
-        contextualScoring: false,
-        contextualScore: undefined,
-        contextualRationale: undefined,
-        contextualSignals: undefined,
-        contextualScoreSource: undefined,
-      }));
+      pending = resetPendingToHeuristicScores(pending);
       rerender(container);
       return;
     }
@@ -970,7 +960,8 @@ async function loadData() {
       api.getPortals(),
       api.getScanStatus().catch(() => null),
     ]);
-    pending = Array.isArray(appsResp.pending) ? appsResp.pending : [];
+    const nextPending = Array.isArray(appsResp.pending) ? appsResp.pending : [];
+    pending = mergePendingContextualState(nextPending, pending);
     portals = portalsResp?.portals || portalsResp || null;
     scanStatus = statusResp || null;
   } catch (err) {
@@ -997,21 +988,7 @@ async function startContextualScoring(container) {
   try {
     const result = await api.getContextualScores(urls);
     if (runId !== contextualScoringRun) return;
-    const byId = new Map((result.scores || []).map((s) => [s.id, s]));
-    pending = pending.map((p) => {
-      const score = byId.get(p.url);
-      if (!score) return { ...p, contextualScoring: false };
-      return {
-        ...p,
-        heuristicRelevance: Number.isFinite(p.heuristicRelevance) ? p.heuristicRelevance : p.relevance,
-        relevance: score.score,
-        contextualScore: score.score,
-        contextualRationale: score.rationale || '',
-        contextualSignals: score.signals || [],
-        contextualScoring: false,
-        contextualScoreSource: 'llm',
-      };
-    });
+    pending = applyContextualScoreResults(pending, result.scores || []);
   } catch (err) {
     if (runId !== contextualScoringRun) return;
     contextualScoringError = err.message || String(err);

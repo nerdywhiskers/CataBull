@@ -57,6 +57,15 @@ const filledRole = classifyLiveness({
 });
 assert(filledRole.result === 'expired', 'filled-position text expires posting even if stale apply UI remains');
 
+const filledRoleVariant = classifyLiveness({
+  status: 200,
+  finalUrl: 'https://company.com/jobs/filled-role-2',
+  bodyText: 'This role is filled and no longer taking applicants.',
+  titleText: 'Careers',
+  applyControls: ['Apply now'],
+});
+assert(filledRoleVariant.result === 'expired', 'filled-role variants also expire posting');
+
 const expiredPosting = classifyLiveness({
   status: 200,
   finalUrl: 'https://company.com/jobs/expired-role',
