@@ -43,11 +43,15 @@ let groupBy = 'flat';            // 'company' | 'flat' — flat by default per U
 let activeContainer = null;
 let pendingRefreshPoller = null;
 let pendingRefreshState = getPendingRefreshState();
+let contextualScoringRun = 0;
+let contextualScoringActive = false;
+let contextualScoringError = '';
 
 // Scan controls moved here from the Portals page (2026-05-16). The
 // `catabull-scan-limit` localStorage key stays shared with portals.mjs
 // so the per-company Scan button there honors the same cap.
 const SCAN_LIMIT_KEY = 'catabull-scan-limit';
+const CONTEXTUAL_SCORING_KEY = 'catabull-contextual-scoring';
 const SCAN_LIMIT_OPTIONS = [
   { value: '5', label: '5' },
   { value: '10', label: '10' },
@@ -133,6 +137,19 @@ function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function contextualScoringEnabled() {
+  return localStorage.getItem(CONTEXTUAL_SCORING_KEY) !== '0';
+}
+
+function setContextualScoringEnabled(enabled) {
+  localStorage.setItem(CONTEXTUAL_SCORING_KEY, enabled ? '1' : '0');
+}
+
+function scoreValue(p) {
+  if (Number.isFinite(p?.contextualScore)) return p.contextualScore;
+  return Number.isFinite(p?.relevance) ? p.relevance : 0;
+}
+
 function normalizeTitleFilter(filter = {}) {
   const unique = (items) => [...new Set((Array.isArray(items) ? items : [])
     .map((item) => String(item || '').trim())
@@ -182,12 +199,22 @@ function renderScoreRing(score, tone, title = '') {
   `;
 }
 
+function renderScoreLoading(title = 'Evaluating contextual match...') {
+  return `
+    <span class="score-ring score-ring-loading" title="${esc(title)}">
+      <span class="spinner"></span>
+    </span>
+  `;
+}
+
 // Build a one-line description from the heuristic match factors. Falls back
 // to the canned rationale when factors aren't available so an early-onboarded
 // user still sees something useful. Factor labels from lib/relevance.mjs are
 // already self-describing (e.g. "Matches target role 'staff engineer'") so
 // we join them as-is instead of prepending extra words.
 function describeMatch(p) {
+  if (p.contextualScoring) return 'Contextual match scoring in progress...';
+  if (p.contextualRationale) return p.contextualRationale;
   const factors = Array.isArray(p.relevanceFactors) ? p.relevanceFactors : [];
   if (factors.length === 0) {
     return p.relevanceRationale || 'Heuristic match preview — run a full evaluation to see the A–E breakdown.';
@@ -393,11 +420,18 @@ function openSearchKeywordsModal(container) {
 
 function renderHeader() {
   const totalIfFiltered = applyFilters(pending).length;
+  const scoringStatus = contextualScoringEnabled()
+    ? (contextualScoringActive
+        ? 'Contextual scoring running'
+        : contextualScoringError
+          ? 'Contextual scoring unavailable'
+          : 'Contextual scoring on')
+    : 'Heuristic scoring';
   return `
     <header class="section-header">
       <div>
         <h1 class="section-title">Discover</h1>
-        <p class="section-sub">Scored roles across your tracked portals and job boards. ${totalIfFiltered} of ${pending.length} pending postings shown.</p>
+        <p class="section-sub">Scored roles across your tracked portals and job boards. ${totalIfFiltered} of ${pending.length} pending postings shown. ${scoringStatus}.</p>
       </div>
     </header>
   `;
@@ -422,6 +456,17 @@ function renderTopBar() {
           <span>Min score: <strong id="discover-min-label">${minScore.toFixed(1)}</strong></span>
           <input type="range" min="0" max="5" step="0.5" value="${minScore}" id="discover-min-input" />
         </label>
+        <label class="discover-context-toggle" title="Use your configured agent to rescore pending roles against profile and archetypes after scans finish">
+          <span class="toggle">
+            <input type="checkbox" id="contextual-scoring-toggle" ${contextualScoringEnabled() ? 'checked' : ''}>
+            <span class="toggle-track"></span>
+            <span class="toggle-thumb"></span>
+          </span>
+          <span class="discover-context-toggle-copy">
+            <span>LLM context</span>
+            ${contextualScoringActive ? '<span class="discover-context-toggle-state"><span class="spinner"></span> scoring</span>' : ''}
+          </span>
+        </label>
         <div class="discover-group-toggle">
           <button class="discover-toggle-btn${groupBy === 'flat' ? ' active' : ''}" data-group="flat" type="button">Flat</button>
           <button class="discover-toggle-btn${groupBy === 'company' ? ' active' : ''}" data-group="company" type="button">By company</button>
@@ -439,7 +484,7 @@ function renderTopBar() {
 }
 
 function renderCard(p) {
-  const score = Number.isFinite(p.relevance) ? p.relevance : 0;
+  const score = scoreValue(p);
   const tone = scoreClass(score);
   const description = describeMatch(p);
   const inds = postingIndustries(p);
@@ -455,7 +500,7 @@ function renderCard(p) {
           <span class="discover-card-role">${esc(p.role)}</span>
         </div>
         <button type="button" class="score-trigger discover-card-score-btn" data-score-trigger title="Click for match details">
-          ${renderScoreRing(score, tone, '')}
+          ${p.contextualScoring ? renderScoreLoading() : renderScoreRing(score, tone, p.contextualScoreSource === 'llm' ? 'LLM contextual score' : '')}
         </button>
       </header>
       <p class="discover-card-rationale">${esc(description)}</p>
@@ -539,6 +584,28 @@ function bindEvents(container) {
 
   bindScanControls(container);
   container.querySelector('#search-keywords-btn')?.addEventListener('click', () => openSearchKeywordsModal(container));
+  container.querySelector('#contextual-scoring-toggle')?.addEventListener('change', async (e) => {
+    const enabled = Boolean(e.target.checked);
+    setContextualScoringEnabled(enabled);
+    contextualScoringError = '';
+    if (!enabled) {
+      contextualScoringRun++;
+      contextualScoringActive = false;
+      pending = pending.map((p) => ({
+        ...p,
+        relevance: Number.isFinite(p.heuristicRelevance) ? p.heuristicRelevance : p.relevance,
+        contextualScoring: false,
+        contextualScore: undefined,
+        contextualRationale: undefined,
+        contextualSignals: undefined,
+        contextualScoreSource: undefined,
+      }));
+      rerender(container);
+      return;
+    }
+    rerender(container);
+    startContextualScoring(container);
+  });
 
   // preserveFocus keeps the cursor in the search input across rerender()'s
   // full innerHTML rewrite — otherwise typing more than once de-focuses.
@@ -641,6 +708,7 @@ function bindScanControls(container) {
             setScanProgress({ visible: false });
             await loadData();
             rerender(container);
+            startContextualScoring(container);
             resolve();
           });
         });
@@ -712,6 +780,7 @@ function bindScanControls(container) {
             setScanProgress({ visible: false });
             await loadData();
             rerender(container);
+            startContextualScoring(container);
             resolve();
           });
         });
@@ -912,10 +981,55 @@ async function loadData() {
   }
 }
 
+async function startContextualScoring(container) {
+  if (!contextualScoringEnabled() || contextualScoringActive || pending.length === 0) return;
+  const urls = pending
+    .filter((p) => p.url && p.contextualScoreSource !== 'llm')
+    .map((p) => p.url);
+  if (!urls.length) return;
+
+  const runId = ++contextualScoringRun;
+  contextualScoringActive = true;
+  contextualScoringError = '';
+  pending = pending.map((p) => urls.includes(p.url) ? { ...p, contextualScoring: true } : p);
+  rerenderIfActive(container);
+
+  try {
+    const result = await api.getContextualScores(urls);
+    if (runId !== contextualScoringRun) return;
+    const byId = new Map((result.scores || []).map((s) => [s.id, s]));
+    pending = pending.map((p) => {
+      const score = byId.get(p.url);
+      if (!score) return { ...p, contextualScoring: false };
+      return {
+        ...p,
+        heuristicRelevance: Number.isFinite(p.heuristicRelevance) ? p.heuristicRelevance : p.relevance,
+        relevance: score.score,
+        contextualScore: score.score,
+        contextualRationale: score.rationale || '',
+        contextualSignals: score.signals || [],
+        contextualScoring: false,
+        contextualScoreSource: 'llm',
+      };
+    });
+  } catch (err) {
+    if (runId !== contextualScoringRun) return;
+    contextualScoringError = err.message || String(err);
+    pending = pending.map((p) => ({ ...p, contextualScoring: false }));
+    toast(`Contextual scoring unavailable: ${contextualScoringError}`, 'error');
+  } finally {
+    if (runId === contextualScoringRun) {
+      contextualScoringActive = false;
+      rerenderIfActive(container);
+    }
+  }
+}
+
 export async function render(container) {
   ensurePendingRefresh(container);
   container.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
   await loadData();
   rerender(container);
+  startContextualScoring(container);
   refreshPendingPostings(container, { source: 'load' }).catch(() => {});
 }
