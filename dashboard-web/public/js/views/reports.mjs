@@ -2,14 +2,27 @@ import { api } from '../api.mjs';
 import { renderMarkdown } from '../components/markdown.mjs';
 
 let reportsList = [];
-let viewingReport = null;
+let reportsSearch = '';
 
 function scoreClass(archetype) {
   // Extract score from archetype if possible, otherwise just style it
   return 'evaluated'; // fallback badge class
 }
 
-function renderList(container) {
+function filteredReports() {
+  const query = reportsSearch.trim().toLowerCase();
+  if (!query) return reportsList;
+  return reportsList.filter((report) => {
+    const haystack = [report.filename, report.slug, report.date, report.archetype, report.tldr]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(query);
+  });
+}
+
+function renderList(container, archivedCount = 0) {
+  const visibleReports = filteredReports();
   if (!reportsList.length) {
     container.innerHTML = '<div class="empty-state"><h3>No reports yet</h3><p>Evaluate a job offer to generate a report.</p></div>';
     return;
@@ -18,22 +31,31 @@ function renderList(container) {
   container.innerHTML = `
     <div class="section-header">
       <h2 class="section-title">Reports</h2>
-      <span style="font-size:13px;color:var(--subtext)">${reportsList.length} reports</span>
+      <span style="font-size:13px;color:var(--subtext)">${reportsList.length} active${archivedCount ? ` · ${archivedCount} archived` : ''}</span>
+    </div>
+    <div class="card" style="margin-bottom:16px;padding:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <input id="reports-search" class="form-input" type="search" placeholder="Search reports by company, archetype, date, or TL;DR" value="${esc(reportsSearch)}" style="flex:1;min-width:260px" />
+      <span style="font-size:12px;color:var(--subtext0)">${visibleReports.length} shown</span>
     </div>
     <div style="display:flex;flex-direction:column;gap:8px">
-      ${reportsList.map(r => `
+      ${visibleReports.map(r => `
         <div class="card report-card" data-filename="${r.filename}" style="cursor:pointer;padding:14px 20px;display:flex;align-items:center;gap:16px;transition:background var(--transition)">
           <span style="font-weight:600;color:var(--subtext0);width:40px;font-size:13px">#${r.number}</span>
           <div style="flex:1">
             <div style="font-weight:500">${esc(r.slug.replace(/-/g, ' '))}</div>
-            <div style="font-size:12px;color:var(--subtext)">${r.date}${r.archetype ? ` \u00B7 ${esc(r.archetype)}` : ''}</div>
+            <div style="font-size:12px;color:var(--subtext)">${r.date}${r.archetype ? ` · ${esc(r.archetype)}` : ''}</div>
           </div>
           ${r.tldr ? `<div style="flex:1;font-size:12px;color:var(--subtext);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.tldr)}</div>` : ''}
-          <span style="font-size:12px;color:var(--subtext0)">\u25B6</span>
+          <span style="font-size:12px;color:var(--subtext0)">▶</span>
         </div>
-      `).join('')}
+      `).join('') || '<div class="empty-state"><h3>No matching reports</h3><p>Try a different search.</p></div>'}
     </div>
   `;
+
+  container.querySelector('#reports-search')?.addEventListener('input', (event) => {
+    reportsSearch = event.target.value || '';
+    renderList(container, archivedCount);
+  });
 
   container.querySelectorAll('.report-card').forEach(card => {
     card.onmouseenter = () => card.style.background = 'var(--surface1)';
@@ -95,8 +117,15 @@ async function renderReport(container, filename) {
     const data = await api.getReport(filename);
     container.innerHTML = `
       <div class="section-header">
-        <button class="btn btn-sm" id="back-to-reports">\u2190 Back</button>
-        <span style="font-size:13px;color:var(--subtext)">${filename}</span>
+        <button class="btn btn-sm" id="back-to-reports">← Back</button>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:13px;color:var(--subtext)">${filename}</span>
+          ${data.archived ? '<span class="badge">Archived</span>' : '<span class="badge badge-active">Active</span>'}
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:16px;background:var(--surface0);display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+        <div style="font-size:12px;color:var(--subtext)">Use report links below to jump to generated CV, cover letter, and supporting artifacts.</div>
+        ${data.archived ? '' : '<button class="btn btn-sm btn-ghost" id="archive-report">Archive report</button>'}
       </div>
       ${renderTailorBundle(data.tailorBundle)}
       ${renderArtifacts(data.artifacts)}
@@ -105,8 +134,20 @@ async function renderReport(container, filename) {
       </div>
     `;
     container.querySelector('#back-to-reports').onclick = () => {
-      window.location.hash = '#/reports';
+      window.location.hash = '#/analytics/reports';
     };
+    container.querySelector('#archive-report')?.addEventListener('click', async () => {
+      if (!window.confirm(`Archive ${filename}?`)) return;
+      const button = container.querySelector('#archive-report');
+      if (button) button.disabled = true;
+      try {
+        await api.archiveReport(filename);
+        window.location.hash = '#/analytics/reports';
+      } catch (error) {
+        if (button) button.disabled = false;
+        window.alert(error.message || 'Could not archive report.');
+      }
+    });
   } catch {
     container.innerHTML = '<div class="empty-state"><h3>Report not found</h3></div>';
   }
@@ -121,10 +162,14 @@ export async function render(container, filename) {
   }
 
   container.innerHTML = '<div class="empty-state"><p>Loading...</p></div>';
+  let archivedCount = 0;
   try {
     const data = await api.getReports();
     reportsList = data.reports || [];
-  } catch { reportsList = []; }
+    archivedCount = data.archivedCount || 0;
+  } catch {
+    reportsList = [];
+  }
 
-  renderList(container);
+  renderList(container, archivedCount);
 }

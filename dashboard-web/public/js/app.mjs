@@ -116,7 +116,7 @@ async function init() {
   // Handle hash routing
   window.addEventListener('hashchange', () => {
     const { view, param } = parseHash();
-    if (view === 'reports') { switchView('analytics'); return; }
+    if (view === 'reports') { switchView('analytics', param ? `reports/${param}` : 'reports'); return; }
     // Memory used to be a top-level view. It now lives inside Analytics
     // as a sub-tab. Redirect deep-links transparently.
     if (view === 'memory') { switchView('analytics', 'memory'); return; }
@@ -132,8 +132,10 @@ async function init() {
     showTerminal();
   } else if (view === 'memory') {
     switchView('analytics', 'memory');
+  } else if (view === 'reports') {
+    switchView('analytics', param ? `reports/${param}` : 'reports');
   } else {
-    const resolvedView = view === 'reports' ? 'analytics' : (views[view] ? view : 'pipeline');
+    const resolvedView = views[view] ? view : 'pipeline';
     switchView(resolvedView, param);
   }
 

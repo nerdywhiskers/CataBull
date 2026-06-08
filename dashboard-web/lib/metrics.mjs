@@ -41,6 +41,7 @@ export function computeProgressMetrics(apps) {
   const responded = (statusCounts.responded || 0) + (statusCounts.interview || 0) + (statusCounts.offer || 0);
   const interview = (statusCounts.interview || 0) + (statusCounts.offer || 0);
   const offer = statusCounts.offer || 0;
+  const rejected = statusCounts.rejected || 0;
 
   const safePct = (part, whole) => whole === 0 ? 0 : (part / whole) * 100;
 
@@ -96,6 +97,7 @@ export function computeProgressMetrics(apps) {
     responseRate: applied > 0 ? (responded / applied) * 100 : 0,
     interviewRate: applied > 0 ? (interview / applied) * 100 : 0,
     offerRate: applied > 0 ? (offer / applied) * 100 : 0,
+    rejectedCount: rejected,
     avgScore: scored > 0 ? totalScore / scored : 0,
     topScore,
     totalOffers,
