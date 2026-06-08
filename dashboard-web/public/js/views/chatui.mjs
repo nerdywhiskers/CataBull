@@ -33,6 +33,13 @@ const PERSISTABLE_ROLES = new Set(['user', 'assistant', 'system', 'permission'])
 
 const parser = createAnsiLineParser(handleParsedLine);
 
+function isEphemeralSystemMessage(message = {}) {
+  if (message.role !== 'system') return false;
+  const text = String(message.text || '').trim();
+  return (message.tone === 'error' && /^connection error$/i.test(text))
+    || /^switching to .+(\.\.\.|…)$/i.test(text);
+}
+
 function esc(value = '') {
   return value
     .replace(/&/g, '&amp;')
@@ -68,6 +75,7 @@ function sanitizePersistedMessages(snapshot = []) {
   if (!Array.isArray(snapshot)) return [];
   return snapshot
     .filter((message) => message && typeof message === 'object' && PERSISTABLE_ROLES.has(message.role))
+    .filter((message) => !isEphemeralSystemMessage(message))
     .map((message) => createMessage(message.role, String(message.text || ''), {
       tone: message.tone === 'error' ? 'error' : 'default',
       agent: typeof message.agent === 'string' ? message.agent : '',
@@ -79,6 +87,7 @@ function sanitizePersistedMessages(snapshot = []) {
 function getPersistedMessagesSnapshot() {
   return messages
     .filter((message) => PERSISTABLE_ROLES.has(message.role))
+    .filter((message) => !isEphemeralSystemMessage(message))
     .map((message) => ({
       role: message.role,
       text: message.text,
