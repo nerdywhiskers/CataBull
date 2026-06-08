@@ -264,7 +264,13 @@ globalThis.localStorage = {
   removeItem() {},
 };
 
-const { formatSessionRecordForMenu, shouldContinueAgentSession, textContainsPermissionPrompt } = await import(
+const {
+  formatSessionRecordForMenu,
+  resolveAgentSwitchTarget,
+  resolveInitialChatAgent,
+  shouldContinueAgentSession,
+  textContainsPermissionPrompt,
+} = await import(
   pathToFileURL(join(ROOT, 'dashboard-web/public/js/views/chat.mjs')).href
 );
 
@@ -279,6 +285,50 @@ assert(
 assert(
   !shouldContinueAgentSession({ supportsContinuation: false, hasSession: true }),
   'agents without continuation support never request continuation',
+);
+
+console.log('\n8b. Initial chat agent selection prefers current record ownership');
+
+assert(
+  resolveInitialChatAgent({
+    availableAgents: ['codex', 'claude'],
+    persistedAgent: 'codex',
+    preferredAgent: 'codex',
+    currentRecord: { agent: 'claude' },
+  }) === 'claude',
+  'current record agent beats persisted dropdown preference',
+);
+assert(
+  resolveInitialChatAgent({
+    availableAgents: ['codex', 'claude'],
+    persistedAgent: 'missing',
+    preferredAgent: 'claude',
+    currentRecord: { agent: 'missing' },
+  }) === 'claude',
+  'falls back to valid preferred agent when record agent is unavailable',
+);
+
+console.log('\n8c. Agent switch keeps transcript attached to owning record');
+
+const chatRecords = [
+  { id: 'claude-record', agent: 'claude', updatedAt: 10, messages: [{ role: 'user', text: 'claude history' }] },
+  { id: 'codex-record', agent: 'codex', updatedAt: 20, messages: [{ role: 'user', text: 'codex history' }] },
+];
+assert(
+  resolveAgentSwitchTarget({
+    currentRecord: chatRecords[0],
+    nextAgent: 'codex',
+    records: chatRecords,
+  })?.id === 'codex-record',
+  'switching agents with existing transcript jumps to that agent\'s record instead of mutating current transcript',
+);
+assert(
+  resolveAgentSwitchTarget({
+    currentRecord: { id: 'draft', agent: 'claude', updatedAt: 30, messages: [] },
+    nextAgent: 'codex',
+    records: chatRecords,
+  })?.id === 'draft',
+  'empty draft record can be rebound to a different agent',
 );
 
 console.log('\n9. Approval prompt detection');
