@@ -209,12 +209,15 @@
 .permission-chip {
   align-self: center;
   padding: 8px 12px;
-  border-radius: 999px;
+  border-radius: 8px;
   background: rgba(249, 226, 175, 0.16);
   border: 1px solid rgba(249, 226, 175, 0.28);
   color: var(--yellow);
   font-size: 12px;
   font-weight: 600;
+  max-width: min(620px, 88%);
+  line-height: 1.45;
+  text-align: center;
 }
 
 .chat-composer {
@@ -310,6 +313,90 @@
   align-items: center;
   gap: 12px;
   margin-top: 10px;
+}
+
+.chat-session-picker {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.chat-session-btn {
+  width: 34px;
+  min-width: 34px;
+  padding-inline: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-session-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: min(300px, calc(100vw - 36px));
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--mantle);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.32);
+  z-index: 30;
+}
+
+.chat-session-menu-title {
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--subtext0);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chat-session-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-session-item {
+  appearance: none;
+  border: 0;
+  border-top: 1px solid var(--border-soft);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.chat-session-item:first-child {
+  border-top: 0;
+}
+
+.chat-session-item:hover,
+.chat-session-item:focus-visible {
+  background: var(--surface0);
+  outline: none;
+}
+
+.chat-session-main {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-session-meta,
+.chat-session-empty {
+  color: var(--subtext0);
+  font-size: 12px;
+}
+
+.chat-session-empty {
+  padding: 12px;
 }
 
 .chat-composer-hint {

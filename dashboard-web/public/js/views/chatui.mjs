@@ -8,11 +8,15 @@ const COMMAND_PREFIX = '/catabull';
 let root = null;
 let onSubmitPrompt = null;
 let onNewChatRequest = null;
+let onListSessionsRequest = null;
+let onSelectSessionRequest = null;
 let messagesEl = null;
 let formEl = null;
 let inputEl = null;
 let sendEl = null;
 let newChatEl = null;
+let sessionPickerEl = null;
+let sessionMenuEl = null;
 let suggestionsEl = null;
 let currentAgent = '';
 let messages = [];
@@ -28,6 +32,13 @@ const MAX_PERSISTED_MESSAGES = 200;
 const PERSISTABLE_ROLES = new Set(['user', 'assistant', 'system', 'permission']);
 
 const parser = createAnsiLineParser(handleParsedLine);
+
+function isEphemeralSystemMessage(message = {}) {
+  if (message.role !== 'system') return false;
+  const text = String(message.text || '').trim();
+  return (message.tone === 'error' && /^connection error$/i.test(text))
+    || /^switching to .+(\.\.\.|…)$/i.test(text);
+}
 
 function esc(value = '') {
   return value
@@ -64,6 +75,7 @@ function sanitizePersistedMessages(snapshot = []) {
   if (!Array.isArray(snapshot)) return [];
   return snapshot
     .filter((message) => message && typeof message === 'object' && PERSISTABLE_ROLES.has(message.role))
+    .filter((message) => !isEphemeralSystemMessage(message))
     .map((message) => createMessage(message.role, String(message.text || ''), {
       tone: message.tone === 'error' ? 'error' : 'default',
       agent: typeof message.agent === 'string' ? message.agent : '',
@@ -75,6 +87,7 @@ function sanitizePersistedMessages(snapshot = []) {
 function getPersistedMessagesSnapshot() {
   return messages
     .filter((message) => PERSISTABLE_ROLES.has(message.role))
+    .filter((message) => !isEphemeralSystemMessage(message))
     .map((message) => ({
       role: message.role,
       text: message.text,
@@ -113,7 +126,7 @@ function handleParsedLine(line) {
   if (!line) return;
   if (consumeEcho(line)) return;
   if (isPermissionLine(line)) {
-    pushMessage('permission', line);
+    addPermissionMessage(line);
     return;
   }
   appendAssistantLine(line);
@@ -146,7 +159,7 @@ function renderMessage(message) {
   }
 
   if (message.role === 'permission') {
-    return `<div class="permission-chip">${esc(message.text)}</div>`;
+    return `<div class="permission-chip" role="status">${esc(message.text)}</div>`;
   }
 
   if (message.role === 'system') {
@@ -203,6 +216,46 @@ function suggestionHint(item) {
 
 function escapeAttribute(value = '') {
   return esc(value).replace(/'/g, '&#39;');
+}
+
+function sessionTitle(record = {}) {
+  return record.title || `${record.agent || 'chat'} session`;
+}
+
+function renderSessionMenu(records = []) {
+  if (!sessionMenuEl) return;
+  const visible = records.filter(record => record && record.id);
+  if (!visible.length) {
+    sessionMenuEl.innerHTML = '<div class="chat-session-empty">No saved sessions yet.</div>';
+    return;
+  }
+  sessionMenuEl.innerHTML = `
+    <div class="chat-session-menu-title">Previous sessions</div>
+    <div class="chat-session-list">
+      ${visible.map((record) => `
+        <button type="button" class="chat-session-item" data-session-record-id="${escapeAttribute(record.id)}">
+          <span class="chat-session-main">${esc(sessionTitle(record))}</span>
+          <span class="chat-session-meta">${esc(record.agent || 'agent')} · ${esc(record.updatedLabel || '')}</span>
+        </button>
+      `).join('')}
+    </div>
+  `;
+}
+
+function closeSessionMenu() {
+  if (!sessionMenuEl) return;
+  sessionMenuEl.hidden = true;
+}
+
+function toggleSessionMenu() {
+  if (!sessionMenuEl) return;
+  if (!sessionMenuEl.hidden) {
+    closeSessionMenu();
+    return;
+  }
+  const records = typeof onListSessionsRequest === 'function' ? onListSessionsRequest() : [];
+  renderSessionMenu(records);
+  sessionMenuEl.hidden = false;
 }
 
 function parseCommandQuery(value = '') {
@@ -350,10 +403,12 @@ function bindComposer() {
   });
 }
 
-export function init(container, { onSubmit, onNewChat, onMessagesChange: onMessagesChangeCallback } = {}) {
+export function init(container, { onSubmit, onNewChat, onListSessions, onSelectSession, onMessagesChange: onMessagesChangeCallback } = {}) {
   root = container;
   onSubmitPrompt = onSubmit || null;
   onNewChatRequest = onNewChat || null;
+  onListSessionsRequest = onListSessions || null;
+  onSelectSessionRequest = onSelectSession || null;
   onMessagesChange = onMessagesChangeCallback || null;
 
   if (!root) return;
@@ -365,6 +420,12 @@ export function init(container, { onSubmit, onNewChat, onMessagesChange: onMessa
         <div class="chat-command-suggestions" id="chat-command-suggestions" hidden></div>
         <div class="chat-composer-actions">
           <button type="button" class="btn btn-ghost btn-sm chat-new-btn" id="chat-new-btn" title="Start a new chat">+ New</button>
+          <div class="chat-session-picker">
+            <button type="button" class="btn btn-ghost btn-sm chat-session-btn" id="chat-session-btn" title="Previous sessions" aria-label="Previous sessions">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/><path d="M12 7v5l3 2"/></svg>
+            </button>
+            <div class="chat-session-menu" id="chat-session-menu" hidden></div>
+          </div>
           <span class="chat-composer-hint">Enter to send, Shift+Enter for a new line.</span>
           <button type="submit" class="btn btn-primary btn-sm" id="chat-composer-send">Send</button>
         </div>
@@ -377,14 +438,32 @@ export function init(container, { onSubmit, onNewChat, onMessagesChange: onMessa
   inputEl = root.querySelector('#chat-composer-input');
   sendEl = root.querySelector('#chat-composer-send');
   newChatEl = root.querySelector('#chat-new-btn');
+  sessionPickerEl = root.querySelector('#chat-session-btn');
+  sessionMenuEl = root.querySelector('#chat-session-menu');
   suggestionsEl = root.querySelector('#chat-command-suggestions');
 
   bindComposer();
   if (newChatEl) {
     newChatEl.addEventListener('click', () => {
+      closeSessionMenu();
       if (typeof onNewChatRequest === 'function') onNewChatRequest();
     });
   }
+  if (sessionPickerEl) {
+    sessionPickerEl.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleSessionMenu();
+    });
+  }
+  if (sessionMenuEl) {
+    sessionMenuEl.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-session-record-id]');
+      if (!button) return;
+      closeSessionMenu();
+      if (typeof onSelectSessionRequest === 'function') onSelectSessionRequest(button.dataset.sessionRecordId);
+    });
+  }
+  document.addEventListener('click', closeSessionMenu);
   renderMessages();
 }
 
@@ -421,6 +500,12 @@ export function addUserMessage(text) {
 
 export function addSystemMessage(text, tone = 'default') {
   pushMessage('system', text, { tone });
+}
+
+export function addPermissionMessage(text) {
+  if (!text) return;
+  hideWorkingMessage();
+  pushMessage('permission', text);
 }
 
 export function addAssistantMessage(text, agent = '') {

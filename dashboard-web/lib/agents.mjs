@@ -146,7 +146,7 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
       'exec',
       '--skip-git-repo-check',
       '--sandbox', 'workspace-write',
-      '--ask-for-approval', 'on-request',
+      '-c', 'approval_policy="on-request"',
     ];
     // CataBull wants Codex sessions to always be able to write inside the
     // workspace while still prompting when the model decides approval is
@@ -161,14 +161,15 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
   }
 
   if (agentName === 'opencode') {
-    const args = ['run', '--pure', '--format', 'default', '--dir', root];
+    const args = ['run', '--format', 'json', '--dir', root];
     // opencode's --session expects an EXISTING session id (silently no-ops
     // on an unknown uuid), so we can't use the sticky-uuid pattern claude
     // supports. Fall back to --continue, which resumes "the last session"
     // — fine for a single-user dashboard. Reset = drop the seen flag so
     // the next call omits --continue and a new session is created.
     if (continueSession) args.push('--continue');
-    return { args, env: opencodeEnv(root), promptVia: 'stdin' };
+    args.push(prompt);
+    return { args, env: opencodeEnv(root), promptVia: 'argv' };
   }
 
   if (agentName === 'gemini') {
@@ -251,7 +252,7 @@ export function agentPtyConfig(agentName, root) {
   if (!command) return null;
 
   if (agentName === 'opencode') {
-    const args = ['--pure'];
+    const args = [];
     const shell = isWin ? winShell(command, args) : { command, args };
     return {
       command: shell.command,
@@ -337,6 +338,64 @@ function unwrapOpenclawReply(raw) {
   }
 }
 
+function shellQuoteSql(value) {
+  return String(value).replace(/'/g, "''");
+}
+
+function opencodeDbPath(root) {
+  return join(root, 'output', 'opencode-xdg-data', 'opencode', 'opencode.db');
+}
+
+function latestOpencodeTextFromDb(root, sessionID) {
+  if (!sessionID) return '';
+  const db = opencodeDbPath(root);
+  if (!existsSync(db)) return '';
+  const sql = `
+    select json_extract(p.data,'$.text')
+    from part p
+    join message m on m.id = p.message_id
+    where p.session_id = '${shellQuoteSql(sessionID)}'
+      and json_extract(m.data,'$.role') = 'assistant'
+      and json_extract(p.data,'$.type') = 'text'
+    order by p.time_created desc
+    limit 1;
+  `;
+  try {
+    return execFileSync('sqlite3', [db, sql], {
+      encoding: 'utf-8',
+      timeout: 8000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return '';
+  }
+}
+
+// Opencode 1.16 can emit only a decorative header in `default` format, and
+// only `step_start` events in `json` format, even though the assistant text
+// lands in its SQLite store. Recover the latest assistant text from that
+// session so the chat panel shows the reply instead of `build · big-pickle`.
+function unwrapOpencodeReply(raw, root) {
+  if (!raw) return raw;
+  const lines = raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  let sessionID = '';
+  const textParts = [];
+  for (const line of lines) {
+    try {
+      const parsed = JSON.parse(line);
+      sessionID ||= parsed.sessionID || parsed.session_id || parsed.part?.sessionID || parsed.part?.session_id || '';
+      const part = parsed.part || parsed;
+      if (part?.type === 'text' && typeof part.text === 'string' && part.text.trim()) {
+        textParts.push(part.text.trim());
+      }
+    } catch {
+      // Ignore decorative default-format lines.
+    }
+  }
+  if (textParts.length) return textParts.join('\n');
+  return latestOpencodeTextFromDb(root, sessionID) || raw;
+}
+
 export function runAgentPrint(agentName, prompt, root, {
   timeoutMs = 120_000,
   allowEdits = false,
@@ -388,6 +447,7 @@ export function runAgentPrint(agentName, prompt, root, {
       let output = (stdout || '').trim();
       const error = (stderr || '').trim();
       if (agentName === 'openclaw') output = unwrapOpenclawReply(output);
+      if (agentName === 'opencode') output = unwrapOpencodeReply(output, root);
       if (code === 0) return finish({ ok: true, output: output || error || 'No output returned.' });
       return finish({ ok: false, error: error || output || `${agentName} exited with code ${code}` });
     });

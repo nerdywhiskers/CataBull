@@ -104,7 +104,7 @@ assert(
     'exec',
     '--skip-git-repo-check',
     '--sandbox', 'workspace-write',
-    '--ask-for-approval', 'on-request',
+    '-c', 'approval_policy="on-request"',
   ]),
   'fresh Codex turn forces workspace-write + on-request',
 );
@@ -115,7 +115,7 @@ assert(
     'exec',
     '--skip-git-repo-check',
     '--sandbox', 'workspace-write',
-    '--ask-for-approval', 'on-request',
+    '-c', 'approval_policy="on-request"',
     'resume', '--last', '-',
   ]),
   'continued Codex turn keeps workspace-write + on-request and resumes last',
@@ -123,6 +123,10 @@ assert(
 assert(
   !codexContinued.args.includes('--continue'),
   'continued Codex turn does not use removed --continue flag',
+);
+assert(
+  !codexContinued.args.includes('--ask-for-approval'),
+  'Codex exec args do not use removed --ask-for-approval flag',
 );
 
 const { agentPtyConfig } = await import(
@@ -138,7 +142,39 @@ assert(
   'Codex PTY session also forces workspace-write + on-request',
 );
 
-console.log('\n4. Claude chat-panel session args');
+console.log('\n4. Opencode chat-panel args');
+
+const opencodeFresh = agentPrintArgs('opencode', ROOT, { continueSession: false });
+assert(
+  JSON.stringify(opencodeFresh.args) === JSON.stringify([
+    'run',
+    '--format', 'json',
+    '--dir', ROOT,
+    '',
+  ]),
+  'fresh Opencode turn uses JSON format and positional prompt',
+);
+assert(opencodeFresh.promptVia === 'argv', 'fresh Opencode prompt is passed via argv');
+
+const opencodeContinued = agentPrintArgs('opencode', ROOT, { continueSession: true });
+assert(
+  JSON.stringify(opencodeContinued.args) === JSON.stringify([
+    'run',
+    '--format', 'json',
+    '--dir', ROOT,
+    '--continue',
+    '',
+  ]),
+  'continued Opencode turn resumes and still passes prompt via argv',
+);
+
+const opencodePty = agentPtyConfig('opencode', ROOT);
+assert(
+  JSON.stringify(opencodePty?.args || []) === JSON.stringify([]),
+  'Opencode PTY session omits unsupported --pure flag',
+);
+
+console.log('\n5. Claude chat-panel session args');
 
 const claudeFresh = agentPrintArgs('claude', ROOT, {
   sessionId: '123e4567-e89b-12d3-a456-426614174000',
@@ -166,7 +202,7 @@ assert(
   'continued Claude turn uses --resume instead of reusing --session-id',
 );
 
-console.log('\n5. Hermes chat-panel continuation args');
+console.log('\n6. Hermes chat-panel continuation args');
 
 const hermesFresh = agentPrintArgs('hermes', ROOT, {
   prompt: 'hello',
@@ -186,7 +222,7 @@ assert(
   'continued Hermes turn uses --continue',
 );
 
-console.log('\n6. OpenClaw chat-panel session args');
+console.log('\n7. OpenClaw chat-panel session args');
 
 const openclawFresh = agentPrintArgs('openclaw', ROOT, {
   prompt: 'status',
@@ -213,7 +249,7 @@ assert(
   'OpenClaw sticky session reuses explicit session id',
 );
 
-console.log('\n7. Chat transcript persistence sanitization');
+console.log('\n8. Chat session continuation state');
 
 globalThis.document = {
   getElementById() { return null; },
@@ -228,6 +264,62 @@ globalThis.localStorage = {
   removeItem() {},
 };
 
+const { formatSessionRecordForMenu, shouldContinueAgentSession, textContainsPermissionPrompt } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web/public/js/views/chat.mjs')).href
+);
+
+assert(
+  !shouldContinueAgentSession({ supportsContinuation: true, hasSession: false }),
+  'first turn for a continuation-capable agent starts a fresh session',
+);
+assert(
+  shouldContinueAgentSession({ supportsContinuation: true, hasSession: true }),
+  'follow-up turn for a continuation-capable agent requests continuation',
+);
+assert(
+  !shouldContinueAgentSession({ supportsContinuation: false, hasSession: true }),
+  'agents without continuation support never request continuation',
+);
+
+console.log('\n9. Approval prompt detection');
+
+assert(
+  textContainsPermissionPrompt('Permission request: run command?'),
+  'detects explicit permission request text',
+);
+assert(
+  textContainsPermissionPrompt('Allow this command? (y/n)'),
+  'detects y/n approval prompts',
+);
+assert(
+  textContainsPermissionPrompt('Approval required before running this command. Proceed?'),
+  'detects approval/proceed prompt text',
+);
+assert(
+  !textContainsPermissionPrompt('plain assistant output with no prompt'),
+  'ignores normal assistant output',
+);
+
+console.log('\n10. Session menu record formatting');
+
+const menuRecord = formatSessionRecordForMenu({
+  id: 'record-1',
+  agent: 'claude',
+  title: 'Evaluate this role',
+  updatedAt: 1_000_000,
+}, 1_000_000 + 2 * 60_000);
+assert(
+  JSON.stringify(menuRecord) === JSON.stringify({
+    id: 'record-1',
+    title: 'Evaluate this role',
+    agent: 'claude',
+    updatedLabel: '2m ago',
+  }),
+  'formats session menu records with relative age',
+);
+
+console.log('\n11. Chat transcript persistence sanitization');
+
 const chatUi = await import(
   pathToFileURL(join(ROOT, 'dashboard-web/public/js/views/chatui.mjs')).href
 );
@@ -236,6 +328,8 @@ chatUi.restoreMessages([
   { role: 'user', text: 'hello' },
   { role: 'assistant', text: 'hi back', agent: 'claude' },
   { role: 'working', text: 'should not persist' },
+  { role: 'system', text: 'Connection error', tone: 'error' },
+  { role: 'system', text: 'Switching to codex...', tone: 'default' },
   { role: 'system', text: 'Heads up', tone: 'error' },
   { role: 'bogus', text: 'drop me' },
 ]);
@@ -246,7 +340,7 @@ assert(
     { role: 'assistant', text: 'hi back', tone: 'default', agent: 'claude' },
     { role: 'system', text: 'Heads up', tone: 'error', agent: '' },
   ]),
-  'chat transcript restore drops non-persistable roles and preserves valid messages',
+  'chat transcript restore drops non-persistable roles, stale connection errors, and preserves valid messages',
 );
 
 console.log(`\n${'─'.repeat(40)}`);
