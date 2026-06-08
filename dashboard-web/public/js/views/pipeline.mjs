@@ -1412,11 +1412,7 @@ function update(container) {
             <span>Top matches only (4+)</span>
           </label>
           <div style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-sm btn-primary" id="quick-scan-btn" title="ATS-only quick scan. Direct providers only; no branded-page scraping."${scanProgress?.visible || pendingRefreshState?.active ? ' disabled' : ''}>
-              <svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor" aria-hidden="true"><path d="M7.5 0L0 7.5h4L3.5 14 11 6.5H7L7.5 0z"/></svg>
-              ${scanProgress?.visible ? 'Scanning' : 'Quick Scan'}
-            </button>
-            <button class="btn btn-sm btn-secondary" id="deep-scan-btn" title="Runs the same quick scan first, then broader WebSearch + JobSpy discovery."${scanProgress?.visible || pendingRefreshState?.active ? ' disabled' : ''}>Deep Scan</button>
+            <button class="btn btn-sm btn-primary" id="add-job-btn" type="button">Add Job</button>
             <button class="btn-icon" id="refresh-btn" title="${isPending && pending.length > 0 ? 'Refresh + verify each pending posting is still live' : 'Refresh'}"${scanProgress?.visible || pendingRefreshState?.active ? ' disabled' : ''}>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 6a4.5 4.5 0 1 1-1.3-3.18"/><polyline points="11.5 1 11.5 4 8.5 4"/></svg>
             </button>
@@ -1796,125 +1792,6 @@ function update(container) {
   // Attach overflow menu listeners
   attachOverflowListeners(container);
 
-  // Quick scan
-  const quickScanBtn = container.querySelector('#quick-scan-btn');
-  if (quickScanBtn) {
-    quickScanBtn.onclick = async () => {
-      const limit = parseInt(localStorage.getItem('catabull-scan-limit') || '0', 10) || 0;
-      setScanProgress(quickProgressFromEvent({ stage: 'quick:start' }));
-      update(container);
-      toast(limit ? `Running ATS-only quick scan (up to ${limit} new offers)…` : 'Running ATS-only quick scan…');
-      const stream = api.runQuickScanStream({ limit });
-      let lastStage = 'quick:start';
-      try {
-        await new Promise((resolve, reject) => {
-          const done = (fn) => { try { stream.close(); } catch {} fn(); };
-          stream.addEventListener('progress', (ev) => {
-            let data; try { data = JSON.parse(ev.data); } catch { return; }
-            lastStage = data.stage || lastStage;
-            const next = quickProgressFromEvent(data);
-            if (next) {
-              setScanProgress(next);
-              updateScanProgressSlot(container);
-            }
-          });
-          stream.addEventListener('complete', (ev) => {
-            let data; try { data = JSON.parse(ev.data); } catch { data = { summary: {} }; }
-            const quick = data.summary?.quick?.added ?? 0;
-            done(() => resolve(quick));
-          });
-          stream.addEventListener('error', (ev) => {
-            let data; try { data = JSON.parse(ev.data || '{}'); } catch { data = {}; }
-            const message = data.message || `Quick scan disconnected (last stage: ${lastStage}).`;
-            done(() => reject(new Error(message)));
-          });
-        }).then((newOffers) => {
-          toast(`Quick scan complete: ${newOffers} new offer${newOffers !== 1 ? 's' : ''} found`);
-        });
-      } catch (error) {
-        toast(`Quick scan failed: ${error.message}`, 'error');
-      } finally {
-        await refreshData(container);
-        await syncScanRunState(container, { refreshOnFinish: false });
-      }
-    };
-  }
-
-  // Deep scan: run Levels 1+2 (node scan.mjs subprocess) then Level 3
-  // (WebSearch + Playwright liveness) in the dashboard process. Streams
-  // progress via SSE.
-  const deepScanBtn = container.querySelector('#deep-scan-btn');
-  if (deepScanBtn) {
-    deepScanBtn.onclick = async () => {
-      const ok = await confirmModal({
-        title: 'Run Deep Scan?',
-        body: `
-          <p style="font-size:14px;color:var(--subtext);margin-bottom:8px">Starts with the same ATS-only Quick Scan, then searches broader job boards (LinkedIn / Wellfound / RemoteOK / Ladders) and Playwright-verifies each hit before adding it to your pipeline.</p>
-          <ul style="font-size:13px;color:var(--text);margin:8px 0 8px 20px;line-height:1.7">
-            <li>Takes <strong>several minutes</strong> (vs the ATS-only quick scan)</li>
-            <li>Uses your configured WebSearch provider quota (Brave / Serper / scrape)</li>
-            <li>Finds roles at companies that aren't in <code>tracked_companies</code></li>
-          </ul>
-          <p style="font-size:13px;color:var(--subtext0)">Run weekly, not on every visit. The pipeline auto-refreshes when finished.</p>
-        `,
-        confirmText: 'Start Deep Scan',
-      });
-      if (!ok) return;
-
-      const limit = parseInt(localStorage.getItem('catabull-scan-limit') || '0', 10) || 0;
-      setScanProgress(deepProgressFromEvent({ stage: 'quick:start' }) || { visible: true, tone: 'running', eyebrow: 'Deep Scan', title: 'Starting…', detail: '', meta: '' });
-      update(container);
-
-      let lastStage = 'starting';
-      const stream = api.scanDeepStream({ limit });
-
-      await new Promise((resolve) => {
-        const done = (fn) => { try { stream.close(); } catch {} fn(); };
-
-        stream.addEventListener('progress', (ev) => {
-          let data; try { data = JSON.parse(ev.data); } catch { return; }
-          lastStage = data.stage;
-          const next = deepProgressFromEvent(data);
-          if (next) {
-            setScanProgress(next);
-            updateScanProgressSlot(container);
-          }
-        });
-
-        stream.addEventListener('complete', (ev) => {
-          let data; try { data = JSON.parse(ev.data); } catch { data = { summary: {} }; }
-          const total = data.summary?.totalNew ?? 0;
-          const lvl3  = data.summary?.level3?.added ?? 0;
-          const lvl4  = data.summary?.level4?.added?.length ?? 0;
-          const quick = data.summary?.quick?.added ?? 0;
-          const l4Note = data.summary?.level4 && data.summary.level4.available === false
-            ? ' (install uv or python3 to unlock JobSpy)'
-            : '';
-          toast(`Deep scan complete — ${total} new role${total === 1 ? '' : 's'} (${quick} APIs + ${lvl3} WebSearch + ${lvl4} JobSpy${l4Note}). Refreshing…`);
-          done(async () => {
-            setScanProgress({ visible: false });
-            await loadData();
-            update(container);
-            resolve();
-          });
-        });
-
-        stream.addEventListener('error', (ev) => {
-          let data; try { data = JSON.parse(ev.data || '{}'); } catch { data = {}; }
-          const message = data.message
-            ? `Deep scan failed: ${data.message}`
-            : `Deep scan disconnected (last stage: ${lastStage}).`;
-          toast(message, 'error');
-          done(() => {
-            setScanProgress({ visible: false });
-            update(container);
-            resolve();
-          });
-        });
-      });
-    };
-  }
-
   const refreshBtn = container.querySelector('#refresh-btn');
   if (refreshBtn) refreshBtn.onclick = async () => {
     setScanProgress({ visible: false });
@@ -1932,49 +1809,49 @@ function update(container) {
   // company/role overrides and appends a new pending row to data/pipeline.md.
   // If the user only pastes a job URL, the server tries to auto-fill company,
   // role, and location from job-page metadata before writing the row.
-  const addEntryBtn = container.querySelector('#add-entry-btn');
-  if (addEntryBtn) {
-    addEntryBtn.onclick = async () => {
-      const result = await confirmModal({
-        title: 'Add a job to your pipeline',
-        confirmText: 'Add to pipeline',
-        body: `
-          <p style="font-size:13px;color:var(--subtext);margin-bottom:14px">Paste the posting link. Company and role can be filled manually, or left blank if the page exposes them cleanly for auto-fill.</p>
-          <div class="form-group"><label class="form-label">Job URL</label><input class="form-input" data-return="url" type="url" placeholder="https://company.com/jobs/123" autocomplete="off" autofocus></div>
-          <div class="form-group"><label class="form-label">Company <span style="color:var(--subtext);font-weight:400">(optional if auto-fill works)</span></label><input class="form-input" data-return="company" type="text" placeholder="Acme Corp" autocomplete="off"></div>
-          <div class="form-group"><label class="form-label">Role <span style="color:var(--subtext);font-weight:400">(optional if auto-fill works)</span></label><input class="form-input" data-return="role" type="text" placeholder="Senior Designer" autocomplete="off"></div>
-        `,
+  const addJob = async () => {
+    const result = await confirmModal({
+      title: 'Add a job to your pipeline',
+      confirmText: 'Add to pipeline',
+      body: `
+        <p style="font-size:13px;color:var(--subtext);margin-bottom:14px">Paste the posting link. Company and role can be filled manually, or left blank if the page exposes them cleanly for auto-fill.</p>
+        <div class="form-group"><label class="form-label">Job URL</label><input class="form-input" data-return="url" type="url" placeholder="https://company.com/jobs/123" autocomplete="off" autofocus></div>
+        <div class="form-group"><label class="form-label">Company <span style="color:var(--subtext);font-weight:400">(optional if auto-fill works)</span></label><input class="form-input" data-return="company" type="text" placeholder="Acme Corp" autocomplete="off"></div>
+        <div class="form-group"><label class="form-label">Role <span style="color:var(--subtext);font-weight:400">(optional if auto-fill works)</span></label><input class="form-input" data-return="role" type="text" placeholder="Senior Designer" autocomplete="off"></div>
+      `,
+    });
+    if (!result || !result.data) return;
+    const { url = '', company = '', role = '' } = result.data;
+    const cleanUrl = url.trim();
+    const cleanCompany = company.trim();
+    const cleanRole = role.trim();
+    if (!cleanUrl) {
+      toast('Job URL is required.', 'error');
+      return;
+    }
+    try {
+      const added = await api.addPending({
+        url: cleanUrl,
+        company: cleanCompany,
+        role: cleanRole,
+        postedAt: new Date().toISOString().slice(0, 10),
       });
-      if (!result || !result.data) return;
-      const { url = '', company = '', role = '' } = result.data;
-      const cleanUrl = url.trim();
-      const cleanCompany = company.trim();
-      const cleanRole = role.trim();
-      if (!cleanUrl) {
-        toast('Job URL is required.', 'error');
-        return;
-      }
-      try {
-        const added = await api.addPending({
-          url: cleanUrl,
-          company: cleanCompany,
-          role: cleanRole,
-          postedAt: new Date().toISOString().slice(0, 10),
-        });
-        toast(`Added ${(added.company || cleanCompany || 'job')} to pending`);
-        currentFilter = 'pending';
-        currentPage = 1;
-        render(container);
-      } catch (err) {
-        const msg = err.message?.includes('409')
-          ? 'That URL is already in your pipeline.'
-          : err.message?.includes('400')
-            ? 'Could not infer company/role from that link. Add them manually and try again.'
-            : `Failed to add: ${err.message}`;
-        toast(msg, 'error');
-      }
-    };
-  }
+      toast(`Added ${(added.company || cleanCompany || 'job')} to pending`);
+      currentFilter = 'pending';
+      currentPage = 1;
+      render(container);
+    } catch (err) {
+      const msg = err.message?.includes('409')
+        ? 'That URL is already in your pipeline.'
+        : err.message?.includes('400')
+          ? 'Could not infer company/role from that link. Add them manually and try again.'
+          : `Failed to add: ${err.message}`;
+      toast(msg, 'error');
+    }
+  };
+  container.querySelectorAll('#add-job-btn, #add-entry-btn').forEach((btn) => {
+    btn.onclick = addJob;
+  });
 
   // Insight-card CTA: open the most actionable weak application directly in
   // the score breakdown instead of just expanding a row with no next step.

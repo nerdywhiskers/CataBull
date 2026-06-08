@@ -37,6 +37,8 @@ const {
   ensureWorkspace,
   RESOLUTION_REASONS,
   readGlobalWorkspacePreference,
+  homeWorkspaceRoot,
+  globalPreferenceEnvPath,
 } = await import('../lib/workspace-resolver.mjs');
 
 console.log('\nlib/workspace-resolver.mjs');
@@ -201,6 +203,8 @@ withTemp((realHome) => {
   mkdirSync(hermesHome, { recursive: true });
   assert(isHermesProfileHome(hermesHome) === true, 'detects Hermes profile-scoped HOME');
   assert(resolveEffectiveHome({ home: hermesHome, userHome: realHome }) === realHome, 'profile-scoped HOME remaps to real user home');
+  assert(homeWorkspaceRoot(resolveEffectiveHome({ home: hermesHome, userHome: realHome })) === join(realHome, '.catabull'), 'home workspace path uses effective home');
+  assert(globalPreferenceEnvPath(resolveEffectiveHome({ home: hermesHome, userHome: realHome })) === join(realHome, '.catabull', '.env'), 'global preference env path uses effective home');
 });
 
 withTemp((realHome) => {

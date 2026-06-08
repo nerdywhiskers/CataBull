@@ -1,7 +1,30 @@
-export const DEFAULT_PENDING_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+export const DEFAULT_PENDING_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
+const PENDING_REFRESH_LAST_RUN_KEY = 'catabull-pending-refresh-last-run-at';
+
+function refreshStorage() {
+  if (typeof window !== 'undefined') return window.localStorage;
+  return globalThis.__catabullPendingRefreshStorage || null;
+}
+
+function readPersistedLastRunAt() {
+  try {
+    const value = Number(refreshStorage()?.getItem(PENDING_REFRESH_LAST_RUN_KEY) || 0);
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function persistLastRunAt(value) {
+  try { refreshStorage()?.setItem(PENDING_REFRESH_LAST_RUN_KEY, String(value)); } catch {}
+}
+
+function clearPersistedLastRunAt() {
+  try { refreshStorage()?.removeItem(PENDING_REFRESH_LAST_RUN_KEY); } catch {}
+}
 
 const sharedState = {
-  lastRunAt: 0,
+  lastRunAt: readPersistedLastRunAt(),
   inFlight: null,
   status: {
     active: false,
@@ -77,6 +100,7 @@ export async function runPendingRefresh({
   if (typeof checkLivenessAll !== 'function') throw new Error('checkLivenessAll is required');
 
   sharedState.lastRunAt = now;
+  persistLastRunAt(now);
   setStatus({
     active: true,
     pendingCount,
@@ -106,6 +130,7 @@ export async function runPendingRefresh({
 
 export function __resetPendingRefreshState() {
   sharedState.lastRunAt = 0;
+  clearPersistedLastRunAt();
   sharedState.inFlight = null;
   sharedState.status = {
     active: false,

@@ -133,6 +133,16 @@ function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function normalizeTitleFilter(filter = {}) {
+  const unique = (items) => [...new Set((Array.isArray(items) ? items : [])
+    .map((item) => String(item || '').trim())
+    .filter(Boolean))];
+  return {
+    positive: unique(filter.positive),
+    negative: unique(filter.negative),
+  };
+}
+
 function setScanProgress(progress) {
   scanProgress = progress || { visible: false };
 }
@@ -221,6 +231,8 @@ function renderScanSchedule() {
   const current = scanStatus.schedule || 'off';
   const savedLimit = localStorage.getItem(SCAN_LIMIT_KEY) || '0';
   const busy = scanStatus.running || scanProgress?.visible || pendingRefreshState?.active;
+  const titleFilter = normalizeTitleFilter(portals?.title_filter);
+  const keywordCount = titleFilter.positive.length + titleFilter.negative.length;
 
   let lastScanBadge = '';
   if (scanStatus.lastScanAt) {
@@ -231,20 +243,25 @@ function renderScanSchedule() {
           : 'failed')
       : '';
     const tone = r ? (r.success ? 'var(--green)' : 'var(--red)') : 'var(--subtext)';
-    lastScanBadge = `<span class="scan-card-last" style="color:${tone}">${timeAgo(scanStatus.lastScanAt)}${resultText ? ` · ${resultText}` : ''}</span>`;
+    lastScanBadge = `<span class="scan-card-last" style="color:${tone}" title="Last scan ${esc(scanStatus.lastScanAt)}">${timeAgo(scanStatus.lastScanAt)}${resultText ? ` · ${resultText}` : ''}</span>`;
+  } else {
+    lastScanBadge = '<span class="scan-card-last">never</span>';
   }
 
   return `
     <div class="scan-card">
       <div class="scan-card-left">
-        <span class="scan-card-eyebrow">Last Scan</span>
-        ${lastScanBadge}
+        <button class="btn btn-sm btn-soft" id="search-keywords-btn" type="button" title="Edit keywords used to score and filter search results">
+          Search Keywords${keywordCount ? ` (${keywordCount})` : ''}
+        </button>
       </div>
       <div class="scan-card-controls">
         <span class="scan-card-label">Schedule</span>
         <select class="form-select scan-card-select" id="scan-schedule-select" title="Run scan on a schedule" ${busy ? 'disabled' : ''}>
           ${Object.entries(scheduleLabels).map(([value, label]) => `<option value="${value}"${value === current ? ' selected' : ''}>${label}</option>`).join('')}
         </select>
+        <span class="scan-card-label scan-card-last-label">Last</span>
+        ${lastScanBadge}
         <select class="form-select scan-card-select" id="scan-limit-select" ${busy ? 'disabled' : ''} title="Cap on new offers added per scan">
           ${SCAN_LIMIT_OPTIONS.map(o => `<option value="${o.value}"${o.value === savedLimit ? ' selected' : ''}>Max: ${o.label}</option>`).join('')}
         </select>
@@ -259,6 +276,119 @@ function renderScanSchedule() {
       </div>
     </div>
   `;
+}
+
+function renderKeywordGroup(type, label, draft) {
+  const items = draft[type] || [];
+  return `
+    <section class="keyword-modal-section">
+      <div class="keyword-modal-section-head">
+        <h4>${esc(label)}</h4>
+        <button class="btn btn-ghost btn-sm keyword-clear-btn" data-keyword-clear="${type}" ${items.length ? '' : 'disabled'}>Clear</button>
+      </div>
+      <div class="tag-list keyword-modal-tags">
+        ${items.length
+          ? items.map((keyword) => `<span class="tag">${esc(keyword)}<span class="tag-remove" data-keyword-type="${type}" data-keyword="${esc(keyword)}">&times;</span></span>`).join('')
+          : '<span class="muted" style="font-size:12px">No keywords yet.</span>'}
+      </div>
+      <div class="keyword-modal-add-row">
+        <input class="form-input" id="keyword-${type}-input" placeholder="Add keyword..." autocomplete="off">
+        <button class="btn btn-sm" data-keyword-add="${type}" type="button">Add</button>
+      </div>
+    </section>
+  `;
+}
+
+function openSearchKeywordsModal(container) {
+  if (!portals) return;
+  let draft = normalizeTitleFilter(portals.title_filter);
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+
+  const close = () => {
+    document.removeEventListener('keydown', onKey);
+    overlay.remove();
+  };
+  const onKey = (event) => {
+    if (event.key === 'Escape') close();
+  };
+
+  const addKeyword = (type) => {
+    const input = overlay.querySelector(`#keyword-${type}-input`);
+    const value = input?.value.trim();
+    if (!value) return;
+    if (!draft[type].includes(value)) draft[type] = [...draft[type], value];
+    renderModal();
+    overlay.querySelector(`#keyword-${type}-input`)?.focus();
+  };
+
+  const removeKeyword = (type, keyword) => {
+    draft[type] = draft[type].filter((item) => item !== keyword);
+    renderModal();
+  };
+
+  const clearKeywords = (type) => {
+    draft[type] = [];
+    renderModal();
+  };
+
+  const save = async () => {
+    const saveBtn = overlay.querySelector('#keyword-save-btn');
+    if (saveBtn) saveBtn.disabled = true;
+    try {
+      await api.updateFilters(draft);
+      portals.title_filter = normalizeTitleFilter(draft);
+      toast('Search keywords saved');
+      close();
+      rerender(container);
+    } catch (error) {
+      toast(`Failed to save keywords: ${error.message}`, 'error');
+      if (saveBtn) saveBtn.disabled = false;
+    }
+  };
+
+  function bindModalEvents() {
+    overlay.querySelector('#keyword-cancel-btn')?.addEventListener('click', close);
+    overlay.querySelector('#keyword-save-btn')?.addEventListener('click', save);
+    overlay.querySelectorAll('[data-keyword-add]').forEach((button) => {
+      button.addEventListener('click', () => addKeyword(button.dataset.keywordAdd));
+    });
+    overlay.querySelectorAll('.keyword-modal-add-row input').forEach((input) => {
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') addKeyword(input.id.includes('positive') ? 'positive' : 'negative');
+      });
+    });
+    overlay.querySelectorAll('[data-keyword-type]').forEach((button) => {
+      button.addEventListener('click', () => removeKeyword(button.dataset.keywordType, button.dataset.keyword));
+    });
+    overlay.querySelectorAll('[data-keyword-clear]').forEach((button) => {
+      button.addEventListener('click', () => clearKeywords(button.dataset.keywordClear));
+    });
+  }
+
+  function renderModal() {
+    overlay.innerHTML = `
+      <div class="modal search-keywords-modal" role="dialog" aria-modal="true" aria-label="Search keywords">
+        <div class="modal-title">Search Keywords</div>
+        <p class="keyword-modal-copy">Positive keywords boost role matches. Negative keywords suppress roles you do not want.</p>
+        ${renderKeywordGroup('positive', 'Positive Keywords', draft)}
+        ${renderKeywordGroup('negative', 'Negative Keywords', draft)}
+        <div class="modal-actions">
+          <button class="btn" id="keyword-cancel-btn" type="button">Cancel</button>
+          <button class="btn btn-primary" id="keyword-save-btn" type="button">Save Keywords</button>
+        </div>
+      </div>
+    `;
+    bindModalEvents();
+  }
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) close();
+  });
+  document.addEventListener('keydown', onKey);
+  renderModal();
+  document.body.appendChild(overlay);
+  overlay.querySelector('#keyword-positive-input')?.focus();
 }
 
 function renderHeader() {
@@ -373,7 +503,7 @@ function renderEmptyState() {
   return `
     <div class="empty-state">
       <h3>No matches with current filters</h3>
-      <p>Lower the minimum score, clear industry filters, or change your title filter on the <a href="#/portals">Portals</a> tab.</p>
+      <p>Lower the minimum score, clear industry filters, or change your search keywords.</p>
     </div>
   `;
 }
@@ -408,6 +538,7 @@ function bindEvents(container) {
   });
 
   bindScanControls(container);
+  container.querySelector('#search-keywords-btn')?.addEventListener('click', () => openSearchKeywordsModal(container));
 
   // preserveFocus keeps the cursor in the search input across rerender()'s
   // full innerHTML rewrite — otherwise typing more than once de-focuses.
@@ -771,7 +902,7 @@ async function loadData() {
       api.getScanStatus().catch(() => null),
     ]);
     pending = Array.isArray(appsResp.pending) ? appsResp.pending : [];
-    portals = portalsResp || null;
+    portals = portalsResp?.portals || portalsResp || null;
     scanStatus = statusResp || null;
   } catch (err) {
     pending = [];
