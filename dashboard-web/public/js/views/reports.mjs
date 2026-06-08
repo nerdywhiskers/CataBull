@@ -172,6 +172,7 @@ async function renderReport(container, filename) {
         <div style="font-size:12px;color:var(--subtext)">Use report links below to jump to generated CV, cover letter, and supporting artifacts.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${postingUrl ? `<a class="btn btn-sm" href="${esc(postingUrl)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none">View posting</a>` : ''}
+          <a class="btn btn-sm" href="${api.reportExportUrl(filename)}" style="text-decoration:none">Export bundle</a>
           ${data.archived ? '' : '<button class="btn btn-sm btn-ghost" id="archive-report">Archive report</button>'}
         </div>
       </div>

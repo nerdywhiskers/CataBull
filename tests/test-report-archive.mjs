@@ -22,7 +22,7 @@ function assert(condition, msg) {
 
 console.log('\nreport archive helpers');
 
-const { resolveReportPath, archiveReportFile } = await import(
+const { resolveReportPath, archiveReportFile, collectReportExportEntries, buildReportExportZip } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web/routes/reports.mjs')).href
 );
 
@@ -42,7 +42,37 @@ const resolvedArchived = resolveReportPath(tmpRoot, '001-acme-2026-06-08.md');
 assert(resolvedArchived?.archived === true, 'resolveReportPath finds archived reports after move');
 assert(archiveReportFile(tmpRoot, 'missing.md') === null, 'archiving missing report returns null');
 
+const exportRoot = join(ROOT, '.tmp-test-report-export');
+mkdirSync(join(exportRoot, 'reports'), { recursive: true });
+mkdirSync(join(exportRoot, 'output', 'tailor-bundles', 'acme-role-2026-06-08'), { recursive: true });
+writeFileSync(join(exportRoot, 'reports', '002-acme-2026-06-08.md'), '# report\n');
+writeFileSync(join(exportRoot, 'output', 'cv-acme-2026-06-08.pdf'), 'pdf');
+writeFileSync(join(exportRoot, 'output', 'tailor-bundles', 'acme-role-2026-06-08', 'cv.md'), '# tailored cv\n');
+writeFileSync(join(exportRoot, 'output', 'tailor-bundles', 'acme-role-2026-06-08', 'cover-letter.md'), '# cover\n');
+
+const exportEntries = collectReportExportEntries(exportRoot, '002-acme-2026-06-08.md', {
+  artifacts: [{ path: 'output/cv-acme-2026-06-08.pdf' }],
+  tailorBundle: { paths: {
+    cv: 'output/tailor-bundles/acme-role-2026-06-08/cv.md',
+    coverLetter: 'output/tailor-bundles/acme-role-2026-06-08/cover-letter.md',
+  } },
+});
+assert(exportEntries.length === 4, 'collectReportExportEntries gathers report, artifacts, and tailor bundle files');
+
+const zip = await buildReportExportZip(exportRoot, '002-acme-2026-06-08.md', {
+  artifacts: [{ path: 'output/cv-acme-2026-06-08.pdf' }],
+  tailorBundle: { paths: {
+    cv: 'output/tailor-bundles/acme-role-2026-06-08/cv.md',
+    coverLetter: 'output/tailor-bundles/acme-role-2026-06-08/cover-letter.md',
+  } },
+});
+assert(Buffer.isBuffer(zip?.buffer), 'buildReportExportZip returns zip buffer');
+assert(zip?.entries?.some((entry) => entry.zipPath === 'report/002-acme-2026-06-08.md'), 'zip includes report markdown');
+assert(zip?.entries?.some((entry) => entry.zipPath === 'artifacts/cv-acme-2026-06-08.pdf'), 'zip includes artifact files');
+assert(zip?.entries?.some((entry) => entry.zipPath === 'tailor-bundle/cover-letter.md'), 'zip includes tailor bundle files');
+
 rmSync(tmpRoot, { recursive: true, force: true });
+rmSync(exportRoot, { recursive: true, force: true });
 
 console.log(`\nPassed: ${passed} / ${total}`);
 if (failed > 0) {

@@ -102,6 +102,7 @@ export const api = {
   getReports: () => request('/reports'),
   getReport: (filename) => request(`/reports/${encodeURIComponent(filename)}`),
   archiveReport: (filename) => request(`/reports/${encodeURIComponent(filename)}/archive`, { method: 'POST', body: {} }),
+  reportExportUrl: (filename) => `/api/v1/reports/${encodeURIComponent(filename)}/export.zip`,
 
   // Metrics
   getMetrics: () => request('/metrics'),
