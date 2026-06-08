@@ -1868,6 +1868,32 @@
   font-size: 12px; color: var(--subtext);
 }
 .discover-score-slider input[type="range"] { width: 140px; }
+.discover-context-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--subtext);
+  font-size: 12px;
+  cursor: pointer;
+  background: var(--surface0);
+}
+.discover-context-toggle-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.discover-context-toggle-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--blue);
+}
+.discover-context-toggle-state .spinner { width: 12px; height: 12px; border-width: 2px; }
 .discover-group-toggle { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; margin-left: auto; }
 .discover-toggle-btn {
   padding: 4px 12px; border: none; background: transparent; color: var(--subtext0);
@@ -1992,6 +2018,26 @@ details[open] > .discover-group-summary::before { transform: rotate(90deg); }
   padding: 0;
   cursor: pointer;
 }
+.score-ring-loading {
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--surface0) 70%, transparent);
+}
+.score-ring-loading::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in oklab, var(--blue) 22%, transparent);
+  border-top-color: var(--blue);
+  animation: spinner-spin 0.8s linear infinite;
+}
+.score-ring-loading .spinner {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+  opacity: 0;
+}
 
 .discover-card-rationale {
   font-size: 13px;
@@ -2033,6 +2079,13 @@ details[open] > .discover-group-summary::before { transform: rotate(90deg); }
   z-index: 1;
 }
 .discover-card-actions .btn { font-size: 11px; padding: 4px 10px; }
+
+.score-modal-contextual-rationale {
+  margin: 0 0 12px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
 
 /* ── Tailor modal (PR 1.5) ─────────────────────────────────────────── */
 .tailor-modal-backdrop {

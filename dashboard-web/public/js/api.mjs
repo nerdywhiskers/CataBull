@@ -72,6 +72,7 @@ export const api = {
 
   // Applications
   getApplications: () => request('/applications'),
+  getContextualScores: (urls = []) => request('/applications/contextual-scores', { method: 'POST', body: { urls } }),
   updateApplication: (num, status) => request(`/applications/${num}`, { method: 'PATCH', body: { status } }),
 
   // Tailor bundle (PR 1.5)

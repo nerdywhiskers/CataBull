@@ -1,22 +1,18 @@
 import { parseApplications, loadReportSummary, parsePipeline } from '../lib/parsers.mjs';
 import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem, updatePendingItem } from '../lib/writers.mjs';
-import { readProfile, readPortals } from '../lib/writers.mjs';
+import { readProfile, readProfileMarkdown, readPortals } from '../lib/writers.mjs';
 import { scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../lib/relevance.mjs';
 import { enrichJobUrl } from '../lib/job-url-metadata.mjs';
+import { runAgentPrint } from '../lib/agents.mjs';
+import { buildContextualScoringPrompt, extractJsonObject, MAX_CONTEXTUAL_POSTINGS, normalizeContextualScores } from '../../lib/contextual-scoring.mjs';
 
 export default async function (app) {
   const root = app.cataBullRoot;
 
-  app.get('/applications', async () => {
+  function pendingWithHeuristicScores() {
     const apps = parseApplications(root);
-    for (const a of apps) {
-      if (a.reportPath) {
-        a.enrichment = loadReportSummary(root, a.reportPath);
-      }
-    }
     const { pending: rawPending, skipped, expired } = parsePipeline(root);
 
-    // Dedup: filter out pending items that already exist in applications (by URL or company+role)
     const appUrls = new Set(apps.map(a => a.jobUrl).filter(Boolean));
     const appKeys = new Set(apps.map(a => `${a.company.toLowerCase()}||${a.role.toLowerCase()}`));
     const skippedUrls = new Set(skipped.map(s => s.url));
@@ -28,10 +24,6 @@ export default async function (app) {
       return true;
     });
 
-    // Score relevance of pending items against profile and portals.
-    // Pure-heuristic via lib/relevance.mjs (no LLM tokens). Surfaces
-    // both the score AND a rationale so the UI can show *why* a posting
-    // got its score, not just the number.
     const profile = readProfile(root);
     const portals = readPortals(root);
     const inputs = relevanceInputsFrom({ profile, portals });
@@ -39,14 +31,63 @@ export default async function (app) {
     for (const p of pending) {
       const { score, factors } = scorePostingTitle(p.role, inputs);
       p.relevance = score;
+      p.heuristicRelevance = score;
       p.relevanceFactors = factors;
       p.relevanceRationale = rationaleSummary(factors);
     }
 
-    // Sort pending by relevance (highest first)
     pending.sort((a, b) => b.relevance - a.relevance);
+    return { apps, pending, skipped, expired };
+  }
+
+  app.get('/applications', async () => {
+    const { apps, pending, skipped, expired } = pendingWithHeuristicScores();
+    for (const a of apps) {
+      if (a.reportPath) {
+        a.enrichment = loadReportSummary(root, a.reportPath);
+      }
+    }
 
     return { applications: apps, total: apps.length, pending, pendingTotal: pending.length, skipped, skippedTotal: skipped.length, expired, expiredTotal: expired.length };
+  });
+
+  app.post('/applications/contextual-scores', async (req, reply) => {
+    const profile = readProfile(root) || {};
+    const agent = profile?.preferences?.agent || req.body?.agent;
+    if (!agent) return reply.code(400).send({ error: 'No agent configured' });
+
+    const requestedUrls = new Set(
+      (Array.isArray(req.body?.urls) ? req.body.urls : [])
+        .map((url) => String(url || '').trim())
+        .filter(Boolean)
+    );
+    const { pending } = pendingWithHeuristicScores();
+    const postings = pending
+      .filter((p) => requestedUrls.size === 0 || requestedUrls.has(p.url))
+      .slice(0, MAX_CONTEXTUAL_POSTINGS);
+    if (!postings.length) return { success: true, agent, scores: [] };
+
+    const timeoutMs = 180_000;
+    reply.raw.setTimeout(timeoutMs + 30_000);
+
+    const prompt = buildContextualScoringPrompt({
+      profile,
+      profileMarkdown: readProfileMarkdown(root) || '',
+      postings,
+    });
+
+    try {
+      const out = await runAgentPrint(agent, prompt, root, {
+        timeoutMs,
+        allowEdits: false,
+        rejectOnError: true,
+      });
+      const payload = extractJsonObject(out.output || '');
+      const scores = normalizeContextualScores(payload, postings);
+      return { success: true, agent, scores };
+    } catch (err) {
+      return reply.code(502).send({ error: err.message || String(err), agent });
+    }
   });
 
   app.patch('/applications/:num', async (req, reply) => {
