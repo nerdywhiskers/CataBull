@@ -28,6 +28,9 @@ globalThis.document = { getElementById() { return null; } };
 const { normalizeAnalyticsSubTab } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web/public/js/views/progress.mjs')).href
 );
+const { extractReportSections, reportPostingUrl } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web/public/js/views/reports.mjs')).href
+);
 const { computeProgressMetrics } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web/lib/metrics.mjs')).href
 );
@@ -55,6 +58,12 @@ assert(memory.tab === 'memory' && memory.reportFilename === '', 'memory subtab r
 
 const fallback = normalizeAnalyticsSubTab('wat');
 assert(fallback.tab === 'overview', 'unknown subtab falls back to overview');
+
+const reportSections = extractReportSections(`# Title\n\n## TL;DR\nbody\n\n## A) Match With CV - 4.4/5\nbody\n\n## TL;DR\nrepeat`);
+assert(reportSections.length === 2, 'extractReportSections dedupes repeated headings');
+assert(reportSections[0].id === 'tl-dr', 'extractReportSections slugifies heading ids');
+assert(reportSections[1].id === 'a-match-with-cv-4-4-5', 'extractReportSections keeps stable ids for score headings');
+assert(reportPostingUrl('**URL:** https://example.com/jobs/123\n') === 'https://example.com/jobs/123', 'reportPostingUrl extracts posting link from report body');
 
 const metrics = computeProgressMetrics([
   { status: 'Applied', score: 4.2, date: '2026-06-01' },

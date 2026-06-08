@@ -111,10 +111,55 @@ function renderTailorBundle(tailorBundle) {
   `;
 }
 
+function slugifyHeading(text = '') {
+  return String(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'section';
+}
+
+export function extractReportSections(raw = '') {
+  const sections = [];
+  const seen = new Set();
+  for (const line of String(raw).split(/\r?\n/)) {
+    const match = line.match(/^##\s+(.+)$/);
+    if (!match) continue;
+    const title = match[1].trim();
+    const id = slugifyHeading(title);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    sections.push({ title, id });
+  }
+  return sections;
+}
+
+export function reportPostingUrl(raw = '') {
+  const match = String(raw).match(/^\*\*URL:\*\*\s*(https?:\/\/\S+)/m);
+  return match ? match[1] : '';
+}
+
+export function decorateReportHeadings(container) {
+  const headings = Array.from(container?.querySelectorAll?.('h2') || []);
+  const seen = new Set();
+  headings.forEach((heading) => {
+    const id = slugifyHeading(heading.textContent || '');
+    let finalId = id;
+    let suffix = 2;
+    while (seen.has(finalId)) {
+      finalId = `${id}-${suffix++}`;
+    }
+    seen.add(finalId);
+    heading.id = finalId;
+    heading.style.scrollMarginTop = '96px';
+  });
+}
+
 async function renderReport(container, filename) {
   container.innerHTML = '<div class="empty-state"><p>Loading report...</p></div>';
   try {
     const data = await api.getReport(filename);
+    const sections = extractReportSections(data.raw);
+    const postingUrl = reportPostingUrl(data.raw);
     container.innerHTML = `
       <div class="section-header">
         <button class="btn btn-sm" id="back-to-reports">← Back</button>
@@ -125,14 +170,26 @@ async function renderReport(container, filename) {
       </div>
       <div class="card" style="margin-bottom:16px;background:var(--surface0);display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between">
         <div style="font-size:12px;color:var(--subtext)">Use report links below to jump to generated CV, cover letter, and supporting artifacts.</div>
-        ${data.archived ? '' : '<button class="btn btn-sm btn-ghost" id="archive-report">Archive report</button>'}
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${postingUrl ? `<a class="btn btn-sm" href="${esc(postingUrl)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none">View posting</a>` : ''}
+          ${data.archived ? '' : '<button class="btn btn-sm btn-ghost" id="archive-report">Archive report</button>'}
+        </div>
       </div>
+      ${sections.length ? `
+        <div class="card" style="margin-bottom:16px;background:var(--surface0)">
+          <h3 style="font-size:13px;font-weight:600;color:var(--subtext);margin-bottom:10px">Jump to section</h3>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            ${sections.map((section) => `<a class="btn btn-sm" href="#${section.id}" style="text-decoration:none">${esc(section.title)}</a>`).join('')}
+          </div>
+        </div>
+      ` : ''}
       ${renderTailorBundle(data.tailorBundle)}
       ${renderArtifacts(data.artifacts)}
-      <div class="card markdown-body" style="padding:24px 32px">
+      <div class="card markdown-body" id="report-markdown" style="padding:24px 32px">
         ${renderMarkdown(data.raw)}
       </div>
     `;
+    decorateReportHeadings(container.querySelector('#report-markdown'));
     container.querySelector('#back-to-reports').onclick = () => {
       window.location.hash = '#/analytics/reports';
     };
