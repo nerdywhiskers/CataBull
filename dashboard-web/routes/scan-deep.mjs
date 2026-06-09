@@ -25,6 +25,8 @@ import { runLevel3, normalizeUrl, extractCompany, extractRole, isAggregatorPage 
 import { searchWeb, WebSearchError } from '../../scan/websearch.mjs';
 import { runJobSpy, detectRunner as detectJobSpyRunner, DEFAULT_SITES as JOBSPY_DEFAULT_SITES } from '../../scan/market/jobspy.mjs';
 import { classifyLiveness } from '../../lib/liveness-core.mjs';
+import { isActiveLiveness, normalizeJobBoardLiveness } from '../../lib/job-board-liveness.mjs';
+import { checkLinkedInGuestPosting } from '../../lib/linkedin-liveness.mjs';
 import { launchChromiumWithRetry } from '../../lib/playwright-launch.mjs';
 import { createLineBuffer, parseProgressLine } from '../../lib/scan-progress-stream.mjs';
 import { buildTitleClassifier } from '../../lib/title-filter.mjs';
@@ -496,7 +498,7 @@ async function runLevel4({ root, portals, remainingCap, seenUrls, seenCompanyRol
   const runner = await detectJobSpyRunner();
   if (runner.kind === 'none') {
     send('progress', { stage: 'l4:skipped', reason: 'no python runtime (install uv or python3)' });
-    return { available: false, added: [], skipped: { title: 0, dup: 0, expired: 0, aggregator: 0 }, errors: [] };
+    return { available: false, added: [], skipped: { title: 0, dup: 0, expired: 0, aggregator: 0, unverified: 0 }, errors: [] };
   }
 
   // Derive the JobSpy query from the user's title filter. We OR the
@@ -506,7 +508,7 @@ async function runLevel4({ root, portals, remainingCap, seenUrls, seenCompanyRol
   const positives = (portals.title_filter?.positive || []).slice(0, 6);
   if (positives.length === 0) {
     send('progress', { stage: 'l4:skipped', reason: 'no positive keywords in title_filter' });
-    return { available: true, added: [], skipped: { title: 0, dup: 0, expired: 0, aggregator: 0 }, errors: [], note: 'no positive keywords' };
+    return { available: true, added: [], skipped: { title: 0, dup: 0, expired: 0, aggregator: 0, unverified: 0 }, errors: [], note: 'no positive keywords' };
   }
 
   // jobspy expects a plain search_term string; treat each positive keyword
@@ -564,7 +566,7 @@ async function runLevel4({ root, portals, remainingCap, seenUrls, seenCompanyRol
   // Filter + dedupe pass — mirrors Level 3's logic so the two stages
   // produce identically-shaped pipeline entries.
   const classifyTitle = buildTitleClassifier(portals.title_filter);
-  const skipped = { title: 0, dup: 0, expired: 0, aggregator: 0 };
+  const skipped = { title: 0, dup: 0, expired: 0, aggregator: 0, unverified: 0 };
   const candidates = [];
   for (const h of allHits) {
     if (isAggregatorPage({ url: h.url, title: h.title })) { skipped.aggregator++; continue; }
@@ -586,6 +588,7 @@ async function runLevel4({ root, portals, remainingCap, seenUrls, seenCompanyRol
     try { result = await livenessCheck(c.url); }
     catch (err) { result = { result: 'uncertain', reason: 'liveness check threw' }; errors.push({ url: c.url, error: err.message }); }
     if (result?.result === 'expired') { skipped.expired++; continue; }
+    if (!isActiveLiveness(result)) { skipped.unverified = (skipped.unverified || 0) + 1; continue; }
     const companyKey = `${String(c.company || 'unknown').toLowerCase()}::${String(c.title || '').toLowerCase()}`;
     if (seenCompanyRoles.has(companyKey)) { skipped.dup++; continue; }
     seenCompanyRoles.add(companyKey);
@@ -610,6 +613,9 @@ async function runLevel4({ root, portals, remainingCap, seenUrls, seenCompanyRol
 
 async function classifyByPlaywright(page, url) {
   try {
+    const linkedInGuestResult = await checkLinkedInGuestPosting(url);
+    if (linkedInGuestResult?.result === 'expired') return linkedInGuestResult;
+
     const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
     const status = response?.status() ?? 0;
     await page.waitForTimeout(1500);
@@ -629,8 +635,11 @@ async function classifyByPlaywright(page, url) {
           .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim())
         .filter(Boolean);
     });
-    return classifyLiveness({ status, finalUrl, bodyText, titleText, applyControls });
+    return normalizeJobBoardLiveness(
+      url,
+      classifyLiveness({ status, finalUrl, bodyText, titleText, applyControls }),
+    );
   } catch (err) {
-    return { result: 'uncertain', reason: `navigation error: ${(err.message || '').split('\n')[0]}` };
+    return normalizeJobBoardLiveness(url, { result: 'uncertain', reason: `navigation error: ${(err.message || '').split('\n')[0]}` });
   }
 }

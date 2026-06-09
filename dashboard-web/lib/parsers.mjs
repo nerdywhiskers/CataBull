@@ -241,9 +241,16 @@ function enrichTailorBundles(root, apps) {
       cv: `${dir}/cv.md`,
       coverLetter: `${dir}/cover-letter.md`,
       qa: `${dir}/answers.md`,
+      cvHtml: `${dir}/cv.html`,
+      coverLetterHtml: `${dir}/cover-letter.html`,
+      cvPdf: `${dir}/cv.pdf`,
+      coverLetterPdf: `${dir}/cover-letter.pdf`,
     };
-    if (!ws.exists(paths.cv) && !ws.exists(paths.coverLetter) && !ws.exists(paths.qa)) continue;
-    app.tailorBundle = { slug, dir, paths };
+    const existingPaths = Object.fromEntries(
+      Object.entries(paths).filter(([, relPath]) => ws.exists(relPath))
+    );
+    if (Object.keys(existingPaths).length === 0) continue;
+    app.tailorBundle = { slug, dir, paths: existingPaths };
   }
 }
 

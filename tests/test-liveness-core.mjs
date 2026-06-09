@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 
 import { classifyLiveness } from '../lib/liveness-core.mjs';
+import { normalizeJobBoardLiveness } from '../lib/job-board-liveness.mjs';
+import {
+  classifyLinkedInGuestHtml,
+  extractLinkedInJobId,
+  linkedInGuestPostingUrl,
+} from '../lib/linkedin-liveness.mjs';
 
 const VERBOSE = process.argv.includes('--verbose');
 
@@ -29,6 +35,21 @@ const linkedInClosed = classifyLiveness({
   applyControls: ['Apply'],
 });
 assert(linkedInClosed.result === 'expired', 'LinkedIn closed title beats visible apply control');
+
+assert(
+  extractLinkedInJobId('https://www.linkedin.com/jobs/view/senior-ai-visual-artist-creative-technologist-at-dulcedo-management-4318710688/') === '4318710688',
+  'LinkedIn slug URL job id extracted'
+);
+assert(
+  linkedInGuestPostingUrl('4318710688') === 'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/4318710688',
+  'LinkedIn guest posting URL built from job id'
+);
+const linkedInGuestClosed = classifyLinkedInGuestHtml({
+  status: 200,
+  guestUrl: 'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/4318710688',
+  html: '<figure class="closed-job"><figcaption>No longer accepting applications</figcaption></figure>',
+});
+assert(linkedInGuestClosed?.result === 'expired', 'LinkedIn guest closed banner expires posting');
 
 const linkedInNoLongerOpen = classifyLiveness({
   status: 200,
@@ -74,6 +95,33 @@ const expiredPosting = classifyLiveness({
   applyControls: [],
 });
 assert(expiredPosting.result === 'expired', 'expired posting text expires posting');
+
+const inactivePosting = classifyLiveness({
+  status: 200,
+  finalUrl: 'https://company.com/jobs/123',
+  bodyText: 'This job posting is no longer active.',
+  titleText: 'Careers',
+  applyControls: ['Apply now'],
+});
+assert(inactivePosting.result === 'expired', 'no-longer-active posting text expires posting');
+
+const workdayUnavailable = classifyLiveness({
+  status: 200,
+  finalUrl: 'https://wd1.myworkdaysite.com/recruiting/company/job/123',
+  bodyText: 'Sorry, this job is no longer available.',
+  titleText: 'Workday',
+  applyControls: [],
+});
+assert(workdayUnavailable.result === 'expired', 'provider no-longer-available copy expires posting');
+
+const notFoundRedirect = classifyLiveness({
+  status: 200,
+  finalUrl: 'https://company.com/jobs/not-found',
+  bodyText: 'Search jobs',
+  titleText: 'Jobs',
+  applyControls: [],
+});
+assert(notFoundRedirect.result === 'expired', 'job not-found redirect expires posting');
 
 const activeWithApply = classifyLiveness({
   status: 200,
@@ -129,6 +177,12 @@ const cloudflareChallenge403 = classifyLiveness({
   applyControls: [],
 });
 assert(cloudflareChallenge403.result === 'uncertain', 'security verification wall stays uncertain, not expired');
+const laddersCloudflare = normalizeJobBoardLiveness(
+  'https://www.theladders.com/job/art-director-ncrcorporation-virtual-travel_81139223',
+  cloudflareChallenge403,
+);
+assert(laddersCloudflare.result === 'expired', 'TheLadders Cloudflare wall is treated as unavailable');
+assert(/TheLadders/.test(laddersCloudflare.reason), 'TheLadders unavailable reason names the board');
 
 const activeWithApplyAndLoginNav = classifyLiveness({
   status: 200,

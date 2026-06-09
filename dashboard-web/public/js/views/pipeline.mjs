@@ -21,6 +21,7 @@ let portalsData = null;         // tracked_companies, for industry lookup on pen
 let selected = new Set();       // pending URLs
 let selectedApps = new Set();   // application nums
 let showTopMatchOnly = false;
+let minPendingScore = 0;
 let currentFilter = 'pending';
 let sortCol = 'score';
 let sortDir = 'desc';
@@ -35,6 +36,7 @@ let pendingRefreshState = getPendingRefreshState();
 let contextualScoringRun = 0;
 let contextualScoringActive = false;
 let contextualScoringError = '';
+let tailoringByUrl = new Map();
 
 async function loadData() {
   try {
@@ -71,7 +73,6 @@ function progressFromRunState(state) {
 async function refreshData(container) {
   await loadData();
   if (container === activeContainer) update(container);
-  startContextualScoring(container).catch(() => {});
 }
 
 async function refreshPendingPostings(container, { force = false, source = 'auto' } = {}) {
@@ -97,7 +98,6 @@ async function refreshPendingPostings(container, { force = false, source = 'auto
     } else if (result?.expired) {
       toast(`Auto-refresh expired ${result.expired} posting${result.expired === 1 ? '' : 's'}`);
     }
-    if (result?.checked) startContextualScoring(container).catch(() => {});
     return result;
   } catch (err) {
     const message = manual ? `Liveness check failed: ${err.message}` : `Auto-refresh failed: ${err.message}`;
@@ -393,6 +393,11 @@ export function pendingNeedsContextualScore(item, { force = false } = {}) {
   return Boolean(item?.url && (force || item.contextualScoreSource !== 'llm'));
 }
 
+export function pendingPassesScoreFilters(item, { topOnly = false, minScore = 0 } = {}) {
+  const score = Number(item?.relevance ?? 0);
+  return (!topOnly || score >= 4) && score >= minScore;
+}
+
 export function renderPendingScoreButton(item) {
   if (item?.contextualScoring) {
     return `<button type="button" class="score-trigger score-trigger-loading" data-score-kind="pending" data-score-url="${esc(item.url || '')}" title="Evaluating contextual match...">${renderScoreLoading()}</button>`;
@@ -560,7 +565,13 @@ export function shouldEnableTailorArtifacts(item) {
 }
 
 export function shouldShowTailorArtifactLinks(item) {
-  return shouldEnableTailorArtifacts(item) && Boolean(item?.tailorBundle?.paths?.cv || item?.tailorBundle?.paths?.coverLetter || item?.tailorBundle?.paths?.qa);
+  return shouldEnableTailorArtifacts(item) && Boolean(
+    item?.tailorBundle?.paths?.cv
+    || item?.tailorBundle?.paths?.coverLetter
+    || item?.tailorBundle?.paths?.qa
+    || item?.tailorBundle?.paths?.cvPdf
+    || item?.tailorBundle?.paths?.coverLetterPdf
+  );
 }
 
 export function pendingTailorDecision(item) {
@@ -573,6 +584,12 @@ export function pendingTailorDecision(item) {
     scoreSource: hasLlm ? 'llm' : 'heuristic',
     shouldWarn: shouldWarnLowTailorScore(score),
   };
+}
+
+export function pendingTailorStatusLabel(phase) {
+  if (phase === 'scoring') return 'Scoring match...';
+  if (phase === 'tailoring') return 'Tailoring bundle...';
+  return '';
 }
 
 // Tooltip for evaluated applications — shows the per-block A–E breakdown
@@ -855,7 +872,10 @@ async function startContextualScoring(container, { force = false, urls = null } 
 function renderPending(pageItems = null) {
   if (!pending.length) return `<div class="empty-state"><h3>No pending jobs</h3><p>Run a scan to discover new roles, or paste a job description in the chat.</p></div>`;
 
-  const baseFiltered = showTopMatchOnly ? pending.filter(p => p.relevance >= 4) : pending;
+  const baseFiltered = pending.filter(p => pendingPassesScoreFilters(p, {
+    topOnly: showTopMatchOnly,
+    minScore: minPendingScore,
+  }));
   const fullFiltered = baseFiltered.filter(p => matchesSearch(p)).filter(matchesPendingFilter);
   const filtered = pageItems ?? fullFiltered;
 
@@ -879,28 +899,34 @@ function renderPending(pageItems = null) {
 
   const rows = filtered.map(p => {
     const tone = relevanceClass(p.relevance ?? 0);
+    const tailorPhase = tailoringByUrl.get(p.url) || '';
+    const isTailoring = Boolean(tailorPhase);
+    const tailorLabel = pendingTailorStatusLabel(tailorPhase);
     return `
-    <tr data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" data-posted-at="${esc(p.postedAt || '')}" data-location="${esc(p.location || '')}">
-      <td class="col-check"><input type="checkbox" class="pending-check" data-url="${esc(p.url)}" ${selected.has(p.url) ? 'checked' : ''}></td>
+    <tr class="${isTailoring ? 'is-tailoring' : ''}" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" data-posted-at="${esc(p.postedAt || '')}" data-location="${esc(p.location || '')}">
+      <td class="col-check"><input type="checkbox" class="pending-check" data-url="${esc(p.url)}" ${selected.has(p.url) ? 'checked' : ''} ${isTailoring ? 'disabled' : ''}></td>
       <td class="col-company">
         <span class="cell-company">
           <span class="cell-company-logo">${esc(companyInitials(p.company))}</span>
           <span>${esc(p.company)}</span>
         </span>
       </td>
-      <td><span class="cell-role">${esc(p.role)}</span></td>
+      <td>
+        <span class="cell-role">${esc(p.role)}</span>
+        ${isTailoring ? `<span class="pending-tailor-status"><span class="spinner"></span>${esc(tailorLabel)}</span>` : ''}
+      </td>
       <td><span class="cell-date">${p.postedAt || ''}</span></td>
       <td class="col-score">${renderPendingScoreButton(p)}</td>
       <td class="col-actions">
         <span class="cell-actions">
           <a href="${esc(p.url)}" target="_blank" class="btn btn-ghost btn-sm" title="Open posting">&#x2197;</a>
-          <button class="btn btn-sm btn-outline pending-skip-btn" data-url="${esc(p.url)}" title="Skip this role">Skip</button>
-          <button class="btn btn-sm btn-secondary pending-tailor-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Score this role and draft a tailored CV when it is a strong fit">Tailor</button>
-          <button class="btn btn-sm btn-soft pending-apply-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Mark as Applied">Applied</button>
-          ${overflowMenu([
-            { label: 'Edit role', onClick: () => openPendingEditModal(p) },
-            { label: 'Deep Research', onClick: () => runModePrompt('deep', { company: p.company, role: p.role, url: p.url }) },
-            { label: 'Outreach',      onClick: () => runModePrompt('outreach', { company: p.company, role: p.role, url: p.url }) },
+          <button class="btn btn-sm btn-outline pending-skip-btn" data-url="${esc(p.url)}" title="Skip this role" ${isTailoring ? 'disabled' : ''}>Skip</button>
+          <button class="btn btn-sm btn-secondary pending-tailor-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Score this role and draft a tailored CV when it is a strong fit" ${isTailoring ? 'disabled' : ''}>${isTailoring ? `<span class="spinner"></span>${esc(tailorLabel)}` : 'Tailor'}</button>
+          <button class="btn btn-sm btn-soft pending-apply-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Mark as Applied" ${isTailoring ? 'disabled' : ''}>Applied</button>
+          ${isTailoring ? '' : overflowMenu([
+              { label: 'Edit role', onClick: () => openPendingEditModal(p) },
+              { label: 'Deep Research', onClick: () => runModePrompt('deep', { company: p.company, role: p.role, url: p.url }) },
+              { label: 'Outreach',      onClick: () => runModePrompt('outreach', { company: p.company, role: p.role, url: p.url }) },
           ])}
         </span>
       </td>
@@ -1079,8 +1105,10 @@ function renderTable(items) {
             <button class="btn btn-sm btn-outline app-pdf-btn" data-url="${esc(a.jobUrl || '')}" data-company="${esc(a.company)}" data-role="${esc(a.role)}">PDF</button>
           ` : ''}
           ${shouldShowTailorArtifactLinks(a) ? `
-            ${a.tailorBundle?.paths?.cv ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.cv))}" target="_blank" class="btn btn-sm btn-outline" title="Open tailored CV">CV</a>` : ''}
-            ${a.tailorBundle?.paths?.coverLetter ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.coverLetter))}" target="_blank" class="btn btn-sm btn-outline" title="Open tailored cover letter">Cover</a>` : ''}
+            ${a.tailorBundle?.paths?.cv ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.cv))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored CV markdown">CV</a>` : ''}
+            ${a.tailorBundle?.paths?.cvPdf ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.cvPdf))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored CV PDF">CV PDF</a>` : ''}
+            ${a.tailorBundle?.paths?.coverLetter ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.coverLetter))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored cover letter markdown">Cover</a>` : ''}
+            ${a.tailorBundle?.paths?.coverLetterPdf ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.coverLetterPdf))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored cover letter PDF">Cover PDF</a>` : ''}
           ` : ''}
           ${a.reportPath ? `<button class="btn btn-ghost btn-sm view-report-btn" data-report="${esc(a.reportPath)}" title="View report">&#x1F4C4;</button>` : ''}
           ${overflowMenu([
@@ -1408,7 +1436,6 @@ export async function render(container) {
   await syncScanRunState(container, { refreshOnFinish: false });
 
   update(container);
-  startContextualScoring(container).catch(() => {});
   refreshPendingPostings(container, { source: 'load' }).catch(() => {});
 }
 
@@ -1421,7 +1448,11 @@ function update(container) {
   // directly), so it manages its own pagination below.
   const fullItems = isPending ? [] : sorted(filtered());
   const fullPending = isPending
-    ? (showTopMatchOnly ? pending.filter(p => p.relevance >= 4) : pending)
+    ? pending
+        .filter(p => pendingPassesScoreFilters(p, {
+          topOnly: showTopMatchOnly,
+          minScore: minPendingScore,
+        }))
         .filter(matchesSearch)
         .filter(matchesPendingFilter)
     : [];
@@ -1509,6 +1540,12 @@ function update(container) {
             <input type="checkbox" id="top-match-toggle" ${showTopMatchOnly ? 'checked' : ''}>
             <span>Top matches only (4+)</span>
           </label>
+          ${isPending ? `
+            <label class="discover-score-slider pipeline-score-slider">
+              <span>Min score: <strong id="pipeline-min-label">${minPendingScore.toFixed(1)}</strong></span>
+              <input type="range" min="0" max="5" step="0.5" value="${minPendingScore}" id="pipeline-min-input" />
+            </label>
+          ` : ''}
           <div style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">
             ${isPending ? `<button class="btn btn-sm btn-outline" id="pending-rescore-btn" type="button"${contextualScoringActive ? ' disabled' : ''}>Rescore LLM</button>` : ''}
             <button class="btn btn-sm btn-primary" id="add-job-btn" type="button">Add Job</button>
@@ -1669,6 +1706,19 @@ function update(container) {
   container.querySelector('#top-match-toggle')?.addEventListener('change', (e) => {
     showTopMatchOnly = e.target.checked;
     selected.clear();
+    currentPage = 1;
+    update(container);
+  });
+
+  container.querySelector('#pipeline-min-input')?.addEventListener('input', (e) => {
+    minPendingScore = Number.parseFloat(e.target.value);
+    const label = container.querySelector('#pipeline-min-label');
+    if (label) label.textContent = minPendingScore.toFixed(1);
+  });
+  container.querySelector('#pipeline-min-input')?.addEventListener('change', (e) => {
+    minPendingScore = Number.parseFloat(e.target.value);
+    selected.clear();
+    currentPage = 1;
     update(container);
   });
 
@@ -1812,30 +1862,37 @@ function update(container) {
       const scorePendingItem = async () => {
         const current = pending.find((item) => item.url === pendingItem.url) || pendingItem;
         if (current.contextualScoreSource === 'llm' || !contextualScoringEnabled()) return current;
+        tailoringByUrl.set(pendingItem.url, 'scoring');
+        update(container);
         await startContextualScoring(container, { urls: [pendingItem.url] });
         return pending.find((item) => item.url === pendingItem.url) || current;
       };
 
       const doTailor = async () => {
-        const scoredItem = await scorePendingItem();
-        const decision = pendingTailorDecision(scoredItem);
-        if (decision.shouldWarn) {
-          const okLowScore = await confirmModal({
-            title: 'Low-fit tailor?',
-            confirmText: 'Tailor anyway',
-            body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:10px"><strong style="color:var(--text)">${esc(scoredItem.company)} - ${esc(scoredItem.role)}</strong> is only scoring <strong style="color:var(--yellow)">${Number.isFinite(decision.score) ? decision.score.toFixed(1) : 'n/a'}/5</strong>.</p><p style="font-size:13px;color:var(--subtext0)">This usually means weak fit. Tailoring now may burn time and credits before the role is worth pursuing.</p>`,
-          });
-          if (!okLowScore) return;
-        }
-        btn.disabled = true;
         try {
+          const scoredItem = await scorePendingItem();
+          const decision = pendingTailorDecision(scoredItem);
+          if (decision.shouldWarn) {
+            tailoringByUrl.delete(pendingItem.url);
+            update(container);
+            const okLowScore = await confirmModal({
+              title: 'Low-fit tailor?',
+              confirmText: 'Tailor anyway',
+              body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:10px"><strong style="color:var(--text)">${esc(scoredItem.company)} - ${esc(scoredItem.role)}</strong> is only scoring <strong style="color:var(--yellow)">${Number.isFinite(decision.score) ? decision.score.toFixed(1) : 'n/a'}/5</strong>.</p><p style="font-size:13px;color:var(--subtext0)">This usually means weak fit. Tailoring now may burn time and credits before the role is worth pursuing.</p>`,
+            });
+            if (!okLowScore) return;
+          }
+          tailoringByUrl.set(pendingItem.url, 'tailoring');
+          update(container);
           const result = await api.tailor(scoredItem);
           toast(`Tailor bundle ready for ${scoredItem.company}`);
-          if (result?.paths?.cv) window.open(api.tailorFileUrl(result.paths.cv), '_blank', 'noopener');
+          if (result?.paths?.cvPdf) window.open(api.tailorFileUrl(result.paths.cvPdf), '_blank', 'noopener');
+          else if (result?.paths?.cv) window.open(api.tailorFileUrl(result.paths.cv), '_blank', 'noopener');
         } catch (err) {
           toast(`Tailor failed: ${err.message}`, 'error');
         } finally {
-          btn.disabled = false;
+          tailoringByUrl.delete(pendingItem.url);
+          update(container);
         }
       };
 

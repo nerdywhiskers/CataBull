@@ -1868,6 +1868,29 @@
   font-size: 12px; color: var(--subtext);
 }
 .discover-score-slider input[type="range"] { width: 140px; }
+.pending-table tr.is-tailoring {
+  position: relative;
+  background: color-mix(in srgb, var(--surface1) 72%, var(--mauve) 10%);
+}
+.pending-table tr.is-tailoring td {
+  opacity: 0.82;
+}
+.pending-tailor-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  color: var(--mauve);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.pending-tailor-status .spinner,
+.pending-tailor-btn .spinner {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+  margin-right: 4px;
+}
 .discover-context-toggle {
   display: inline-flex;
   align-items: center;

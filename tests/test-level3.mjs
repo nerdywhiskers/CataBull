@@ -33,6 +33,7 @@ const SEARCH_QUERIES = [
 
 const stubLive = async () => ({ result: 'active', reason: 'mock active' });
 const stubExpired = async () => ({ result: 'expired', reason: 'mock expired' });
+const stubUncertain = async () => ({ result: 'uncertain', reason: 'mock uncertain' });
 
 console.log('\nscan/level3.mjs');
 
@@ -123,6 +124,17 @@ const expiredResult = await runLevel3({
 
 assert(expiredResult.added.length === 0, 'expired candidate dropped');
 assert(expiredResult.skipped.expired === 1, 'expired count incremented');
+
+const uncertainResult = await runLevel3({
+  searchQueries: [{ name: 'Ladders', query: 'site:theladders.com x', enabled: true }],
+  titleFilter: TITLE_FILTER,
+  webSearch: async () => [
+    { url: 'https://www.theladders.com/job/art-director-ncrcorporation-virtual-travel_81139223', title: 'Art Director at NCR', snippet: '' },
+  ],
+  livenessCheck: stubUncertain,
+});
+assert(uncertainResult.added.length === 0, 'uncertain candidate dropped when liveness checker is available');
+assert(uncertainResult.skipped.unverified === 1, 'uncertain liveness count increments unverified');
 
 // ── 5. runLevel3 — empty queries ───────────────────────────────────
 

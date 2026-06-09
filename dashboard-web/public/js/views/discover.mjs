@@ -822,7 +822,8 @@ function bindCardEvents(container) {
 
     card.querySelector('.discover-tailor')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      openTailorModal({ company, role, url });
+      const item = pending.find((p) => p.url === url) || { company, role, url };
+      openTailorModal(item);
     });
     card.querySelector('.discover-applied')?.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -849,7 +850,27 @@ function bindCardEvents(container) {
   });
 }
 
-function openTailorModal({ company, role, url }) {
+function tailorScoreForWarning(item) {
+  const llmScore = Number(item?.contextualScore);
+  const heuristicScore = Number(item?.relevance);
+  return item?.contextualScoreSource === 'llm' && Number.isFinite(llmScore) ? llmScore : heuristicScore;
+}
+
+async function confirmLowTailorScore(item) {
+  const score = tailorScoreForWarning(item);
+  if (!Number.isFinite(score) || score >= 3) return true;
+  return confirmModal({
+    title: 'Low-fit tailor?',
+    confirmText: 'Tailor anyway',
+    body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:10px"><strong style="color:var(--text)">${esc(item.company)} - ${esc(item.role)}</strong> is only scoring <strong style="color:var(--yellow)">${score.toFixed(1)}/5</strong>.</p><p style="font-size:13px;color:var(--subtext0)">This usually means weak fit. Tailoring now may burn time and credits before the role is worth pursuing.</p>`,
+  });
+}
+
+async function openTailorModal(item) {
+  const { company, role, url } = item;
+  const ok = await confirmLowTailorScore(item);
+  if (!ok) return;
+
   // Modal lives on body so it overlays the whole dashboard. Built once
   // and reused — re-renders into innerHTML for state changes.
   let modal = document.getElementById('tailor-modal');
@@ -904,7 +925,10 @@ function openTailorModal({ company, role, url }) {
           <section class="tailor-section">
             <header>
               <h4>Tailored CV</h4>
-              <a class="btn btn-sm" href="${api.tailorFileUrl(paths.cv)}" target="_blank" rel="noreferrer">Download</a>
+              <span class="cell-actions">
+                <a class="btn btn-sm" href="${api.tailorFileUrl(paths.cv)}" target="_blank" rel="noreferrer">MD</a>
+                ${paths.cvPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.cvPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
+              </span>
             </header>
             <pre class="tailor-preview">${esc(preview.cv_excerpt)}…</pre>
           </section>
@@ -912,7 +936,10 @@ function openTailorModal({ company, role, url }) {
           <section class="tailor-section">
             <header>
               <h4>Cover letter</h4>
-              <a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetter)}" target="_blank" rel="noreferrer">Download</a>
+              <span class="cell-actions">
+                <a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetter)}" target="_blank" rel="noreferrer">MD</a>
+                ${paths.coverLetterPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.coverLetterPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
+              </span>
             </header>
             <pre class="tailor-preview">${esc(preview.cover_letter_excerpt)}…</pre>
           </section>
@@ -1007,6 +1034,5 @@ export async function render(container) {
   container.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
   await loadData();
   rerender(container);
-  startContextualScoring(container);
   refreshPendingPostings(container, { source: 'load' }).catch(() => {});
 }

@@ -210,10 +210,14 @@ writeFileSync(join(testRoot4, 'reports', '002-left-field-labs-2026-06-04.md'), '
 writeFileSync(join(testRoot4, 'output', 'tailor-bundles', 'left-field-labs-creative-director-experiences-2026-06-04', 'cv.md'), '# CV\n');
 writeFileSync(join(testRoot4, 'output', 'tailor-bundles', 'left-field-labs-creative-director-experiences-2026-06-04', 'cover-letter.md'), '# Cover\n');
 writeFileSync(join(testRoot4, 'output', 'tailor-bundles', 'left-field-labs-creative-director-experiences-2026-06-04', 'answers.md'), '# Answers\n');
+writeFileSync(join(testRoot4, 'output', 'tailor-bundles', 'left-field-labs-creative-director-experiences-2026-06-04', 'cv.pdf'), 'pdf');
+writeFileSync(join(testRoot4, 'output', 'tailor-bundles', 'left-field-labs-creative-director-experiences-2026-06-04', 'cover-letter.pdf'), 'pdf');
 const parsedApps = parseApplications(testRoot4);
 assert(parsedApps[0]?.tailorBundle?.paths?.cv === 'output/tailor-bundles/left-field-labs-creative-director-experiences-2026-06-04/cv.md', 'parseApplications exposes tailored CV path when bundle exists');
 assert(parsedApps[0]?.tailorBundle?.paths?.coverLetter === 'output/tailor-bundles/left-field-labs-creative-director-experiences-2026-06-04/cover-letter.md', 'parseApplications exposes tailored cover letter path when bundle exists');
 assert(parsedApps[0]?.tailorBundle?.paths?.qa === 'output/tailor-bundles/left-field-labs-creative-director-experiences-2026-06-04/answers.md', 'parseApplications exposes tailored Q&A path when bundle exists');
+assert(parsedApps[0]?.tailorBundle?.paths?.cvPdf === 'output/tailor-bundles/left-field-labs-creative-director-experiences-2026-06-04/cv.pdf', 'parseApplications exposes tailored CV PDF path when bundle exists');
+assert(parsedApps[0]?.tailorBundle?.paths?.coverLetterPdf === 'output/tailor-bundles/left-field-labs-creative-director-experiences-2026-06-04/cover-letter.pdf', 'parseApplications exposes tailored cover letter PDF path when bundle exists');
 rmSync(testRoot4, { recursive: true, force: true });
 
 // ── 5. SPAWN WITH TIMEOUT ───────────────────────────────────────
