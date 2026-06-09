@@ -15,6 +15,37 @@ import { runTailor } from '../../lib/tailor.mjs';
 import { readProfile } from '../lib/writers.mjs';
 import { asWorkspace } from '../../lib/workspace.mjs';
 import { basename, extname } from 'path';
+import { launchChromiumWithRetry } from '../../lib/playwright-launch.mjs';
+
+async function generatePdfFromHtml(ws, htmlRelPath, pdfRelPath) {
+  const html = ws.read(htmlRelPath);
+  if (html == null) throw new Error(`Missing HTML source for PDF: ${htmlRelPath}`);
+  const browser = await launchChromiumWithRetry(
+    { headless: true },
+    { onWarn: (msg) => console.warn(`Tailor PDF warning: ${msg}`) },
+  );
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, {
+      waitUntil: 'networkidle',
+      baseURL: `file://${ws.resolve(htmlRelPath).replace(/\/[^/]+$/, '')}/`,
+    });
+    await page.evaluate(() => document.fonts?.ready || true);
+    const pdf = await page.pdf({
+      format: 'letter',
+      printBackground: true,
+      margin: { top: '0.6in', right: '0.6in', bottom: '0.6in', left: '0.6in' },
+    });
+    ws.write(pdfRelPath, pdf);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function generateTailorPdfs(ws, paths = {}) {
+  if (paths.cvHtml && paths.cvPdf) await generatePdfFromHtml(ws, paths.cvHtml, paths.cvPdf);
+  if (paths.coverLetterHtml && paths.coverLetterPdf) await generatePdfFromHtml(ws, paths.coverLetterHtml, paths.coverLetterPdf);
+}
 
 export default async function (app) {
   const root = app.cataBullRoot;
@@ -54,6 +85,7 @@ export default async function (app) {
         workspace: ws,
         runAgent,
       });
+      await generateTailorPdfs(ws, result.paths);
       return {
         success: true,
         slug: result.slug,

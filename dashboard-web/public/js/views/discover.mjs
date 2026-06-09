@@ -925,7 +925,10 @@ async function openTailorModal(item) {
           <section class="tailor-section">
             <header>
               <h4>Tailored CV</h4>
-              <a class="btn btn-sm" href="${api.tailorFileUrl(paths.cv)}" target="_blank" rel="noreferrer">Download</a>
+              <span class="cell-actions">
+                <a class="btn btn-sm" href="${api.tailorFileUrl(paths.cv)}" target="_blank" rel="noreferrer">MD</a>
+                ${paths.cvPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.cvPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
+              </span>
             </header>
             <pre class="tailor-preview">${esc(preview.cv_excerpt)}…</pre>
           </section>
@@ -933,7 +936,10 @@ async function openTailorModal(item) {
           <section class="tailor-section">
             <header>
               <h4>Cover letter</h4>
-              <a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetter)}" target="_blank" rel="noreferrer">Download</a>
+              <span class="cell-actions">
+                <a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetter)}" target="_blank" rel="noreferrer">MD</a>
+                ${paths.coverLetterPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.coverLetterPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
+              </span>
             </header>
             <pre class="tailor-preview">${esc(preview.cover_letter_excerpt)}…</pre>
           </section>

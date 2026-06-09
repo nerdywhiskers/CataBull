@@ -564,7 +564,13 @@ export function shouldEnableTailorArtifacts(item) {
 }
 
 export function shouldShowTailorArtifactLinks(item) {
-  return shouldEnableTailorArtifacts(item) && Boolean(item?.tailorBundle?.paths?.cv || item?.tailorBundle?.paths?.coverLetter || item?.tailorBundle?.paths?.qa);
+  return shouldEnableTailorArtifacts(item) && Boolean(
+    item?.tailorBundle?.paths?.cv
+    || item?.tailorBundle?.paths?.coverLetter
+    || item?.tailorBundle?.paths?.qa
+    || item?.tailorBundle?.paths?.cvPdf
+    || item?.tailorBundle?.paths?.coverLetterPdf
+  );
 }
 
 export function pendingTailorDecision(item) {
@@ -1086,8 +1092,10 @@ function renderTable(items) {
             <button class="btn btn-sm btn-outline app-pdf-btn" data-url="${esc(a.jobUrl || '')}" data-company="${esc(a.company)}" data-role="${esc(a.role)}">PDF</button>
           ` : ''}
           ${shouldShowTailorArtifactLinks(a) ? `
-            ${a.tailorBundle?.paths?.cv ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.cv))}" target="_blank" class="btn btn-sm btn-outline" title="Open tailored CV">CV</a>` : ''}
-            ${a.tailorBundle?.paths?.coverLetter ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.coverLetter))}" target="_blank" class="btn btn-sm btn-outline" title="Open tailored cover letter">Cover</a>` : ''}
+            ${a.tailorBundle?.paths?.cv ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.cv))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored CV markdown">CV</a>` : ''}
+            ${a.tailorBundle?.paths?.cvPdf ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.cvPdf))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored CV PDF">CV PDF</a>` : ''}
+            ${a.tailorBundle?.paths?.coverLetter ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.coverLetter))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored cover letter markdown">Cover</a>` : ''}
+            ${a.tailorBundle?.paths?.coverLetterPdf ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.coverLetterPdf))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored cover letter PDF">Cover PDF</a>` : ''}
           ` : ''}
           ${a.reportPath ? `<button class="btn btn-ghost btn-sm view-report-btn" data-report="${esc(a.reportPath)}" title="View report">&#x1F4C4;</button>` : ''}
           ${overflowMenu([

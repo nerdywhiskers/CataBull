@@ -51,6 +51,7 @@ const {
   extractTailorPayload,
   validateTailorPayload,
   renderQaMarkdown,
+  renderTailorMarkdownHtml,
   writeTailorBundle,
   runTailor,
 } = await import('../lib/tailor.mjs');
@@ -166,6 +167,11 @@ assert(qaMd.includes('Staff'), 'role in header');
 assert(qaMd.includes('## 1. Tell us about yourself'), 'Q&A uses ##-numbered headings');
 assert(qaMd.endsWith('\n'), 'document ends with newline');
 
+const cvHtml = renderTailorMarkdownHtml('# CV\n\n- Built useful things', { title: 'CV' });
+assert(cvHtml.includes('<h1>CV</h1>'), 'tailor markdown HTML renders h1');
+assert(cvHtml.includes('<li>Built useful things</li>'), 'tailor markdown HTML renders bullets');
+assert(!cvHtml.includes('<script'), 'tailor markdown HTML escapes raw markup');
+
 // ── 6. writeTailorBundle ─────────────────────────────────────────────
 
 console.log('\n6. writeTailorBundle');
@@ -176,6 +182,10 @@ await withTempWorkspace((ws) => {
   assert(ws.exists(result.paths.cv), 'cv.md written');
   assert(ws.exists(result.paths.coverLetter), 'cover-letter.md written');
   assert(ws.exists(result.paths.qa), 'answers.md written');
+  assert(ws.exists(result.paths.cvHtml), 'cv.html written for PDF generation');
+  assert(ws.exists(result.paths.coverLetterHtml), 'cover-letter.html written for PDF generation');
+  assert(result.paths.cvPdf.endsWith('/cv.pdf'), 'cv PDF path returned');
+  assert(result.paths.coverLetterPdf.endsWith('/cover-letter.pdf'), 'cover letter PDF path returned');
   assert(ws.read(result.paths.cv).includes('# CV'), 'cv content preserved');
   assert(ws.read(result.paths.qa).includes('Tell us about yourself'), 'Q&A rendered');
   assert(ws.read(result.paths.cv).endsWith('\n'), 'cv ends with newline');
