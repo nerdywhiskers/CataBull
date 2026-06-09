@@ -21,6 +21,7 @@ let portalsData = null;         // tracked_companies, for industry lookup on pen
 let selected = new Set();       // pending URLs
 let selectedApps = new Set();   // application nums
 let showTopMatchOnly = false;
+let minPendingScore = 0;
 let currentFilter = 'pending';
 let sortCol = 'score';
 let sortDir = 'desc';
@@ -71,7 +72,6 @@ function progressFromRunState(state) {
 async function refreshData(container) {
   await loadData();
   if (container === activeContainer) update(container);
-  startContextualScoring(container).catch(() => {});
 }
 
 async function refreshPendingPostings(container, { force = false, source = 'auto' } = {}) {
@@ -97,7 +97,6 @@ async function refreshPendingPostings(container, { force = false, source = 'auto
     } else if (result?.expired) {
       toast(`Auto-refresh expired ${result.expired} posting${result.expired === 1 ? '' : 's'}`);
     }
-    if (result?.checked) startContextualScoring(container).catch(() => {});
     return result;
   } catch (err) {
     const message = manual ? `Liveness check failed: ${err.message}` : `Auto-refresh failed: ${err.message}`;
@@ -391,6 +390,11 @@ function renderScoreLoading(title = 'Evaluating contextual match...') {
 
 export function pendingNeedsContextualScore(item, { force = false } = {}) {
   return Boolean(item?.url && (force || item.contextualScoreSource !== 'llm'));
+}
+
+export function pendingPassesScoreFilters(item, { topOnly = false, minScore = 0 } = {}) {
+  const score = Number(item?.relevance ?? 0);
+  return (!topOnly || score >= 4) && score >= minScore;
 }
 
 export function renderPendingScoreButton(item) {
@@ -855,7 +859,10 @@ async function startContextualScoring(container, { force = false, urls = null } 
 function renderPending(pageItems = null) {
   if (!pending.length) return `<div class="empty-state"><h3>No pending jobs</h3><p>Run a scan to discover new roles, or paste a job description in the chat.</p></div>`;
 
-  const baseFiltered = showTopMatchOnly ? pending.filter(p => p.relevance >= 4) : pending;
+  const baseFiltered = pending.filter(p => pendingPassesScoreFilters(p, {
+    topOnly: showTopMatchOnly,
+    minScore: minPendingScore,
+  }));
   const fullFiltered = baseFiltered.filter(p => matchesSearch(p)).filter(matchesPendingFilter);
   const filtered = pageItems ?? fullFiltered;
 
@@ -1408,7 +1415,6 @@ export async function render(container) {
   await syncScanRunState(container, { refreshOnFinish: false });
 
   update(container);
-  startContextualScoring(container).catch(() => {});
   refreshPendingPostings(container, { source: 'load' }).catch(() => {});
 }
 
@@ -1421,7 +1427,11 @@ function update(container) {
   // directly), so it manages its own pagination below.
   const fullItems = isPending ? [] : sorted(filtered());
   const fullPending = isPending
-    ? (showTopMatchOnly ? pending.filter(p => p.relevance >= 4) : pending)
+    ? pending
+        .filter(p => pendingPassesScoreFilters(p, {
+          topOnly: showTopMatchOnly,
+          minScore: minPendingScore,
+        }))
         .filter(matchesSearch)
         .filter(matchesPendingFilter)
     : [];
@@ -1509,6 +1519,12 @@ function update(container) {
             <input type="checkbox" id="top-match-toggle" ${showTopMatchOnly ? 'checked' : ''}>
             <span>Top matches only (4+)</span>
           </label>
+          ${isPending ? `
+            <label class="discover-score-slider pipeline-score-slider">
+              <span>Min score: <strong id="pipeline-min-label">${minPendingScore.toFixed(1)}</strong></span>
+              <input type="range" min="0" max="5" step="0.5" value="${minPendingScore}" id="pipeline-min-input" />
+            </label>
+          ` : ''}
           <div style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">
             ${isPending ? `<button class="btn btn-sm btn-outline" id="pending-rescore-btn" type="button"${contextualScoringActive ? ' disabled' : ''}>Rescore LLM</button>` : ''}
             <button class="btn btn-sm btn-primary" id="add-job-btn" type="button">Add Job</button>
@@ -1669,6 +1685,19 @@ function update(container) {
   container.querySelector('#top-match-toggle')?.addEventListener('change', (e) => {
     showTopMatchOnly = e.target.checked;
     selected.clear();
+    currentPage = 1;
+    update(container);
+  });
+
+  container.querySelector('#pipeline-min-input')?.addEventListener('input', (e) => {
+    minPendingScore = Number.parseFloat(e.target.value);
+    const label = container.querySelector('#pipeline-min-label');
+    if (label) label.textContent = minPendingScore.toFixed(1);
+  });
+  container.querySelector('#pipeline-min-input')?.addEventListener('change', (e) => {
+    minPendingScore = Number.parseFloat(e.target.value);
+    selected.clear();
+    currentPage = 1;
     update(container);
   });
 

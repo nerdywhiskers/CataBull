@@ -47,7 +47,7 @@ globalThis.localStorage = { getItem: () => null, setItem: noop, removeItem: noop
 
 console.log('\nPipeline action mappings');
 
-const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision } = await import(
+const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, pendingPassesScoreFilters, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'pipeline.mjs')).href
 );
 const { shouldAutoExpireLivenessResult } = await import(
@@ -180,6 +180,22 @@ assert(
 assert(
   pendingNeedsContextualScore({ url: 'https://jobs.example/a', contextualScoreSource: 'llm' }, { force: true }) === true,
   'forced rescoring can override prior LLM score state'
+);
+assert(
+  pendingPassesScoreFilters({ relevance: 3.4 }, { minScore: 3.5 }) === false,
+  'pipeline min score filter hides pending roles below the slider threshold'
+);
+assert(
+  pendingPassesScoreFilters({ relevance: 3.5 }, { minScore: 3.5 }) === true,
+  'pipeline min score filter keeps roles at the slider threshold'
+);
+assert(
+  pendingPassesScoreFilters({ relevance: 3.9 }, { topOnly: true, minScore: 2.5 }) === false,
+  'top-match filter still requires a 4+ score'
+);
+assert(
+  pendingPassesScoreFilters({ relevance: 4.1 }, { topOnly: true, minScore: 4 }) === true,
+  'top-match and slider filters can both pass'
 );
 
 const loadingScoreButton = renderPendingScoreButton({ url: 'https://jobs.example/a', contextualScoring: true });

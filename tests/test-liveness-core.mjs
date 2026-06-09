@@ -75,6 +75,33 @@ const expiredPosting = classifyLiveness({
 });
 assert(expiredPosting.result === 'expired', 'expired posting text expires posting');
 
+const inactivePosting = classifyLiveness({
+  status: 200,
+  finalUrl: 'https://company.com/jobs/123',
+  bodyText: 'This job posting is no longer active.',
+  titleText: 'Careers',
+  applyControls: ['Apply now'],
+});
+assert(inactivePosting.result === 'expired', 'no-longer-active posting text expires posting');
+
+const workdayUnavailable = classifyLiveness({
+  status: 200,
+  finalUrl: 'https://wd1.myworkdaysite.com/recruiting/company/job/123',
+  bodyText: 'Sorry, this job is no longer available.',
+  titleText: 'Workday',
+  applyControls: [],
+});
+assert(workdayUnavailable.result === 'expired', 'provider no-longer-available copy expires posting');
+
+const notFoundRedirect = classifyLiveness({
+  status: 200,
+  finalUrl: 'https://company.com/jobs/not-found',
+  bodyText: 'Search jobs',
+  titleText: 'Jobs',
+  applyControls: [],
+});
+assert(notFoundRedirect.result === 'expired', 'job not-found redirect expires posting');
+
 const activeWithApply = classifyLiveness({
   status: 200,
   finalUrl: 'https://company.com/jobs/123',

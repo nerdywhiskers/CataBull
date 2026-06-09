@@ -14,6 +14,7 @@ import { runAgentPrint } from '../lib/agents.mjs';
 import { runTailor } from '../../lib/tailor.mjs';
 import { readProfile } from '../lib/writers.mjs';
 import { asWorkspace } from '../../lib/workspace.mjs';
+import { basename, extname } from 'path';
 
 export default async function (app) {
   const root = app.cataBullRoot;
@@ -74,14 +75,21 @@ export default async function (app) {
   });
 
   app.get('/tailor/file', async (req, reply) => {
-    const rel = String(req.query?.path || '').trim();
+    const rel = String(req.query?.path || '').trim().replace(/\\/g, '/').replace(/^\/+/, '');
     if (!rel.startsWith('output/tailor-bundles/')) {
       return reply.code(400).send({ error: 'path must be under output/tailor-bundles/' });
     }
+    if (rel.includes('..')) return reply.code(400).send({ error: 'invalid path' });
     const ws = asWorkspace(root);
     const content = ws.read(rel);
     if (content == null) return reply.code(404).send({ error: 'file not found' });
-    reply.header('Content-Type', 'text/markdown; charset=utf-8');
+    const ext = extname(rel).slice(1).toLowerCase();
+    const mime = ext === 'pdf' ? 'application/pdf'
+      : ext === 'html' ? 'text/html; charset=utf-8'
+      : 'text/markdown; charset=utf-8';
+    reply
+      .header('Content-Type', mime)
+      .header('Content-Disposition', `attachment; filename="${basename(rel)}"`);
     return content;
   });
 }
