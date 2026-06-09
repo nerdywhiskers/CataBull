@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 
 import { classifyLiveness } from '../lib/liveness-core.mjs';
+import {
+  classifyLinkedInGuestHtml,
+  extractLinkedInJobId,
+  linkedInGuestPostingUrl,
+} from '../lib/linkedin-liveness.mjs';
 
 const VERBOSE = process.argv.includes('--verbose');
 
@@ -29,6 +34,21 @@ const linkedInClosed = classifyLiveness({
   applyControls: ['Apply'],
 });
 assert(linkedInClosed.result === 'expired', 'LinkedIn closed title beats visible apply control');
+
+assert(
+  extractLinkedInJobId('https://www.linkedin.com/jobs/view/senior-ai-visual-artist-creative-technologist-at-dulcedo-management-4318710688/') === '4318710688',
+  'LinkedIn slug URL job id extracted'
+);
+assert(
+  linkedInGuestPostingUrl('4318710688') === 'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/4318710688',
+  'LinkedIn guest posting URL built from job id'
+);
+const linkedInGuestClosed = classifyLinkedInGuestHtml({
+  status: 200,
+  guestUrl: 'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/4318710688',
+  html: '<figure class="closed-job"><figcaption>No longer accepting applications</figcaption></figure>',
+});
+assert(linkedInGuestClosed?.result === 'expired', 'LinkedIn guest closed banner expires posting');
 
 const linkedInNoLongerOpen = classifyLiveness({
   status: 200,

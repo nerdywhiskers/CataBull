@@ -16,10 +16,14 @@
 
 import { readFile } from 'fs/promises';
 import { classifyLiveness } from '../lib/liveness-core.mjs';
+import { checkLinkedInGuestPosting } from '../lib/linkedin-liveness.mjs';
 import { launchChromiumWithRetry } from '../lib/playwright-launch.mjs';
 
 async function checkUrl(page, url) {
   try {
+    const linkedInGuestResult = await checkLinkedInGuestPosting(url);
+    if (linkedInGuestResult?.result === 'expired') return linkedInGuestResult;
+
     const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
     const status = response?.status() ?? 0;

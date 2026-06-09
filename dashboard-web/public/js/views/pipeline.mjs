@@ -36,6 +36,7 @@ let pendingRefreshState = getPendingRefreshState();
 let contextualScoringRun = 0;
 let contextualScoringActive = false;
 let contextualScoringError = '';
+let tailoringByUrl = new Map();
 
 async function loadData() {
   try {
@@ -585,6 +586,12 @@ export function pendingTailorDecision(item) {
   };
 }
 
+export function pendingTailorStatusLabel(phase) {
+  if (phase === 'scoring') return 'Scoring match...';
+  if (phase === 'tailoring') return 'Tailoring bundle...';
+  return '';
+}
+
 // Tooltip for evaluated applications — shows the per-block A–E breakdown
 // (parsed from the report) so the user can see how the global score was
 // derived without opening the report. Returns '' when blocks weren't
@@ -892,28 +899,34 @@ function renderPending(pageItems = null) {
 
   const rows = filtered.map(p => {
     const tone = relevanceClass(p.relevance ?? 0);
+    const tailorPhase = tailoringByUrl.get(p.url) || '';
+    const isTailoring = Boolean(tailorPhase);
+    const tailorLabel = pendingTailorStatusLabel(tailorPhase);
     return `
-    <tr data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" data-posted-at="${esc(p.postedAt || '')}" data-location="${esc(p.location || '')}">
-      <td class="col-check"><input type="checkbox" class="pending-check" data-url="${esc(p.url)}" ${selected.has(p.url) ? 'checked' : ''}></td>
+    <tr class="${isTailoring ? 'is-tailoring' : ''}" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" data-posted-at="${esc(p.postedAt || '')}" data-location="${esc(p.location || '')}">
+      <td class="col-check"><input type="checkbox" class="pending-check" data-url="${esc(p.url)}" ${selected.has(p.url) ? 'checked' : ''} ${isTailoring ? 'disabled' : ''}></td>
       <td class="col-company">
         <span class="cell-company">
           <span class="cell-company-logo">${esc(companyInitials(p.company))}</span>
           <span>${esc(p.company)}</span>
         </span>
       </td>
-      <td><span class="cell-role">${esc(p.role)}</span></td>
+      <td>
+        <span class="cell-role">${esc(p.role)}</span>
+        ${isTailoring ? `<span class="pending-tailor-status"><span class="spinner"></span>${esc(tailorLabel)}</span>` : ''}
+      </td>
       <td><span class="cell-date">${p.postedAt || ''}</span></td>
       <td class="col-score">${renderPendingScoreButton(p)}</td>
       <td class="col-actions">
         <span class="cell-actions">
           <a href="${esc(p.url)}" target="_blank" class="btn btn-ghost btn-sm" title="Open posting">&#x2197;</a>
-          <button class="btn btn-sm btn-outline pending-skip-btn" data-url="${esc(p.url)}" title="Skip this role">Skip</button>
-          <button class="btn btn-sm btn-secondary pending-tailor-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Score this role and draft a tailored CV when it is a strong fit">Tailor</button>
-          <button class="btn btn-sm btn-soft pending-apply-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Mark as Applied">Applied</button>
-          ${overflowMenu([
-            { label: 'Edit role', onClick: () => openPendingEditModal(p) },
-            { label: 'Deep Research', onClick: () => runModePrompt('deep', { company: p.company, role: p.role, url: p.url }) },
-            { label: 'Outreach',      onClick: () => runModePrompt('outreach', { company: p.company, role: p.role, url: p.url }) },
+          <button class="btn btn-sm btn-outline pending-skip-btn" data-url="${esc(p.url)}" title="Skip this role" ${isTailoring ? 'disabled' : ''}>Skip</button>
+          <button class="btn btn-sm btn-secondary pending-tailor-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Score this role and draft a tailored CV when it is a strong fit" ${isTailoring ? 'disabled' : ''}>${isTailoring ? `<span class="spinner"></span>${esc(tailorLabel)}` : 'Tailor'}</button>
+          <button class="btn btn-sm btn-soft pending-apply-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Mark as Applied" ${isTailoring ? 'disabled' : ''}>Applied</button>
+          ${isTailoring ? '' : overflowMenu([
+              { label: 'Edit role', onClick: () => openPendingEditModal(p) },
+              { label: 'Deep Research', onClick: () => runModePrompt('deep', { company: p.company, role: p.role, url: p.url }) },
+              { label: 'Outreach',      onClick: () => runModePrompt('outreach', { company: p.company, role: p.role, url: p.url }) },
           ])}
         </span>
       </td>
@@ -1849,30 +1862,37 @@ function update(container) {
       const scorePendingItem = async () => {
         const current = pending.find((item) => item.url === pendingItem.url) || pendingItem;
         if (current.contextualScoreSource === 'llm' || !contextualScoringEnabled()) return current;
+        tailoringByUrl.set(pendingItem.url, 'scoring');
+        update(container);
         await startContextualScoring(container, { urls: [pendingItem.url] });
         return pending.find((item) => item.url === pendingItem.url) || current;
       };
 
       const doTailor = async () => {
-        const scoredItem = await scorePendingItem();
-        const decision = pendingTailorDecision(scoredItem);
-        if (decision.shouldWarn) {
-          const okLowScore = await confirmModal({
-            title: 'Low-fit tailor?',
-            confirmText: 'Tailor anyway',
-            body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:10px"><strong style="color:var(--text)">${esc(scoredItem.company)} - ${esc(scoredItem.role)}</strong> is only scoring <strong style="color:var(--yellow)">${Number.isFinite(decision.score) ? decision.score.toFixed(1) : 'n/a'}/5</strong>.</p><p style="font-size:13px;color:var(--subtext0)">This usually means weak fit. Tailoring now may burn time and credits before the role is worth pursuing.</p>`,
-          });
-          if (!okLowScore) return;
-        }
-        btn.disabled = true;
         try {
+          const scoredItem = await scorePendingItem();
+          const decision = pendingTailorDecision(scoredItem);
+          if (decision.shouldWarn) {
+            tailoringByUrl.delete(pendingItem.url);
+            update(container);
+            const okLowScore = await confirmModal({
+              title: 'Low-fit tailor?',
+              confirmText: 'Tailor anyway',
+              body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:10px"><strong style="color:var(--text)">${esc(scoredItem.company)} - ${esc(scoredItem.role)}</strong> is only scoring <strong style="color:var(--yellow)">${Number.isFinite(decision.score) ? decision.score.toFixed(1) : 'n/a'}/5</strong>.</p><p style="font-size:13px;color:var(--subtext0)">This usually means weak fit. Tailoring now may burn time and credits before the role is worth pursuing.</p>`,
+            });
+            if (!okLowScore) return;
+          }
+          tailoringByUrl.set(pendingItem.url, 'tailoring');
+          update(container);
           const result = await api.tailor(scoredItem);
           toast(`Tailor bundle ready for ${scoredItem.company}`);
-          if (result?.paths?.cv) window.open(api.tailorFileUrl(result.paths.cv), '_blank', 'noopener');
+          if (result?.paths?.cvPdf) window.open(api.tailorFileUrl(result.paths.cvPdf), '_blank', 'noopener');
+          else if (result?.paths?.cv) window.open(api.tailorFileUrl(result.paths.cv), '_blank', 'noopener');
         } catch (err) {
           toast(`Tailor failed: ${err.message}`, 'error');
         } finally {
-          btn.disabled = false;
+          tailoringByUrl.delete(pendingItem.url);
+          update(container);
         }
       };
 
