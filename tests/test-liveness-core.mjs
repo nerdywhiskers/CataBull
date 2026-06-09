@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { classifyLiveness } from '../lib/liveness-core.mjs';
+import { normalizeJobBoardLiveness } from '../lib/job-board-liveness.mjs';
 import {
   classifyLinkedInGuestHtml,
   extractLinkedInJobId,
@@ -176,6 +177,12 @@ const cloudflareChallenge403 = classifyLiveness({
   applyControls: [],
 });
 assert(cloudflareChallenge403.result === 'uncertain', 'security verification wall stays uncertain, not expired');
+const laddersCloudflare = normalizeJobBoardLiveness(
+  'https://www.theladders.com/job/art-director-ncrcorporation-virtual-travel_81139223',
+  cloudflareChallenge403,
+);
+assert(laddersCloudflare.result === 'expired', 'TheLadders Cloudflare wall is treated as unavailable');
+assert(/TheLadders/.test(laddersCloudflare.reason), 'TheLadders unavailable reason names the board');
 
 const activeWithApplyAndLoginNav = classifyLiveness({
   status: 200,
