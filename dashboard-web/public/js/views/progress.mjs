@@ -1,9 +1,10 @@
 import { api } from '../api.mjs';
-import { renderMarkdown } from '../components/markdown.mjs';
 import { render as renderMemoryView } from './memory.mjs';
+import { render as renderReportsView } from './reports.mjs';
 
 const SUB_TABS = [
   { key: 'overview', label: 'Overview' },
+  { key: 'reports', label: 'Reports' },
   { key: 'memory', label: 'Memory' },
 ];
 
@@ -13,10 +14,21 @@ function renderAnalyticsTabs(activeKey) {
   ).join('')}</div>`;
 }
 
+export function normalizeAnalyticsSubTab(subTab = '') {
+  const value = String(subTab || '').replace(/^\/+|\/+$/g, '');
+  if (!value) return { tab: 'overview', reportFilename: '' };
+  if (value === 'memory') return { tab: 'memory', reportFilename: '' };
+  if (value === 'reports') return { tab: 'reports', reportFilename: '' };
+  if (value.startsWith('reports/')) return { tab: 'reports', reportFilename: decodeURIComponent(value.slice('reports/'.length)) };
+  return { tab: 'overview', reportFilename: '' };
+}
+
 export async function render(container, subTab) {
-  const tab = subTab === 'memory' ? 'memory' : 'overview';
+  const { tab, reportFilename } = normalizeAnalyticsSubTab(subTab);
   const subtitle = tab === 'memory'
     ? 'Patterns and notes CataBull has saved across sessions.'
+    : tab === 'reports'
+    ? 'Saved evaluation reports, tailor bundles, and generated artifacts.'
     : 'Funnel, response rates, archetype performance, and follow-up cadence over time.';
   container.innerHTML = `
     <header class="section-header">
@@ -33,12 +45,18 @@ export async function render(container, subTab) {
   container.querySelectorAll('[data-analytics-tab]').forEach(btn => {
     btn.onclick = () => {
       const key = btn.dataset.analyticsTab;
-      window.location.hash = key === 'memory' ? '#/analytics/memory' : '#/analytics';
+      window.location.hash = key === 'memory'
+        ? '#/analytics/memory'
+        : key === 'reports'
+        ? '#/analytics/reports'
+        : '#/analytics';
     };
   });
 
   if (tab === 'memory') {
     await renderMemoryView(contentEl);
+  } else if (tab === 'reports') {
+    await renderReportsView(contentEl, reportFilename);
   } else {
     await renderOverview(contentEl);
   }
@@ -232,11 +250,9 @@ async function renderOverview(container) {
     return cutoff === 0 || d >= cutoff;
   }
 
-  // Filter funnel stages by time range
-  const filteredFunnel = progress.funnelStages.map(s => ({
-    ...s,
-    count: currentTimeRange === 'all' ? s.count : Math.max(0, s.count - (cutoff > 0 ? apps.filter(a => !isRecent(a.date)).length : 0)),
-  }));
+  // Funnel is already aggregated server-side. Keep it stable for now rather
+  // than pretending we can time-slice it client-side without the raw app list.
+  const filteredFunnel = progress.funnelStages;
 
   // Filter weekly activity
   const filteredWeekly = cutoff === 0
@@ -256,7 +272,7 @@ async function renderOverview(container) {
       <span class="analytics-total">${pipeline.total} total offers evaluated</span>
     </div>
 
-    <div class="grid-4" style="margin-bottom:24px">
+    <div class="grid-5" style="margin-bottom:24px">
       <div class="stat-card">
         <div class="stat-label">Total Evaluated</div>
         <div class="stat-value">${pipeline.total}</div>
@@ -271,6 +287,11 @@ async function renderOverview(container) {
         <div class="stat-sub">Not skipped/rejected</div>
       </div>
       <div class="stat-card">
+        <div class="stat-label">Rejected</div>
+        <div class="stat-value">${progress.rejectedCount || pipeline.byStatus?.rejected || 0}</div>
+        <div class="stat-sub">Explicit negative outcomes</div>
+      </div>
+      <div class="stat-card">
         <div class="stat-label">PDFs Generated</div>
         <div class="stat-value">${pipeline.withPdf}</div>
       </div>
@@ -279,7 +300,7 @@ async function renderOverview(container) {
     <div class="grid-2" style="margin-bottom:24px">
       <div class="card">
         <h3 style="font-size:14px;font-weight:600;margin-bottom:16px;color:var(--subtext)">Pipeline Funnel</h3>
-        ${barChart(progress.funnelStages.map(s => ({ label: s.label, count: s.count, pct: s.pct })), FUNNEL_COLORS, progress.funnelStages[0]?.count || 1)}
+        ${barChart(filteredFunnel.map(s => ({ label: s.label, count: s.count, pct: s.pct })), FUNNEL_COLORS, filteredFunnel[0]?.count || 1)}
       </div>
       <div class="card">
         <h3 style="font-size:14px;font-weight:600;margin-bottom:16px;color:var(--subtext)">Score Distribution</h3>
@@ -315,74 +336,13 @@ async function renderOverview(container) {
       <h3 style="font-size:14px;font-weight:600;margin-bottom:16px;color:var(--subtext)">Weekly Activity</h3>
       ${barChart(filteredWeekly.map(w => ({ label: w.week, count: w.count })), () => 'var(--lavender)', Math.max(...filteredWeekly.map(w => w.count), 1))}
     </div>` : ''}
-
-    <div id="reports-section"></div>
   `;
-
-  // Load reports into the section
-  loadReports(container.querySelector('#reports-section'));
 
   // Time range buttons
   container.querySelectorAll('[data-time-range]').forEach(btn => {
     btn.onclick = () => {
       currentTimeRange = btn.dataset.timeRange;
       renderOverview(container);
-    };
-  });
-}
-
-async function loadReports(section) {
-  let reportsList = [];
-  try {
-    const data = await api.getReports();
-    reportsList = data.reports || [];
-  } catch { /* ok */ }
-
-  if (!reportsList.length) return;
-
-  section.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-      <h3 style="font-size:14px;font-weight:600;color:var(--subtext)">Reports</h3>
-      <span style="font-size:12px;color:var(--subtext0)">${reportsList.length} reports</span>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:6px" id="reports-list">
-      ${reportsList.map(r => `
-        <div class="card report-card" data-filename="${r.filename}" style="cursor:pointer;padding:12px 16px;display:flex;align-items:center;gap:16px;transition:background var(--transition)">
-          <span style="font-weight:600;color:var(--subtext0);width:40px;font-size:13px">#${r.number}</span>
-          <div style="flex:1">
-            <div style="font-weight:500">${esc(r.slug.replace(/-/g, ' '))}</div>
-            <div style="font-size:12px;color:var(--subtext)">${r.date}${r.archetype ? ` \u00B7 ${esc(r.archetype)}` : ''}</div>
-          </div>
-          ${r.tldr ? `<div style="flex:1;font-size:12px;color:var(--subtext);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.tldr)}</div>` : ''}
-          <span style="font-size:12px;color:var(--subtext0)">\u25B6</span>
-        </div>
-      `).join('')}
-    </div>
-    <div id="report-viewer" style="display:none;margin-top:16px"></div>
-  `;
-
-  section.querySelectorAll('.report-card').forEach(card => {
-    card.onmouseenter = () => card.style.background = 'var(--surface1)';
-    card.onmouseleave = () => card.style.background = '';
-    card.onclick = async () => {
-      const viewer = section.querySelector('#report-viewer');
-      const list = section.querySelector('#reports-list');
-      try {
-        const data = await api.getReport(card.dataset.filename);
-        list.style.display = 'none';
-        viewer.style.display = 'block';
-        viewer.innerHTML = `
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-            <button class="btn btn-sm" id="back-to-list">\u2190 Back</button>
-            <span style="font-size:13px;color:var(--subtext)">${card.dataset.filename}</span>
-          </div>
-          <div class="card markdown-body" style="padding:24px 32px">${renderMarkdown(data.raw)}</div>
-        `;
-        viewer.querySelector('#back-to-list').onclick = () => {
-          viewer.style.display = 'none';
-          list.style.display = 'flex';
-        };
-      } catch { /* ok */ }
     };
   });
 }

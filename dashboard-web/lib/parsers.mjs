@@ -1,4 +1,5 @@
 import { asWorkspace } from '../../lib/workspace.mjs';
+import { tailorSlug } from '../../lib/tailor.mjs';
 import { applicationsPath } from './writers.mjs';
 
 // --- Regex patterns (ported from dashboard/internal/data/career.go) ---
@@ -203,6 +204,7 @@ export function parseApplications(cataBullRoot) {
       hasPdf: fields[6].includes('\u2705'),
       reportPath: '',
       reportNumber: '',
+      tailorBundle: null,
       notes: fields.length > 8 ? fields[8] : '',
       jobUrl: '',
       enrichment: null,
@@ -223,8 +225,26 @@ export function parseApplications(cataBullRoot) {
   // Enrich with job URLs (simplified: tiers 1 + 4)
   enrichFromReports(cataBullRoot, apps);
   enrichFromScanHistory(cataBullRoot, apps);
+  enrichTailorBundles(cataBullRoot, apps);
 
   return apps;
+}
+
+function enrichTailorBundles(root, apps) {
+  const ws = asWorkspace(root);
+  for (const app of apps) {
+    const date = String(app.date || '').trim();
+    if (!date) continue;
+    const slug = tailorSlug(app.company, app.role, { date });
+    const dir = `output/tailor-bundles/${slug}`;
+    const paths = {
+      cv: `${dir}/cv.md`,
+      coverLetter: `${dir}/cover-letter.md`,
+      qa: `${dir}/answers.md`,
+    };
+    if (!ws.exists(paths.cv) && !ws.exists(paths.coverLetter) && !ws.exists(paths.qa)) continue;
+    app.tailorBundle = { slug, dir, paths };
+  }
 }
 
 function enrichFromReports(root, apps) {
