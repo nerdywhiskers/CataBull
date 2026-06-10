@@ -72,6 +72,7 @@ export const api = {
 
   // Applications
   getApplications: () => request('/applications'),
+  getContextualScores: (urls = []) => request('/applications/contextual-scores', { method: 'POST', body: { urls } }),
   updateApplication: (num, status) => request(`/applications/${num}`, { method: 'PATCH', body: { status } }),
 
   // Tailor bundle (PR 1.5)
@@ -100,6 +101,8 @@ export const api = {
   // Reports
   getReports: () => request('/reports'),
   getReport: (filename) => request(`/reports/${encodeURIComponent(filename)}`),
+  archiveReport: (filename) => request(`/reports/${encodeURIComponent(filename)}/archive`, { method: 'POST', body: {} }),
+  reportExportUrl: (filename) => `/api/v1/reports/${encodeURIComponent(filename)}/export.zip`,
 
   // Metrics
   getMetrics: () => request('/metrics'),

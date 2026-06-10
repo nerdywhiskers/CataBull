@@ -404,9 +404,9 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.01em; }
 .pipeline-filter-popover {
   position: absolute;
   top: calc(100% + 8px);
-  right: 16px;
+  left: 0;
   z-index: 200;   /* sits above the jobs table; toolbar also lifts via .has-popover */
-  width: min(420px, calc(100% - 32px));
+  width: min(390px, calc(100vw - 48px));
   background: var(--surface0);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
@@ -775,7 +775,7 @@ input[type="checkbox"]:checked::after {
 .pipeline-toolbar {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   padding: 16px;
   background: var(--glass-card);
   border: 1px solid var(--border-strong);
@@ -788,29 +788,60 @@ input[type="checkbox"]:checked::after {
    pending-jobs table that paints after it in DOM order. Only applied
    while open so the toolbar doesn't always sit in a fixed z-context. */
 .pipeline-toolbar.has-popover { z-index: 100; }
-/* Right-align search + filter button while the status tabs stay on the
-   left. Wraps below the tabs on narrow viewports. */
-.pipeline-toolbar-end {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-  flex: 0 1 auto;
-}
-.pipeline-toolbar-row {
+.pipeline-toolbar-primary {
   display: flex;
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
 }
-.pipeline-toolbar-divider {
+.pipeline-toolbar-search {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-soft);
+  gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.pipeline-toolbar-search .search-input {
+  flex: 0 1 350px;
+  width: min(350px, 100%);
+  max-width: 350px;
+}
+.pipeline-toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
   flex-wrap: wrap;
+}
+.pipeline-toolbar-tabs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--surface0) 86%, transparent);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  min-height: 56px;
+}
+.pipeline-score-slider {
+  flex: 0 1 280px;
+  justify-content: center;
+  white-space: nowrap;
+}
+.pipeline-score-slider > span {
+  white-space: nowrap;
+}
+.pipeline-score-slider input[type="range"] {
+  width: clamp(140px, 20vw, 200px);
+}
+@media (max-width: 980px) {
+  .pipeline-toolbar-actions {
+    margin-left: 0;
+  }
+  .pipeline-score-slider {
+    justify-content: flex-start;
+  }
 }
 .toggle-row {
   display: inline-flex;

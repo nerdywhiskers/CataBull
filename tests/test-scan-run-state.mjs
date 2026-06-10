@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdtempSync, rmSync } from 'fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -33,6 +33,7 @@ const {
   updateScanRun,
   finishScanRun,
 } = await import(pathToFileURL(join(ROOT, 'dashboard-web/lib/scan-run-state.mjs')).href);
+const { getStatus } = await import(pathToFileURL(join(ROOT, 'dashboard-web/lib/scheduler.mjs')).href);
 
 const root = mkdtempSync(join(tmpdir(), 'catabull-scan-state-'));
 
@@ -70,6 +71,17 @@ try {
   const reread = readScanRunState(root);
   assert(reread.lastResult?.finishedAt, 'state reread preserves finished timestamp');
   assert(reread.mode === 'quick', 'state reread preserves mode');
+
+  mkdirSync(join(root, 'data'), { recursive: true });
+  writeFileSync(join(root, 'portals.yml'), 'scan_schedule: weekly\n');
+  writeFileSync(join(root, 'data/scan-schedule-state.json'), JSON.stringify({
+    lastScanAt: '2026-06-01T00:00:00.000Z',
+    lastScanResult: { success: true, newOffers: 0, summary: 'old scan' },
+  }, null, 2));
+  const status = getStatus(root);
+  assert(status.lastScanAt === reread.lastResult.finishedAt, 'scan status prefers newer streamed run timestamp');
+  assert(status.lastScanResult?.newOffers === 2, 'scan status derives new offer count from streamed run summary');
+  assert(status.nextScanAt && status.nextScanAt > status.lastScanAt, 'nextScanAt uses newest scan time');
 } finally {
   rmSync(root, { recursive: true, force: true });
 }

@@ -1,52 +1,120 @@
 import { parseApplications, loadReportSummary, parsePipeline } from '../lib/parsers.mjs';
-import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem, updatePendingItem } from '../lib/writers.mjs';
-import { readProfile, readPortals } from '../lib/writers.mjs';
+import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem, updatePendingItem, updatePendingContextualScores } from '../lib/writers.mjs';
+import { readProfile, readProfileMarkdown, readPortals } from '../lib/writers.mjs';
 import { scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../lib/relevance.mjs';
 import { enrichJobUrl } from '../lib/job-url-metadata.mjs';
+import { runAgentPrint } from '../lib/agents.mjs';
+import { buildContextualScoringPrompt, extractJsonObject, MAX_CONTEXTUAL_POSTINGS, normalizeContextualScores } from '../../lib/contextual-scoring.mjs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
+import { join } from 'path';
 
 export default async function (app) {
   const root = app.cataBullRoot;
 
-  app.get('/applications', async () => {
+  function pendingWithHeuristicScores() {
     const apps = parseApplications(root);
-    for (const a of apps) {
-      if (a.reportPath) {
-        a.enrichment = loadReportSummary(root, a.reportPath);
-      }
-    }
     const { pending: rawPending, skipped, expired } = parsePipeline(root);
+    const reportedUrls = collectReportUrls(root);
 
-    // Dedup: filter out pending items that already exist in applications (by URL or company+role)
     const appUrls = new Set(apps.map(a => a.jobUrl).filter(Boolean));
     const appKeys = new Set(apps.map(a => `${a.company.toLowerCase()}||${a.role.toLowerCase()}`));
     const skippedUrls = new Set(skipped.map(s => s.url));
 
     const pending = rawPending.filter(p => {
       if (appUrls.has(p.url)) return false;
+      if (reportedUrls.has(p.url)) return false;
       if (skippedUrls.has(p.url)) return false;
       if (appKeys.has(`${p.company.toLowerCase()}||${p.role.toLowerCase()}`)) return false;
       return true;
     });
 
-    // Score relevance of pending items against profile and portals.
-    // Pure-heuristic via lib/relevance.mjs (no LLM tokens). Surfaces
-    // both the score AND a rationale so the UI can show *why* a posting
-    // got its score, not just the number.
     const profile = readProfile(root);
     const portals = readPortals(root);
     const inputs = relevanceInputsFrom({ profile, portals });
 
     for (const p of pending) {
       const { score, factors } = scorePostingTitle(p.role, inputs);
-      p.relevance = score;
+      const storedContextualScore = Number.isFinite(p.contextualScore) ? p.contextualScore : null;
+      p.relevance = storedContextualScore ?? score;
+      p.heuristicRelevance = score;
       p.relevanceFactors = factors;
       p.relevanceRationale = rationaleSummary(factors);
+      if (storedContextualScore != null) {
+        p.contextualScore = storedContextualScore;
+        p.contextualScoreSource = 'llm';
+        p.contextualRationale = p.contextualRationale || '';
+        p.contextualSignals = Array.isArray(p.contextualSignals) ? p.contextualSignals : [];
+      }
     }
 
-    // Sort pending by relevance (highest first)
     pending.sort((a, b) => b.relevance - a.relevance);
+    return { apps, pending, skipped, expired };
+  }
+
+  function collectReportUrls(rootDir) {
+    const reportsDir = join(rootDir, 'reports');
+    if (!existsSync(reportsDir)) return new Set();
+    const urls = new Set();
+    for (const file of readdirSync(reportsDir)) {
+      if (!file.endsWith('.md') || file === '.gitkeep') continue;
+      try {
+        const text = readFileSync(join(reportsDir, file), 'utf-8');
+        const match = text.match(/^\*\*URL:\*\*\s*(https?:\/\/\S+)/m);
+        if (match?.[1]) urls.add(match[1]);
+      } catch {}
+    }
+    return urls;
+  }
+
+  app.get('/applications', async () => {
+    const { apps, pending, skipped, expired } = pendingWithHeuristicScores();
+    for (const a of apps) {
+      if (a.reportPath) {
+        a.enrichment = loadReportSummary(root, a.reportPath);
+      }
+    }
 
     return { applications: apps, total: apps.length, pending, pendingTotal: pending.length, skipped, skippedTotal: skipped.length, expired, expiredTotal: expired.length };
+  });
+
+  app.post('/applications/contextual-scores', async (req, reply) => {
+    const profile = readProfile(root) || {};
+    const agent = profile?.preferences?.agent || req.body?.agent;
+    if (!agent) return reply.code(400).send({ error: 'No agent configured' });
+
+    const requestedUrls = new Set(
+      (Array.isArray(req.body?.urls) ? req.body.urls : [])
+        .map((url) => String(url || '').trim())
+        .filter(Boolean)
+    );
+    const { pending } = pendingWithHeuristicScores();
+    const postings = pending
+      .filter((p) => requestedUrls.size === 0 || requestedUrls.has(p.url))
+      .slice(0, MAX_CONTEXTUAL_POSTINGS);
+    if (!postings.length) return { success: true, agent, scores: [] };
+
+    const timeoutMs = 180_000;
+    reply.raw.setTimeout(timeoutMs + 30_000);
+
+    const prompt = buildContextualScoringPrompt({
+      profile,
+      profileMarkdown: readProfileMarkdown(root) || '',
+      postings,
+    });
+
+    try {
+      const out = await runAgentPrint(agent, prompt, root, {
+        timeoutMs,
+        allowEdits: false,
+        rejectOnError: true,
+      });
+      const payload = extractJsonObject(out.output || '');
+      const scores = normalizeContextualScores(payload, postings);
+      updatePendingContextualScores(root, scores);
+      return { success: true, agent, scores };
+    } catch (err) {
+      return reply.code(502).send({ error: err.message || String(err), agent });
+    }
   });
 
   app.patch('/applications/:num', async (req, reply) => {

@@ -22,6 +22,27 @@ function parseLivenessOutput(stdout) {
   return results;
 }
 
+const BARRIER_DETAIL_RE = /(captcha|cloudflare|datadome|security verification|access denied|sign in|log in|forbidden|too many requests|rate limit|transport\/interstitial|barrier detected|barrier:)/i;
+const UNCERTAIN_AUTO_EXPIRE_AGE_DAYS = 30;
+
+function parseIsoDate(value) {
+  const text = String(value || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+  const date = new Date(`${text}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export function shouldAutoExpireLivenessResult(result, pendingItem, now = new Date()) {
+  if (!result || !pendingItem) return false;
+  if (result.status === 'expired' || result.status === 'closed') return true;
+  if (result.status !== 'uncertain') return false;
+  if (!BARRIER_DETAIL_RE.test(String(result.detail || ''))) return false;
+  const postedAt = parseIsoDate(pendingItem.postedAt);
+  if (!postedAt) return false;
+  const ageMs = now.getTime() - postedAt.getTime();
+  return ageMs >= UNCERTAIN_AUTO_EXPIRE_AGE_DAYS * 24 * 60 * 60 * 1000;
+}
+
 function mapQuickProgress(payload = {}) {
   if (payload.type === 'run:start') return { stage: 'quick:scanning', companies: payload.companies || 0 };
   if (payload.type === 'company:start') return {
@@ -225,13 +246,22 @@ export default async function (app) {
     if (result.exitCode === -2) return { checked: 0, expired: 0, error: result.stderr.trim() };
 
     const results = parseLivenessOutput(result.stdout + result.stderr);
+    const pendingByUrl = new Map(pending.map((item) => [item.url, item]));
     let expiredCount = 0;
+    let barrierExpiredCount = 0;
     for (const r of results) {
-      if (r.status === 'expired' || r.status === 'closed') {
-        expirePipelineItem(root, r.url);
-        expiredCount++;
-      }
+      const pendingItem = pendingByUrl.get(r.url);
+      const shouldExpire = shouldAutoExpireLivenessResult(r, pendingItem);
+      if (!shouldExpire) continue;
+      expirePipelineItem(root, r.url);
+      expiredCount++;
+      if (r.status === 'uncertain') barrierExpiredCount++;
     }
-    return { checked: urls.length, expired: expiredCount, results };
+    return {
+      checked: urls.length,
+      expired: expiredCount,
+      agedBarrierExpired: barrierExpiredCount,
+      results,
+    };
   });
 }

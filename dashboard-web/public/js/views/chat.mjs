@@ -13,7 +13,6 @@ import {
   handleOutput as handleChatOutput,
   hideWorkingMessage,
   init as initChatUi,
-  reset as resetChatUi,
   restoreMessages as restoreChatMessages,
   setAgent as setChatAgent,
   showWorkingMessage,
@@ -205,6 +204,43 @@ function restoreCurrentChatTranscript() {
   });
 }
 
+function recordMessageCount(record = {}) {
+  return Array.isArray(record.messages) ? record.messages.length : 0;
+}
+
+export function resolveAgentSwitchTarget({ currentRecord = null, nextAgent = '', records = [] } = {}) {
+  if (!nextAgent) return currentRecord || null;
+  if (!currentRecord) {
+    return records
+      .filter(record => record?.agent === nextAgent)
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
+  }
+  if (currentRecord.agent === nextAgent) return currentRecord;
+  if (!recordMessageCount(currentRecord)) return currentRecord;
+  return records
+    .filter(record => record?.id !== currentRecord.id && record?.agent === nextAgent)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
+}
+
+function activateChatRecord(record, { reconnect = true } = {}) {
+  if (!record) return;
+  currentChatRecordId = record.id;
+  saveCurrentChatRecordId();
+  if (record.agent && agents.includes(record.agent)) {
+    currentAgent = record.agent;
+    localStorage.setItem(AGENT_STORAGE_KEY, currentAgent);
+    document.getElementById('agent-select') && (document.getElementById('agent-select').value = currentAgent);
+  }
+  if (record.agent && record.sessionId) {
+    agentSessions[record.agent] = record.sessionId;
+    saveAgentSessions();
+  }
+  setChatAgent(currentAgent);
+  clearTerminalOutput();
+  restoreCurrentChatTranscript();
+  disconnectSession({ state: drawerVisible ? 'connecting' : 'disconnected' });
+  if (drawerVisible && reconnect) connect();
+}
 export function formatSessionRecordForMenu(record = {}, now = Date.now()) {
   const updatedAt = Number(record.updatedAt || 0);
   const ageMs = Math.max(0, now - updatedAt);
@@ -238,22 +274,7 @@ function listSessionRecordsForMenu() {
 function selectChatRecord(recordId) {
   const record = chatRecords.find(item => item.id === recordId);
   if (!record) return;
-  currentChatRecordId = record.id;
-  saveCurrentChatRecordId();
-  if (record.agent && agents.includes(record.agent)) {
-    currentAgent = record.agent;
-    localStorage.setItem(AGENT_STORAGE_KEY, currentAgent);
-    document.getElementById('agent-select') && (document.getElementById('agent-select').value = currentAgent);
-  }
-  if (record.agent && record.sessionId) {
-    agentSessions[record.agent] = record.sessionId;
-    saveAgentSessions();
-  }
-  setChatAgent(currentAgent);
-  clearTerminalOutput();
-  restoreCurrentChatTranscript();
-  disconnectSession({ state: drawerVisible ? 'connecting' : 'disconnected' });
-  if (drawerVisible) connect();
+  activateChatRecord(record);
 }
 
 function agentSupportsContinuation(name) {
@@ -297,6 +318,13 @@ export function textContainsPermissionPrompt(value = '') {
     .some(line => isPermissionLine(line));
 }
 
+export function resolveInitialChatAgent({ availableAgents = [], persistedAgent = '', preferredAgent = '', currentRecord = null } = {}) {
+  if (currentRecord?.agent && availableAgents.includes(currentRecord.agent)) return currentRecord.agent;
+  if (persistedAgent && availableAgents.includes(persistedAgent)) return persistedAgent;
+  if (preferredAgent && availableAgents.includes(preferredAgent)) return preferredAgent;
+  return availableAgents[0] || '';
+}
+
 async function loadAgents() {
   try {
     const [agentsRes, profileRes] = await Promise.all([
@@ -307,11 +335,18 @@ async function loadAgents() {
     continuationSupport = agentsRes.continuationSupport || {};
     const persisted = localStorage.getItem(AGENT_STORAGE_KEY);
     const preferred = profileRes?.profile?.preferences?.agent;
-    currentAgent = (persisted && agents.includes(persisted))
-      ? persisted
-      : (preferred && agents.includes(preferred))
-      ? preferred
-      : (agents[0] || '');
+    const currentRecord = ensureCurrentChatRecord();
+    currentAgent = resolveInitialChatAgent({
+      availableAgents: agents,
+      persistedAgent: persisted,
+      preferredAgent: preferred,
+      currentRecord,
+    });
+    if (currentAgent && !currentRecord.agent) {
+      currentRecord.agent = currentAgent;
+      currentRecord.updatedAt = currentRecord.updatedAt || Date.now();
+      saveChatRecords();
+    }
     if (currentAgent) {
       localStorage.setItem(AGENT_STORAGE_KEY, currentAgent);
     }
@@ -388,6 +423,40 @@ function resetChatSession() {
   saveChatRecords();
   clearTerminalOutput();
   syncChatUiToCurrentAgent();
+}
+
+function switchActiveAgent(nextAgent) {
+  if (!nextAgent || nextAgent === currentAgent) return;
+  const currentRecord = ensureCurrentChatRecord();
+  const target = resolveAgentSwitchTarget({
+    currentRecord,
+    nextAgent,
+    records: chatRecords,
+  });
+
+  if (target) {
+    if (target === currentRecord) {
+      target.agent = nextAgent;
+      if (agentSessions[nextAgent]) target.sessionId = agentSessions[nextAgent];
+      target.updatedAt = Date.now();
+      saveChatRecords();
+    }
+    currentAgent = nextAgent;
+    localStorage.setItem(AGENT_STORAGE_KEY, currentAgent);
+    activateChatRecord(target);
+    return;
+  }
+
+  const record = createChatRecord({
+    agent: nextAgent,
+    sessionId: agentSessions[nextAgent] || null,
+  });
+  chatRecords.unshift(record);
+  trimChatRecords();
+  saveChatRecords();
+  currentAgent = nextAgent;
+  localStorage.setItem(AGENT_STORAGE_KEY, currentAgent);
+  activateChatRecord(record);
 }
 
 function ensureTerminal() {
@@ -852,15 +921,11 @@ export async function init() {
     select.innerHTML = agents.map(agent => `<option value="${agent}"${agent === currentAgent ? ' selected' : ''}>${agent}</option>`).join('');
     select.value = currentAgent;
     select.onchange = (event) => {
-      currentAgent = event.target.value;
-      localStorage.setItem(AGENT_STORAGE_KEY, currentAgent);
-      setChatAgent(currentAgent);
-      clearSessionOutput({ resetChat: false });
-      if (currentView === 'raw') {
-        writeRawLine(`\x1b[38;5;141m  Switching to ${currentAgent}...\x1b[0m`);
+      const nextAgent = event.target.value;
+      if (currentView === 'raw' && nextAgent && nextAgent !== currentAgent) {
+        writeRawLine(`\x1b[38;5;141m  Switching to ${nextAgent}...\x1b[0m`);
       }
-      disconnectSession({ state: drawerVisible ? 'connecting' : 'disconnected' });
-      if (drawerVisible) connect();
+      switchActiveAgent(nextAgent);
     };
   }
 

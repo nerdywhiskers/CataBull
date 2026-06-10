@@ -1,4 +1,5 @@
 import { asWorkspace } from '../../lib/workspace.mjs';
+import { tailorSlug } from '../../lib/tailor.mjs';
 import { applicationsPath } from './writers.mjs';
 
 // --- Regex patterns (ported from dashboard/internal/data/career.go) ---
@@ -157,12 +158,12 @@ export function normalizeStatus(raw) {
   if (s.includes('applied') || s.includes('aplicado') || s === 'enviada' || s === 'aplicada' || s === 'sent') return 'applied';
   if (s.includes('rejected') || s.includes('rechazado') || s === 'rechazada') return 'rejected';
   if (s.includes('discarded') || s.includes('descartado') || s === 'descartada' || s === 'cerrada' || s === 'cancelada' || s.startsWith('duplicado') || s.startsWith('dup')) return 'discarded';
-  if (s.includes('evaluated') || s.includes('evaluada') || s === 'condicional' || s === 'hold' || s === 'monitor' || s === 'evaluar' || s === 'verificar') return 'evaluated';
+  if (s.includes('tailored') || s.includes('tailor') || s.includes('evaluated') || s.includes('evaluada') || s === 'condicional' || s === 'hold' || s === 'monitor' || s === 'evaluar' || s === 'verificar') return 'tailored';
   return s;
 }
 
 export function statusPriority(status) {
-  const priorities = { interview: 0, offer: 1, responded: 2, applied: 3, evaluated: 4, skip: 5, rejected: 6, discarded: 7 };
+  const priorities = { interview: 0, offer: 1, responded: 2, applied: 3, tailored: 4, skip: 5, rejected: 6, discarded: 7 };
   return priorities[normalizeStatus(status)] ?? 8;
 }
 
@@ -203,6 +204,7 @@ export function parseApplications(cataBullRoot) {
       hasPdf: fields[6].includes('\u2705'),
       reportPath: '',
       reportNumber: '',
+      tailorBundle: null,
       notes: fields.length > 8 ? fields[8] : '',
       jobUrl: '',
       enrichment: null,
@@ -223,8 +225,33 @@ export function parseApplications(cataBullRoot) {
   // Enrich with job URLs (simplified: tiers 1 + 4)
   enrichFromReports(cataBullRoot, apps);
   enrichFromScanHistory(cataBullRoot, apps);
+  enrichTailorBundles(cataBullRoot, apps);
 
   return apps;
+}
+
+function enrichTailorBundles(root, apps) {
+  const ws = asWorkspace(root);
+  for (const app of apps) {
+    const date = String(app.date || '').trim();
+    if (!date) continue;
+    const slug = tailorSlug(app.company, app.role, { date });
+    const dir = `output/tailor-bundles/${slug}`;
+    const paths = {
+      cv: `${dir}/cv.md`,
+      coverLetter: `${dir}/cover-letter.md`,
+      qa: `${dir}/answers.md`,
+      cvHtml: `${dir}/cv.html`,
+      coverLetterHtml: `${dir}/cover-letter.html`,
+      cvPdf: `${dir}/cv.pdf`,
+      coverLetterPdf: `${dir}/cover-letter.pdf`,
+    };
+    const existingPaths = Object.fromEntries(
+      Object.entries(paths).filter(([, relPath]) => ws.exists(relPath))
+    );
+    if (Object.keys(existingPaths).length === 0) continue;
+    app.tailorBundle = { slug, dir, paths: existingPaths };
+  }
 }
 
 function enrichFromReports(root, apps) {
@@ -332,6 +359,9 @@ export function parsePipeline(cataBullRoot) {
 
     let location = null;
     let matchTier = null;
+    let contextualScore = null;
+    let contextualRationale = null;
+    let contextualSignals = null;
     for (let i = 1; i < fields.length; i++) {
       const f = fields[i];
       if (f === 'SKIP' || f === 'EXPIRED') status = f;
@@ -339,6 +369,16 @@ export function parsePipeline(cataBullRoot) {
       else if (/^posted:/.test(f)) postedAt = f.replace('posted:', '');
       else if (/^loc:/.test(f)) location = f.replace('loc:', '').trim() || null;
       else if (/^match:/.test(f)) matchTier = f.replace('match:', '').trim() || null;
+      else if (/^llm:/.test(f)) {
+        const n = Number.parseFloat(f.replace('llm:', '').trim());
+        if (Number.isFinite(n)) contextualScore = n;
+      } else if (/^why:/.test(f)) contextualRationale = f.replace('why:', '').trim() || null;
+      else if (/^signals:/.test(f)) {
+        contextualSignals = f.replace('signals:', '')
+          .split(',')
+          .map(signal => signal.trim())
+          .filter(Boolean);
+      }
     }
 
     const item = {
@@ -351,6 +391,10 @@ export function parsePipeline(cataBullRoot) {
       postedAt,
       location,
       matchTier,
+      contextualScore,
+      contextualRationale,
+      contextualSignals,
+      contextualScoreSource: Number.isFinite(contextualScore) ? 'llm' : undefined,
     };
 
     if (item.status === 'SKIP') skipped.push(item);
