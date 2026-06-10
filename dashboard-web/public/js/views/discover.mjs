@@ -253,8 +253,6 @@ function uniqueIndustries() {
 
 function renderScanSchedule() {
   if (!scanStatus) return '';
-  const scheduleLabels = { off: 'Off', daily: 'Daily', 'every-3-days': 'Every 3 days', weekly: 'Weekly' };
-  const current = scanStatus.schedule || 'off';
   const savedLimit = localStorage.getItem(SCAN_LIMIT_KEY) || '0';
   const busy = scanStatus.running || scanProgress?.visible || pendingRefreshState?.active;
   const titleFilter = normalizeTitleFilter(portals?.title_filter);
@@ -280,14 +278,24 @@ function renderScanSchedule() {
         <button class="btn btn-sm btn-soft" id="search-keywords-btn" type="button" title="Edit keywords used to score and filter search results">
           Search Keywords${keywordCount ? ` (${keywordCount})` : ''}
         </button>
+        <input class="form-input discover-search scan-card-search" id="discover-search" placeholder="Search company or role..." value="${esc(searchQuery)}" />
+        <label class="discover-context-toggle scan-card-context-toggle" title="Use your configured agent to rescore pending roles against profile and archetypes after scans finish">
+          <span class="toggle">
+            <input type="checkbox" id="contextual-scoring-toggle" ${contextualScoringEnabled() ? 'checked' : ''}>
+            <span class="toggle-track"></span>
+            <span class="toggle-thumb"></span>
+          </span>
+          <span class="discover-context-toggle-copy">
+            <span>AI Score</span>
+            ${contextualScoringActive ? '<span class="discover-context-toggle-state"><span class="spinner"></span> scoring</span>' : ''}
+          </span>
+        </label>
+        <span class="scan-card-last-group">
+          <span class="scan-card-label scan-card-last-label">Last</span>
+          ${lastScanBadge}
+        </span>
       </div>
       <div class="scan-card-controls">
-        <span class="scan-card-label">Schedule</span>
-        <select class="form-select scan-card-select" id="scan-schedule-select" title="Run scan on a schedule" ${busy ? 'disabled' : ''}>
-          ${Object.entries(scheduleLabels).map(([value, label]) => `<option value="${value}"${value === current ? ' selected' : ''}>${label}</option>`).join('')}
-        </select>
-        <span class="scan-card-label scan-card-last-label">Last</span>
-        ${lastScanBadge}
         <select class="form-select scan-card-select" id="scan-limit-select" ${busy ? 'disabled' : ''} title="Cap on new offers added per scan">
           ${SCAN_LIMIT_OPTIONS.map(o => `<option value="${o.value}"${o.value === savedLimit ? ' selected' : ''}>Max: ${o.label}</option>`).join('')}
         </select>
@@ -450,26 +458,14 @@ function renderTopBar() {
     <div class="scan-progress-slot">${renderScanProgress(pendingRefreshProgressFromState(pendingRefreshState))}</div>
     <div class="discover-toolbar">
       <div class="discover-toolbar-row">
-        <input class="form-input discover-search" id="discover-search" placeholder="Search company or role…" value="${esc(searchQuery)}" />
-        <label class="discover-score-slider">
-          <span>Min score: <strong id="discover-min-label">${minScore.toFixed(1)}</strong></span>
-          <input type="range" min="0" max="5" step="0.5" value="${minScore}" id="discover-min-input" />
-        </label>
-        <label class="discover-context-toggle" title="Use your configured agent to rescore pending roles against profile and archetypes after scans finish">
-          <span class="toggle">
-            <input type="checkbox" id="contextual-scoring-toggle" ${contextualScoringEnabled() ? 'checked' : ''}>
-            <span class="toggle-track"></span>
-            <span class="toggle-thumb"></span>
-          </span>
-          <span class="discover-context-toggle-copy">
-            <span>LLM context</span>
-            ${contextualScoringActive ? '<span class="discover-context-toggle-state"><span class="spinner"></span> scoring</span>' : ''}
-          </span>
-        </label>
         <div class="discover-group-toggle">
           <button class="discover-toggle-btn${groupBy === 'flat' ? ' active' : ''}" data-group="flat" type="button">Flat</button>
           <button class="discover-toggle-btn${groupBy === 'company' ? ' active' : ''}" data-group="company" type="button">By company</button>
         </div>
+        <label class="discover-score-slider">
+          <span>Min score: <strong id="discover-min-label">${minScore.toFixed(1)}</strong></span>
+          <input type="range" min="0" max="5" step="0.5" value="${minScore}" id="discover-min-input" />
+        </label>
       </div>
       ${industries.length > 0 ? `
         <div class="discover-chips">
@@ -644,22 +640,9 @@ function bindEvents(container) {
   bindCardEvents(container);
 }
 
-// Scan card handlers (Scan Now / Deep Scan / schedule / max-new). Lives
+// Scan card handlers (Scan Now / Deep Scan / max-new). Lives
 // on Discover since 2026-05-16 — Portals used to own this card.
 function bindScanControls(container) {
-  const scheduleSelect = container.querySelector('#scan-schedule-select');
-  if (scheduleSelect) {
-    scheduleSelect.onchange = async () => {
-      try {
-        scanStatus = await api.setScanSchedule(scheduleSelect.value);
-        toast(`Scan schedule: ${scheduleSelect.value}`);
-        rerender(container);
-      } catch {
-        toast('Failed to update schedule', 'error');
-      }
-    };
-  }
-
   const limitSelect = container.querySelector('#scan-limit-select');
   if (limitSelect) {
     limitSelect.onchange = () => localStorage.setItem(SCAN_LIMIT_KEY, limitSelect.value);

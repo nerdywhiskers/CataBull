@@ -1755,9 +1755,24 @@
 }
 .scan-card-left {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   min-width: 0;
+  flex: 1 1 480px;
+}
+.scan-card-search {
+  flex: 1 1 240px;
+  min-width: 200px;
+  max-width: 320px;
+}
+.scan-card-context-toggle {
+  flex-shrink: 0;
+}
+.scan-card-last-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 .scan-card-eyebrow {
   font-size: 11px;
@@ -1840,7 +1855,6 @@
 .keyword-modal-add-row .form-input {
   flex: 1;
 }
-#scan-schedule-select { min-width: 128px; }   /* "Every 3 days" widest option */
 #scan-limit-select    { min-width: 96px; }    /* "Max: 100" widest option */
 
 .discover-toolbar {
@@ -1866,8 +1880,20 @@
 .discover-score-slider {
   display: flex; align-items: center; gap: 10px;
   font-size: 12px; color: var(--subtext);
+  flex-wrap: wrap;
 }
 .discover-score-slider input[type="range"] { width: 140px; }
+.pipeline-score-slider {
+  flex-wrap: nowrap;
+}
+.pipeline-score-slider > span {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.pipeline-score-slider input[type="range"] {
+  width: 140px;
+}
 .pending-table tr.is-tailoring {
   position: relative;
   background: color-mix(in srgb, var(--surface1) 72%, var(--mauve) 10%);
@@ -1917,23 +1943,23 @@
   color: var(--blue);
 }
 .discover-context-toggle-state .spinner { width: 12px; height: 12px; border-width: 2px; }
-.discover-group-toggle { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; margin-left: auto; }
+.discover-group-toggle { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
 .discover-toggle-btn {
   padding: 4px 12px; border: none; background: transparent; color: var(--subtext0);
   font-size: 12px; cursor: pointer;
 }
 .discover-toggle-btn.active { background: var(--surface0); color: var(--text); }
-.discover-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.discover-chips { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .discover-chip-label { font-size: 12px; color: var(--subtext0); margin-right: 4px; }
 .discover-chip {
-  font-size: 11px; padding: 3px 9px; border-radius: 999px;
+  font-size: 12px; padding: 4px 11px; border-radius: 999px;
   background: var(--surface0); color: var(--subtext); border: 1px solid var(--border);
   cursor: pointer; text-transform: capitalize;
 }
 .discover-chip:hover { color: var(--text); }
 .discover-chip.active { background: var(--mauve); color: var(--crust); border-color: var(--mauve); }
 .discover-chip-clear {
-  font-size: 11px; padding: 3px 8px; border: none; background: transparent;
+  font-size: 12px; padding: 4px 10px; border: none; background: transparent;
   color: var(--subtext0); cursor: pointer; text-decoration: underline;
 }
 
