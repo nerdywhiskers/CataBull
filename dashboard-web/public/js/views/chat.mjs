@@ -241,7 +241,6 @@ function activateChatRecord(record, { reconnect = true } = {}) {
   disconnectSession({ state: drawerVisible ? 'connecting' : 'disconnected' });
   if (drawerVisible && reconnect) connect();
 }
-
 export function formatSessionRecordForMenu(record = {}, now = Date.now()) {
   const updatedAt = Number(record.updatedAt || 0);
   const ageMs = Math.max(0, now - updatedAt);
@@ -400,6 +399,12 @@ function clearTerminalOutput() {
 
 function syncChatUiToCurrentAgent() {
   restoreCurrentChatTranscript();
+}
+
+function clearSessionOutput({ resetChat = true } = {}) {
+  clearTerminalOutput();
+  if (resetChat) resetChatUi(currentAgent);
+  else syncChatUiToCurrentAgent();
 }
 
 // "Reset" rotates the current agent's session id so the next message starts

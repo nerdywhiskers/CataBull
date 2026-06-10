@@ -21,6 +21,7 @@ let expired = [];
 let portalsData = null;         // tracked_companies, for industry lookup on pending filter
 let selected = new Set();       // pending URLs
 let selectedApps = new Set();   // application nums
+let showTopMatchOnly = false;
 let minPendingScore = 0;
 let currentFilter = 'pending';
 let sortCol = 'score';
@@ -1513,7 +1514,7 @@ function update(container) {
   const fullItems = isPending ? [] : sorted(filtered());
   const fullPending = isPending
     ? pending
-        .filter(p => pendingPassesScoreFilters(p, { minScore: minPendingScore }))
+        .filter(p => pendingPassesScoreFilters(p, { topOnly: showTopMatchOnly, minScore: minPendingScore }))
         .filter(matchesSearch)
         .filter(matchesPendingFilter)
     : [];
@@ -1598,6 +1599,10 @@ function update(container) {
             <label class="discover-score-slider pipeline-score-slider">
               <span>Min score: <strong id="pipeline-min-label">${minPendingScore.toFixed(1)}</strong></span>
               <input type="range" min="0" max="5" step="0.5" value="${minPendingScore}" id="pipeline-min-input" />
+            </label>
+            <label class="toggle-row">
+              <input type="checkbox" id="top-match-toggle" ${showTopMatchOnly ? 'checked' : ''}>
+              <span>Top matches only (4+)</span>
             </label>
             <button class="btn btn-sm btn-outline" id="pending-rescore-btn" type="button"${contextualScoringActive ? ' disabled' : ''}>AI Rescore</button>
           ` : ''}
@@ -1767,6 +1772,12 @@ function update(container) {
   });
   container.querySelector('#pipeline-min-input')?.addEventListener('change', (e) => {
     minPendingScore = Number.parseFloat(e.target.value);
+    selected.clear();
+    currentPage = 1;
+    update(container);
+  });
+  container.querySelector('#top-match-toggle')?.addEventListener('change', (e) => {
+    showTopMatchOnly = Boolean(e.target.checked);
     selected.clear();
     currentPage = 1;
     update(container);
