@@ -1599,9 +1599,9 @@ function update(container) {
               <span>Min score: <strong id="pipeline-min-label">${minPendingScore.toFixed(1)}</strong></span>
               <input type="range" min="0" max="5" step="0.5" value="${minPendingScore}" id="pipeline-min-input" />
             </label>
+            <button class="btn btn-sm btn-outline" id="pending-rescore-btn" type="button"${contextualScoringActive ? ' disabled' : ''}>AI Rescore</button>
           ` : ''}
           <div class="pipeline-toolbar-actions">
-            ${isPending ? `<button class="btn btn-sm btn-outline" id="pending-rescore-btn" type="button"${contextualScoringActive ? ' disabled' : ''}>Rescore LLM</button>` : ''}
             <button class="btn btn-sm btn-primary" id="add-job-btn" type="button">Add Job</button>
             <button class="btn-icon" id="refresh-btn" title="${isPending && pending.length > 0 ? 'Refresh + verify each pending posting is still live' : 'Refresh'}"${scanProgress?.visible || pendingRefreshState?.active ? ' disabled' : ''}>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 6a4.5 4.5 0 1 1-1.3-3.18"/><polyline points="11.5 1 11.5 4 8.5 4"/></svg>

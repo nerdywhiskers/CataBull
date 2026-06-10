@@ -803,9 +803,9 @@ input[type="checkbox"]:checked::after {
   min-width: 0;
 }
 .pipeline-toolbar-search .search-input {
-  flex: 0 1 280px;
-  width: min(280px, 100%);
-  max-width: 280px;
+  flex: 0 1 350px;
+  width: min(350px, 100%);
+  max-width: 350px;
 }
 .pipeline-toolbar-actions {
   display: inline-flex;
@@ -827,6 +827,10 @@ input[type="checkbox"]:checked::after {
 .pipeline-score-slider {
   flex: 0 1 280px;
   justify-content: center;
+  white-space: nowrap;
+}
+.pipeline-score-slider > span {
+  white-space: nowrap;
 }
 .pipeline-score-slider input[type="range"] {
   width: clamp(140px, 20vw, 200px);
