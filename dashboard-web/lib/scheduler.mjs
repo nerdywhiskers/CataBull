@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
+import { readScanRunState } from './scan-run-state.mjs';
 
 // Package root (dashboard-web/lib → project root). scan.mjs ships here, not in
 // the user's workspace, so the scheduler must launch it from the package and
@@ -34,6 +35,38 @@ function writeState(root, state) {
   writeFileSync(statePath(root), JSON.stringify(state, null, 2));
 }
 
+function resultFromRunState(runState) {
+  const result = runState?.lastResult;
+  if (!result?.finishedAt) return null;
+  const summary = result.summary || {};
+  const newOffers = Number.isFinite(summary.totalNew)
+    ? summary.totalNew
+    : Number.isFinite(summary.quick?.added)
+      ? summary.quick.added
+      : 0;
+  return {
+    lastScanAt: result.finishedAt,
+    lastScanResult: {
+      success: result.status === 'completed',
+      newOffers,
+      summary: result.error || `${newOffers} new offer${newOffers === 1 ? '' : 's'}`,
+    },
+  };
+}
+
+function latestScanState(root) {
+  const scheduledState = readState(root);
+  const runStateResult = resultFromRunState(readScanRunState(root));
+  if (!runStateResult) return scheduledState;
+  if (!scheduledState.lastScanAt) return { ...scheduledState, ...runStateResult };
+  const runTime = new Date(runStateResult.lastScanAt).getTime();
+  const scheduledTime = new Date(scheduledState.lastScanAt).getTime();
+  if (Number.isFinite(runTime) && (!Number.isFinite(scheduledTime) || runTime > scheduledTime)) {
+    return { ...scheduledState, ...runStateResult };
+  }
+  return scheduledState;
+}
+
 /** Read scan_schedule from portals.yml. Returns 'off', 'daily', 'every-3-days', or 'weekly'. */
 export function getSchedule(root) {
   const path = join(root, 'portals.yml');
@@ -61,7 +94,7 @@ export function setSchedule(root, schedule) {
 
 /** Get scheduler status for the API. */
 export function getStatus(root) {
-  const state = readState(root);
+  const state = latestScanState(root);
   const schedule = getSchedule(root);
   const interval = INTERVALS[schedule];
 

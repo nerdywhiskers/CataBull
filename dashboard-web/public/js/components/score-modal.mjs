@@ -82,11 +82,25 @@ function renderEvaluated(app) {
 }
 
 function renderPending(item) {
-  const score = Number(item.relevance) || 0;
+  const score = Number.isFinite(item.contextualScore) ? item.contextualScore : (Number(item.relevance) || 0);
   const tone = scoreTone(score);
   const factors = Array.isArray(item.relevanceFactors) ? item.relevanceFactors : [];
+  const isContextual = item.contextualScoreSource === 'llm';
 
-  const factorRows = factors.length
+  const contextualRows = isContextual
+    ? [
+        item.contextualRationale ? `<p class="score-modal-contextual-rationale">${esc(item.contextualRationale)}</p>` : '',
+        Array.isArray(item.contextualSignals) && item.contextualSignals.length
+          ? `<div class="score-modal-factors">${item.contextualSignals.map((signal) => `
+              <div class="score-modal-factor positive">
+                <span class="score-modal-factor-sign">+</span>
+                <span class="score-modal-factor-label">${esc(signal)}</span>
+              </div>`).join('')}</div>`
+          : '',
+      ].filter(Boolean).join('')
+    : '';
+
+  const factorRows = !isContextual && factors.length
     ? factors.map(f => {
         const delta = Number(f.delta) || 0;
         const sign = delta >= 0 ? '+' : '−';
@@ -105,8 +119,8 @@ function renderPending(item) {
     tone,
     headerSub: `${esc(item.company || '')} · ${esc(item.role || '')}`,
     body: `
-      <p class="score-modal-meta">Heuristic preview from your profile + portal keywords. Run a full evaluation for the complete A–E breakdown.</p>
-      <div class="score-modal-factors">${factorRows}</div>
+      <p class="score-modal-meta">${isContextual ? 'LLM contextual score from your profile + archetype notes.' : 'Heuristic preview from your profile + portal keywords.'} Run a full evaluation for the complete A–E breakdown.</p>
+      ${isContextual ? contextualRows : `<div class="score-modal-factors">${factorRows}</div>`}
     `,
     actions: `<button class="btn btn-secondary" data-action="evaluate">Run full evaluation</button>`,
   };

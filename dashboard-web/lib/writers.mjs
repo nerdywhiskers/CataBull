@@ -209,6 +209,83 @@ export function updateApplicationStatus(root, reportNumber, rowNum, newStatus) {
   return true;
 }
 
+function buildReportLink(reportNumber, reportPath) {
+  if (!reportPath) return '';
+  const number = String(reportNumber || '').trim() || String(reportPath).match(/(?:^|\/)(\d+)-/)?.[1] || '';
+  return number ? `[${number}](${reportPath})` : reportPath;
+}
+
+function ensureApplicationsFile(ws, relPath) {
+  const existing = ws.read(relPath);
+  if (existing != null) return existing;
+  const bootstrap = '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n';
+  ws.write(relPath, bootstrap);
+  return bootstrap;
+}
+
+function markPipelineDone(ws, url) {
+  const pipeContent = ws.read('data/pipeline.md');
+  if (pipeContent == null) return;
+  const lines = pipeContent.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes(url) && lines[i].includes('- [ ]')) {
+      lines[i] = lines[i].replace('- [ ]', '- [x]');
+      break;
+    }
+  }
+  ws.write('data/pipeline.md', lines.join('\n'));
+}
+
+export function markPipelineTailored(root, {
+  url,
+  company,
+  role,
+  reportPath = '',
+  reportNumber = '',
+  hasPdf = false,
+  scoreRaw = '',
+} = {}) {
+  if (!company || !role) return { success: false, error: 'company and role are required' };
+  const ws = asWorkspace(root);
+  if (url) markPipelineDone(ws, url);
+
+  const appsRelPath = ws.exists('data/applications.md') ? 'data/applications.md' : 'applications.md';
+  const appsContent = ensureApplicationsFile(ws, appsRelPath);
+  const lines = appsContent.split('\n');
+  const today = new Date().toISOString().slice(0, 10);
+  const normalizedCompany = company.trim().toLowerCase();
+  const normalizedRole = role.trim().toLowerCase();
+  const reportCell = buildReportLink(reportNumber, reportPath);
+  let nextNum = 1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.startsWith('|') || line.startsWith('| #') || line.startsWith('|---')) continue;
+    const parts = line.replace(/^\|/, '').replace(/\|$/, '').split('|').map((field) => field.trim());
+    if (parts.length < 8) continue;
+    const rowNum = parseInt(parts[0], 10);
+    if (Number.isFinite(rowNum)) nextNum = Math.max(nextNum, rowNum + 1);
+    if (String(parts[2] || '').trim().toLowerCase() !== normalizedCompany) continue;
+    if (String(parts[3] || '').trim().toLowerCase() !== normalizedRole) continue;
+
+    parts[1] = parts[1] || today;
+    parts[2] = company;
+    parts[3] = role;
+    parts[4] = scoreRaw || parts[4] || '';
+    parts[5] = 'Tailored';
+    parts[6] = hasPdf ? '✅' : (parts[6] || '❌');
+    parts[7] = reportCell || parts[7] || '';
+    parts[8] = parts[8] || '';
+    lines[i] = `| ${parts[0] || rowNum || nextNum} | ${parts[1]} | ${parts[2]} | ${parts[3]} | ${parts[4]} | ${parts[5]} | ${parts[6]} | ${parts[7]} | ${parts[8]} |`;
+    ws.write(appsRelPath, lines.join('\n'));
+    return { success: true, updated: true, num: rowNum || nextNum };
+  }
+
+  const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | ${scoreRaw} | Tailored | ${hasPdf ? '✅' : '❌'} | ${reportCell} | |`;
+  ws.write(appsRelPath, appsContent.trimEnd() + '\n' + newRow + '\n');
+  return { success: true, updated: false, num: nextNum };
+}
+
 /**
  * Delete every pending (unchecked) offer from pipeline.md's Pendientes
  * section. Leaves checked/done items, SKIP rows, EXPIRED rows, and the
@@ -367,6 +444,48 @@ export function updatePendingItem(root, { url, company, role, postedAt = null, l
   return { updated: true };
 }
 
+function cleanPipelineField(value, max = 240) {
+  return String(value || '').replace(/[\n\r|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+export function updatePendingContextualScores(root, scores = []) {
+  const ws = asWorkspace(root);
+  const content = ws.read('data/pipeline.md');
+  if (content == null || !Array.isArray(scores) || !scores.length) return { updated: 0 };
+
+  const byUrl = new Map(scores
+    .filter(score => score?.id && Number.isFinite(score.score))
+    .map(score => [String(score.id), score]));
+  if (!byUrl.size) return { updated: 0 };
+
+  let updated = 0;
+  const lines = content.split('\n').map((line) => {
+    const match = line.match(/^-\s+\[\s\]\s+(https?:\/\/\S+)\s*\|\s*([^|]+)\s*\|\s*(.+)$/);
+    if (!match) return line;
+    const url = match[1].trim();
+    const score = byUrl.get(url);
+    if (!score) return line;
+
+    const fields = match[3].split('|').map(field => field.trim());
+    const role = fields[0] || '';
+    const extras = fields.slice(1).filter(field => !/^(llm|why|signals):/.test(field));
+    const llm = Math.max(0, Math.min(5, Number(score.score))).toFixed(1);
+    const why = cleanPipelineField(score.rationale, 180);
+    const signals = Array.isArray(score.signals)
+      ? score.signals.map(signal => cleanPipelineField(signal, 60)).filter(Boolean).slice(0, 4).join(',')
+      : '';
+
+    extras.push(`llm:${llm}`);
+    if (why) extras.push(`why:${why}`);
+    if (signals) extras.push(`signals:${signals}`);
+    updated++;
+    return [`- [ ] ${url}`, match[2].trim(), role, ...extras].filter(Boolean).join(' | ');
+  });
+
+  if (updated > 0) ws.write('data/pipeline.md', lines.join('\n'));
+  return { updated };
+}
+
 /** Mark a pending offer in pipeline.md with a status (SKIP or EXPIRED) and date */
 export function markPipelineItem(root, url, status) {
   const ws = asWorkspace(root);
@@ -425,18 +544,7 @@ export function expirePipelineItem(root, url) {
 export function markPipelineApplied(root, url, company, role) {
   const ws = asWorkspace(root);
 
-  // Mark done in pipeline.md
-  const pipeContent = ws.read('data/pipeline.md');
-  if (pipeContent != null) {
-    const lines = pipeContent.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes(url) && lines[i].includes('- [ ]')) {
-        lines[i] = lines[i].replace('- [ ]', '- [x]');
-        break;
-      }
-    }
-    ws.write('data/pipeline.md', lines.join('\n'));
-  }
+  markPipelineDone(ws, url);
 
   const existing = parseApplications(root).find(app =>
     app.company.trim().toLowerCase() === company.trim().toLowerCase()

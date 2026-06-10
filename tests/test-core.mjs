@@ -51,7 +51,7 @@ function assertThrows(fn, msg) {
 
 console.log('\n1. normalizeStatus');
 
-const { normalizeStatus } = await import(pathToFileURL(join(ROOT, 'dashboard-web', 'lib', 'parsers.mjs')).href);
+const { normalizeStatus, parseApplications } = await import(pathToFileURL(join(ROOT, 'dashboard-web', 'lib', 'parsers.mjs')).href);
 
 assert(normalizeStatus('Applied') === 'applied', 'Applied → applied');
 assert(normalizeStatus('aplicado') === 'applied', 'aplicado → applied');
@@ -123,12 +123,12 @@ assert(classifyLiveness({ bodyText: 'No longer accepting applications' }).result
 assert(classifyLiveness({ bodyText: 'The page you are looking for does not exist' }).result === 'expired', 'page not found → expired');
 assert(classifyLiveness({ bodyText: 'Job listing not found' }).result === 'expired', 'job listing not found → expired');
 
-// Body patterns — uncertain when not clearly gone/closed
-assert(classifyLiveness({ bodyText: 'The job is no longer available' }).result === 'uncertain', 'no longer available stays uncertain');
-assert(classifyLiveness({ bodyText: 'This position has been filled' }).result === 'uncertain', 'position filled stays uncertain');
-assert(classifyLiveness({ bodyText: 'This job posting has expired' }).result === 'uncertain', 'posting expired stays uncertain');
-assert(classifyLiveness({ bodyText: 'Diese Stelle ist nicht mehr besetzt' }).result === 'uncertain', 'German closed phrasing stays uncertain');
-assert(classifyLiveness({ bodyText: 'Cette offre expirée' }).result === 'uncertain', 'French closed phrasing stays uncertain');
+// Body patterns — hard-expired when they carry explicit closed / filled / expired signals
+assert(classifyLiveness({ bodyText: 'The job is no longer available' }).result === 'expired', 'no longer available now hard-expires');
+assert(classifyLiveness({ bodyText: 'This position has been filled' }).result === 'expired', 'position filled now hard-expires');
+assert(classifyLiveness({ bodyText: 'This job posting has expired' }).result === 'expired', 'posting expired now hard-expires');
+assert(classifyLiveness({ bodyText: 'Diese Stelle ist nicht mehr besetzt' }).result === 'uncertain', 'German closed phrasing stays uncertain until localized hard-expire support exists');
+assert(classifyLiveness({ bodyText: 'Cette offre expirée' }).result === 'uncertain', 'French closed phrasing stays uncertain until localized hard-expire support exists');
 
 // Listing/search shells are uncertain unless clearly gone/closed
 assert(classifyLiveness({ bodyText: '663 JOBS FOUND' }).result === 'uncertain', 'listing page → uncertain');
@@ -199,6 +199,26 @@ assert(applicationsPath(testRoot3) === join(testRoot3, 'applications.md'), 'retu
 rmSync(testRoot1, { recursive: true, force: true });
 rmSync(testRoot2, { recursive: true, force: true });
 rmSync(testRoot3, { recursive: true, force: true });
+
+// Test parseApplications enriching tailored artifact paths from output/tailor-bundles
+const testRoot4 = join(ROOT, '.tmp-test-app-tailor-bundle');
+mkdirSync(join(testRoot4, 'data'), { recursive: true });
+mkdirSync(join(testRoot4, 'reports'), { recursive: true });
+mkdirSync(join(testRoot4, 'output', 'tailor-bundles', 'left-field-labs-creative-director-experiences-2026-06-04'), { recursive: true });
+writeFileSync(join(testRoot4, 'data', 'applications.md'), '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-04 | Left Field Labs | Creative Director - Experiences | 3.8/5 | Evaluated | ❌ | [002](reports/002-left-field-labs-2026-06-04.md) | |\n');
+writeFileSync(join(testRoot4, 'reports', '002-left-field-labs-2026-06-04.md'), '# Left Field Labs\n\nScore: 3.8/5 — A:4.4 · B:4.4 · C:4.0 · D:4.2 · E:4.5\n\n**URL:** https://www.linkedin.com/jobs/view/4416678222/\n');
+writeFileSync(join(testRoot4, 'output', 'tailor-bundles', 'left-field-labs-creative-director-experiences-2026-06-04', 'cv.md'), '# CV\n');
+writeFileSync(join(testRoot4, 'output', 'tailor-bundles', 'left-field-labs-creative-director-experiences-2026-06-04', 'cover-letter.md'), '# Cover\n');
+writeFileSync(join(testRoot4, 'output', 'tailor-bundles', 'left-field-labs-creative-director-experiences-2026-06-04', 'answers.md'), '# Answers\n');
+writeFileSync(join(testRoot4, 'output', 'tailor-bundles', 'left-field-labs-creative-director-experiences-2026-06-04', 'cv.pdf'), 'pdf');
+writeFileSync(join(testRoot4, 'output', 'tailor-bundles', 'left-field-labs-creative-director-experiences-2026-06-04', 'cover-letter.pdf'), 'pdf');
+const parsedApps = parseApplications(testRoot4);
+assert(parsedApps[0]?.tailorBundle?.paths?.cv === 'output/tailor-bundles/left-field-labs-creative-director-experiences-2026-06-04/cv.md', 'parseApplications exposes tailored CV path when bundle exists');
+assert(parsedApps[0]?.tailorBundle?.paths?.coverLetter === 'output/tailor-bundles/left-field-labs-creative-director-experiences-2026-06-04/cover-letter.md', 'parseApplications exposes tailored cover letter path when bundle exists');
+assert(parsedApps[0]?.tailorBundle?.paths?.qa === 'output/tailor-bundles/left-field-labs-creative-director-experiences-2026-06-04/answers.md', 'parseApplications exposes tailored Q&A path when bundle exists');
+assert(parsedApps[0]?.tailorBundle?.paths?.cvPdf === 'output/tailor-bundles/left-field-labs-creative-director-experiences-2026-06-04/cv.pdf', 'parseApplications exposes tailored CV PDF path when bundle exists');
+assert(parsedApps[0]?.tailorBundle?.paths?.coverLetterPdf === 'output/tailor-bundles/left-field-labs-creative-director-experiences-2026-06-04/cover-letter.pdf', 'parseApplications exposes tailored cover letter PDF path when bundle exists');
+rmSync(testRoot4, { recursive: true, force: true });
 
 // ── 5. SPAWN WITH TIMEOUT ───────────────────────────────────────
 

@@ -14,6 +14,7 @@
 
 import { buildTitleClassifier } from '../lib/title-filter.mjs';
 import { searchWeb } from './websearch.mjs';
+import { isActiveLiveness } from '../lib/job-board-liveness.mjs';
 
 const LIVENESS_CONCURRENCY = 1;   // Playwright is single-threaded per browser
 const SEARCH_CONCURRENCY = 3;     // Rate-limit-friendly across providers
@@ -205,7 +206,7 @@ export async function runLevel3({
   const classifyTitle = buildTitleClassifier(titleFilter);
 
   const added = [];
-  const skipped = { title: 0, dup: 0, expired: 0, aggregator: 0 };
+  const skipped = { title: 0, dup: 0, expired: 0, aggregator: 0, unverified: 0 };
   const errors = [];
   const perQuery = [];
 
@@ -293,12 +294,14 @@ export async function runLevel3({
         errors.push({ stage: 'liveness', url: cand.url, error: err.message || String(err) });
         result = { result: 'uncertain', reason: 'liveness check threw' };
       }
-      // "expired" is the only verdict we drop; "uncertain" is kept because
-      // single-page apps often hide their apply button behind hydration we
-      // can't reliably detect in 15 seconds.
       if (result?.result === 'expired') {
         skipped.expired++;
         onProgress({ stage: 'liveness:expired', index: i, url: cand.url, reason: result.reason });
+        continue;
+      }
+      if (!isActiveLiveness(result)) {
+        skipped.unverified++;
+        onProgress({ stage: 'liveness:unverified', index: i, url: cand.url, reason: result?.reason || 'not active' });
         continue;
       }
 

@@ -19,10 +19,18 @@ import { deepProgressFromEvent, pendingRefreshProgressFromState, quickProgressFr
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 import { openScoreModal } from '../components/score-modal.mjs';
+import { promptTailorAction } from '../components/tailor-choice.mjs';
 import { notifyScanComplete, requestPermission } from '../components/notifications.mjs';
 import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
 import { DEFAULT_PENDING_REFRESH_INTERVAL_MS, getPendingRefreshState, runPendingRefresh, subscribePendingRefresh } from '../lib/pending-refresh.mjs';
+import {
+  applyContextualScoreResults,
+  contextualScoringEnabled,
+  mergePendingContextualState,
+  resetPendingToHeuristicScores,
+  setContextualScoringEnabled,
+} from '../lib/pending-contextual-scoring.mjs';
 import {
   buildDiscoverFilter,
   groupPostingsByCompany,
@@ -43,6 +51,9 @@ let groupBy = 'flat';            // 'company' | 'flat' — flat by default per U
 let activeContainer = null;
 let pendingRefreshPoller = null;
 let pendingRefreshState = getPendingRefreshState();
+let contextualScoringRun = 0;
+let contextualScoringActive = false;
+let contextualScoringError = '';
 
 // Scan controls moved here from the Portals page (2026-05-16). The
 // `catabull-scan-limit` localStorage key stays shared with portals.mjs
@@ -133,6 +144,11 @@ function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function scoreValue(p) {
+  if (Number.isFinite(p?.contextualScore)) return p.contextualScore;
+  return Number.isFinite(p?.relevance) ? p.relevance : 0;
+}
+
 function normalizeTitleFilter(filter = {}) {
   const unique = (items) => [...new Set((Array.isArray(items) ? items : [])
     .map((item) => String(item || '').trim())
@@ -182,12 +198,22 @@ function renderScoreRing(score, tone, title = '') {
   `;
 }
 
+function renderScoreLoading(title = 'Evaluating contextual match...') {
+  return `
+    <span class="score-ring score-ring-loading" title="${esc(title)}">
+      <span class="spinner"></span>
+    </span>
+  `;
+}
+
 // Build a one-line description from the heuristic match factors. Falls back
 // to the canned rationale when factors aren't available so an early-onboarded
 // user still sees something useful. Factor labels from lib/relevance.mjs are
 // already self-describing (e.g. "Matches target role 'staff engineer'") so
 // we join them as-is instead of prepending extra words.
 function describeMatch(p) {
+  if (p.contextualScoring) return 'Contextual match scoring in progress...';
+  if (p.contextualRationale) return p.contextualRationale;
   const factors = Array.isArray(p.relevanceFactors) ? p.relevanceFactors : [];
   if (factors.length === 0) {
     return p.relevanceRationale || 'Heuristic match preview — run a full evaluation to see the A–E breakdown.';
@@ -227,8 +253,6 @@ function uniqueIndustries() {
 
 function renderScanSchedule() {
   if (!scanStatus) return '';
-  const scheduleLabels = { off: 'Off', daily: 'Daily', 'every-3-days': 'Every 3 days', weekly: 'Weekly' };
-  const current = scanStatus.schedule || 'off';
   const savedLimit = localStorage.getItem(SCAN_LIMIT_KEY) || '0';
   const busy = scanStatus.running || scanProgress?.visible || pendingRefreshState?.active;
   const titleFilter = normalizeTitleFilter(portals?.title_filter);
@@ -254,14 +278,24 @@ function renderScanSchedule() {
         <button class="btn btn-sm btn-soft" id="search-keywords-btn" type="button" title="Edit keywords used to score and filter search results">
           Search Keywords${keywordCount ? ` (${keywordCount})` : ''}
         </button>
+        <input class="form-input discover-search scan-card-search" id="discover-search" placeholder="Search company or role..." value="${esc(searchQuery)}" />
+        <label class="discover-context-toggle scan-card-context-toggle" title="Use your configured agent to rescore pending roles against profile and archetypes after scans finish">
+          <span class="toggle">
+            <input type="checkbox" id="contextual-scoring-toggle" ${contextualScoringEnabled() ? 'checked' : ''}>
+            <span class="toggle-track"></span>
+            <span class="toggle-thumb"></span>
+          </span>
+          <span class="discover-context-toggle-copy">
+            <span>AI Score</span>
+            ${contextualScoringActive ? '<span class="discover-context-toggle-state"><span class="spinner"></span> scoring</span>' : ''}
+          </span>
+        </label>
+        <span class="scan-card-last-group">
+          <span class="scan-card-label scan-card-last-label">Last</span>
+          ${lastScanBadge}
+        </span>
       </div>
       <div class="scan-card-controls">
-        <span class="scan-card-label">Schedule</span>
-        <select class="form-select scan-card-select" id="scan-schedule-select" title="Run scan on a schedule" ${busy ? 'disabled' : ''}>
-          ${Object.entries(scheduleLabels).map(([value, label]) => `<option value="${value}"${value === current ? ' selected' : ''}>${label}</option>`).join('')}
-        </select>
-        <span class="scan-card-label scan-card-last-label">Last</span>
-        ${lastScanBadge}
         <select class="form-select scan-card-select" id="scan-limit-select" ${busy ? 'disabled' : ''} title="Cap on new offers added per scan">
           ${SCAN_LIMIT_OPTIONS.map(o => `<option value="${o.value}"${o.value === savedLimit ? ' selected' : ''}>Max: ${o.label}</option>`).join('')}
         </select>
@@ -393,11 +427,18 @@ function openSearchKeywordsModal(container) {
 
 function renderHeader() {
   const totalIfFiltered = applyFilters(pending).length;
+  const scoringStatus = contextualScoringEnabled()
+    ? (contextualScoringActive
+        ? 'Contextual scoring running'
+        : contextualScoringError
+          ? 'Contextual scoring unavailable'
+          : 'Contextual scoring on')
+    : 'Heuristic scoring';
   return `
     <header class="section-header">
       <div>
         <h1 class="section-title">Discover</h1>
-        <p class="section-sub">Scored roles across your tracked portals and job boards. ${totalIfFiltered} of ${pending.length} pending postings shown.</p>
+        <p class="section-sub">Scored roles across your tracked portals and job boards. ${totalIfFiltered} of ${pending.length} pending postings shown. ${scoringStatus}.</p>
       </div>
     </header>
   `;
@@ -417,15 +458,14 @@ function renderTopBar() {
     <div class="scan-progress-slot">${renderScanProgress(pendingRefreshProgressFromState(pendingRefreshState))}</div>
     <div class="discover-toolbar">
       <div class="discover-toolbar-row">
-        <input class="form-input discover-search" id="discover-search" placeholder="Search company or role…" value="${esc(searchQuery)}" />
-        <label class="discover-score-slider">
-          <span>Min score: <strong id="discover-min-label">${minScore.toFixed(1)}</strong></span>
-          <input type="range" min="0" max="5" step="0.5" value="${minScore}" id="discover-min-input" />
-        </label>
         <div class="discover-group-toggle">
           <button class="discover-toggle-btn${groupBy === 'flat' ? ' active' : ''}" data-group="flat" type="button">Flat</button>
           <button class="discover-toggle-btn${groupBy === 'company' ? ' active' : ''}" data-group="company" type="button">By company</button>
         </div>
+        <label class="discover-score-slider">
+          <span>Min score: <strong id="discover-min-label">${minScore.toFixed(1)}</strong></span>
+          <input type="range" min="0" max="5" step="0.5" value="${minScore}" id="discover-min-input" />
+        </label>
       </div>
       ${industries.length > 0 ? `
         <div class="discover-chips">
@@ -439,7 +479,7 @@ function renderTopBar() {
 }
 
 function renderCard(p) {
-  const score = Number.isFinite(p.relevance) ? p.relevance : 0;
+  const score = scoreValue(p);
   const tone = scoreClass(score);
   const description = describeMatch(p);
   const inds = postingIndustries(p);
@@ -455,7 +495,7 @@ function renderCard(p) {
           <span class="discover-card-role">${esc(p.role)}</span>
         </div>
         <button type="button" class="score-trigger discover-card-score-btn" data-score-trigger title="Click for match details">
-          ${renderScoreRing(score, tone, '')}
+          ${p.contextualScoring ? renderScoreLoading() : renderScoreRing(score, tone, p.contextualScoreSource === 'llm' ? 'LLM contextual score' : '')}
         </button>
       </header>
       <p class="discover-card-rationale">${esc(description)}</p>
@@ -539,6 +579,20 @@ function bindEvents(container) {
 
   bindScanControls(container);
   container.querySelector('#search-keywords-btn')?.addEventListener('click', () => openSearchKeywordsModal(container));
+  container.querySelector('#contextual-scoring-toggle')?.addEventListener('change', async (e) => {
+    const enabled = Boolean(e.target.checked);
+    setContextualScoringEnabled(enabled);
+    contextualScoringError = '';
+    if (!enabled) {
+      contextualScoringRun++;
+      contextualScoringActive = false;
+      pending = resetPendingToHeuristicScores(pending);
+      rerender(container);
+      return;
+    }
+    rerender(container);
+    startContextualScoring(container);
+  });
 
   // preserveFocus keeps the cursor in the search input across rerender()'s
   // full innerHTML rewrite — otherwise typing more than once de-focuses.
@@ -586,22 +640,9 @@ function bindEvents(container) {
   bindCardEvents(container);
 }
 
-// Scan card handlers (Scan Now / Deep Scan / schedule / max-new). Lives
+// Scan card handlers (Scan Now / Deep Scan / max-new). Lives
 // on Discover since 2026-05-16 — Portals used to own this card.
 function bindScanControls(container) {
-  const scheduleSelect = container.querySelector('#scan-schedule-select');
-  if (scheduleSelect) {
-    scheduleSelect.onchange = async () => {
-      try {
-        scanStatus = await api.setScanSchedule(scheduleSelect.value);
-        toast(`Scan schedule: ${scheduleSelect.value}`);
-        rerender(container);
-      } catch {
-        toast('Failed to update schedule', 'error');
-      }
-    };
-  }
-
   const limitSelect = container.querySelector('#scan-limit-select');
   if (limitSelect) {
     limitSelect.onchange = () => localStorage.setItem(SCAN_LIMIT_KEY, limitSelect.value);
@@ -641,6 +682,7 @@ function bindScanControls(container) {
             setScanProgress({ visible: false });
             await loadData();
             rerender(container);
+            startContextualScoring(container);
             resolve();
           });
         });
@@ -712,6 +754,7 @@ function bindScanControls(container) {
             setScanProgress({ visible: false });
             await loadData();
             rerender(container);
+            startContextualScoring(container);
             resolve();
           });
         });
@@ -763,7 +806,8 @@ function bindCardEvents(container) {
 
     card.querySelector('.discover-tailor')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      openTailorModal({ company, role, url });
+      const item = pending.find((p) => p.url === url) || { company, role, url };
+      openTailorModal(item, container);
     });
     card.querySelector('.discover-applied')?.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -790,7 +834,40 @@ function bindCardEvents(container) {
   });
 }
 
-function openTailorModal({ company, role, url }) {
+function tailorScoreForWarning(item) {
+  const llmScore = Number(item?.contextualScore);
+  const heuristicScore = Number(item?.relevance);
+  return item?.contextualScoreSource === 'llm' && Number.isFinite(llmScore) ? llmScore : heuristicScore;
+}
+
+async function confirmLowTailorScore(item) {
+  const score = tailorScoreForWarning(item);
+  if (!Number.isFinite(score) || score >= 3) return true;
+  return confirmModal({
+    title: 'Low-fit tailor?',
+    confirmText: 'Tailor anyway',
+    body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:10px"><strong style="color:var(--text)">${esc(item.company)} - ${esc(item.role)}</strong> is only scoring <strong style="color:var(--yellow)">${score.toFixed(1)}/5</strong>.</p><p style="font-size:13px;color:var(--subtext0)">This usually means weak fit. Tailoring now may burn time and credits before the role is worth pursuing.</p>`,
+  });
+}
+
+async function openTailorModal(item, container) {
+  const { company, role, url } = item;
+  const ok = await confirmLowTailorScore(item);
+  if (!ok) return;
+  const action = await promptTailorAction({ company, role });
+  if (!action) return;
+  if (action === 'evaluate') {
+    toast(`Running full evaluation for ${company}`);
+    try {
+      await runModePrompt('evaluate', { url, company, role });
+      await loadData();
+      rerender(container);
+    } catch (err) {
+      toast(`Evaluation failed: ${err.message || String(err)}`, 'error');
+    }
+    return;
+  }
+
   // Modal lives on body so it overlays the whole dashboard. Built once
   // and reused — re-renders into innerHTML for state changes.
   let modal = document.getElementById('tailor-modal');
@@ -824,6 +901,7 @@ function openTailorModal({ company, role, url }) {
 
   function renderResult(result) {
     const { paths, preview, slug } = result;
+    const reportFilename = result.report?.filename || '';
     const qaPreview = (preview.qa_first || []).map((q) => `
       <details class="tailor-qa">
         <summary>${esc(q.question)}</summary>
@@ -839,13 +917,16 @@ function openTailorModal({ company, role, url }) {
         </header>
         <div class="tailor-modal-body">
           <p class="tailor-modal-hint">
-            Saved to <code>${esc(result.dir)}</code>. Convert <code>cv.md</code> to PDF via <code>npm run pdf -- ${esc(paths.cv)} output/${esc(slug)}.pdf</code>.
+            Saved to <code>${esc(result.dir)}</code>${reportFilename ? ` and added to <a href="#/reports/${encodeURIComponent(reportFilename)}">Reports</a>` : ''}.
           </p>
 
           <section class="tailor-section">
             <header>
               <h4>Tailored CV</h4>
-              <a class="btn btn-sm" href="${api.tailorFileUrl(paths.cv)}" target="_blank" rel="noreferrer">Download</a>
+              <span class="cell-actions">
+                <a class="btn btn-sm" href="${api.tailorFileUrl(paths.cv)}" target="_blank" rel="noreferrer">MD</a>
+                ${paths.cvPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.cvPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
+              </span>
             </header>
             <pre class="tailor-preview">${esc(preview.cv_excerpt)}…</pre>
           </section>
@@ -853,18 +934,22 @@ function openTailorModal({ company, role, url }) {
           <section class="tailor-section">
             <header>
               <h4>Cover letter</h4>
-              <a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetter)}" target="_blank" rel="noreferrer">Download</a>
+              <span class="cell-actions">
+                <a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetter)}" target="_blank" rel="noreferrer">MD</a>
+                ${paths.coverLetterPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.coverLetterPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
+              </span>
             </header>
             <pre class="tailor-preview">${esc(preview.cover_letter_excerpt)}…</pre>
           </section>
 
-          <section class="tailor-section">
-            <header>
-              <h4>Application Q&amp;A (${preview.qa_count})</h4>
-              <a class="btn btn-sm" href="${api.tailorFileUrl(paths.qa)}" target="_blank" rel="noreferrer">Download all</a>
-            </header>
-            ${qaPreview}
-          </section>
+        <section class="tailor-section">
+          <header>
+            <h4>Application Q&amp;A (${preview.qa_count})</h4>
+          </header>
+          ${qaPreview}
+        </section>
+
+          ${reportFilename ? `<a class="btn btn-sm btn-secondary" href="#/reports/${encodeURIComponent(reportFilename)}">View report</a>` : ''}
         </div>
       </div>
     `;
@@ -890,7 +975,11 @@ function openTailorModal({ company, role, url }) {
   renderRunning();
 
   api.tailor({ company, role, url })
-    .then(renderResult)
+    .then(async (result) => {
+      renderResult(result);
+      await loadData();
+      rerender(container);
+    })
     .catch((err) => renderError(err.message || String(err)));
 }
 
@@ -901,7 +990,8 @@ async function loadData() {
       api.getPortals(),
       api.getScanStatus().catch(() => null),
     ]);
-    pending = Array.isArray(appsResp.pending) ? appsResp.pending : [];
+    const nextPending = Array.isArray(appsResp.pending) ? appsResp.pending : [];
+    pending = mergePendingContextualState(nextPending, pending);
     portals = portalsResp?.portals || portalsResp || null;
     scanStatus = statusResp || null;
   } catch (err) {
@@ -909,6 +999,36 @@ async function loadData() {
     portals = null;
     scanStatus = null;
     toast(`Failed to load discover data: ${err.message}`, 'error');
+  }
+}
+
+async function startContextualScoring(container) {
+  if (!contextualScoringEnabled() || contextualScoringActive || pending.length === 0) return;
+  const urls = pending
+    .filter((p) => p.url && p.contextualScoreSource !== 'llm')
+    .map((p) => p.url);
+  if (!urls.length) return;
+
+  const runId = ++contextualScoringRun;
+  contextualScoringActive = true;
+  contextualScoringError = '';
+  pending = pending.map((p) => urls.includes(p.url) ? { ...p, contextualScoring: true } : p);
+  rerenderIfActive(container);
+
+  try {
+    const result = await api.getContextualScores(urls);
+    if (runId !== contextualScoringRun) return;
+    pending = applyContextualScoreResults(pending, result.scores || []);
+  } catch (err) {
+    if (runId !== contextualScoringRun) return;
+    contextualScoringError = err.message || String(err);
+    pending = pending.map((p) => ({ ...p, contextualScoring: false }));
+    toast(`Contextual scoring unavailable: ${contextualScoringError}`, 'error');
+  } finally {
+    if (runId === contextualScoringRun) {
+      contextualScoringActive = false;
+      rerenderIfActive(container);
+    }
   }
 }
 

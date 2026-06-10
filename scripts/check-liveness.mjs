@@ -16,10 +16,15 @@
 
 import { readFile } from 'fs/promises';
 import { classifyLiveness } from '../lib/liveness-core.mjs';
+import { normalizeJobBoardLiveness } from '../lib/job-board-liveness.mjs';
+import { checkLinkedInGuestPosting } from '../lib/linkedin-liveness.mjs';
 import { launchChromiumWithRetry } from '../lib/playwright-launch.mjs';
 
 async function checkUrl(page, url) {
   try {
+    const linkedInGuestResult = await checkLinkedInGuestPosting(url);
+    if (linkedInGuestResult?.result === 'expired') return linkedInGuestResult;
+
     const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
     const status = response?.status() ?? 0;
@@ -75,10 +80,13 @@ async function checkUrl(page, url) {
         .filter(Boolean);
     });
 
-    return classifyLiveness({ status, finalUrl, bodyText, titleText, extraText, applyControls });
+    return normalizeJobBoardLiveness(
+      url,
+      classifyLiveness({ status, finalUrl, bodyText, titleText, extraText, applyControls }),
+    );
 
   } catch (err) {
-    return { result: 'uncertain', reason: `navigation error: ${err.message.split('\n')[0]}` };
+    return normalizeJobBoardLiveness(url, { result: 'uncertain', reason: `navigation error: ${err.message.split('\n')[0]}` });
   }
 }
 

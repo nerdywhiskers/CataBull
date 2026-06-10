@@ -3,10 +3,16 @@ import { deepProgressFromEvent, pendingRefreshProgressFromState, quickProgressFr
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 import { openScoreModal } from '../components/score-modal.mjs';
+import { promptTailorAction } from '../components/tailor-choice.mjs';
 import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
 import { INDUSTRIES } from '../lib/industries.mjs';
 import { DEFAULT_PENDING_REFRESH_INTERVAL_MS, getPendingRefreshState, runPendingRefresh, subscribePendingRefresh } from '../lib/pending-refresh.mjs';
+import {
+  applyContextualScoreResults,
+  contextualScoringEnabled,
+  mergePendingContextualState,
+} from '../lib/pending-contextual-scoring.mjs';
 
 let apps = [];
 let pending = [];
@@ -15,7 +21,7 @@ let expired = [];
 let portalsData = null;         // tracked_companies, for industry lookup on pending filter
 let selected = new Set();       // pending URLs
 let selectedApps = new Set();   // application nums
-let showTopMatchOnly = false;
+let minPendingScore = 0;
 let currentFilter = 'pending';
 let sortCol = 'score';
 let sortDir = 'desc';
@@ -27,6 +33,10 @@ let scanRunStatePoller = null;
 let pendingRefreshPoller = null;
 let lastObservedScanFinishedAt = '';
 let pendingRefreshState = getPendingRefreshState();
+let contextualScoringRun = 0;
+let contextualScoringActive = false;
+let contextualScoringError = '';
+let tailoringByUrl = new Map();
 
 async function loadData() {
   try {
@@ -35,7 +45,8 @@ async function loadData() {
       api.getPortals().catch(() => null),
     ]);
     apps = data.applications || [];
-    pending = data.pending || [];
+    const nextPending = data.pending || [];
+    pending = mergePendingContextualState(nextPending, pending);
     skipped = data.skipped || [];
     expired = data.expired || [];
     portalsData = portalsResp?.portals || null;
@@ -151,7 +162,7 @@ function ensureLiveRefresh(container) {
 
 // ── Pending-list filter popover (industry / location / posted-date) ───
 //
-// Filters only the Pending tab — Evaluated/Applied/etc. already have their
+// Filters only the Pending tab — Tailored/Applied/etc. already have their
 // own status-based tabs. Persisted to localStorage so a fresh page load
 // keeps the user's last filter set.
 const PENDING_FILTER_KEY = 'catabull-pipeline-pending-filter';
@@ -335,7 +346,7 @@ function sorted(list) {
 }
 
 function statusPri(s) {
-  const p = { interview: 0, offer: 1, responded: 2, applied: 3, evaluated: 4, skip: 5, rejected: 6, discarded: 7 };
+  const p = { interview: 0, offer: 1, responded: 2, applied: 3, tailored: 4, skip: 5, rejected: 6, discarded: 7 };
   return p[s] ?? 8;
 }
 
@@ -370,6 +381,35 @@ function renderScoreRing(score, tone, title = '') {
   `;
 }
 
+function renderScoreLoading(title = 'Evaluating contextual match...') {
+  return `
+    <span class="score-ring score-ring-loading" title="${esc(title)}">
+      <span class="spinner"></span>
+    </span>
+  `;
+}
+
+export function pendingNeedsContextualScore(item, { force = false } = {}) {
+  return Boolean(item?.url && (force || item.contextualScoreSource !== 'llm'));
+}
+
+export function pendingPassesScoreFilters(item, { topOnly = false, minScore = 0 } = {}) {
+  const score = Number(item?.relevance ?? 0);
+  return (!topOnly || score >= 4) && score >= minScore;
+}
+
+export function renderPendingScoreButton(item) {
+  if (item?.contextualScoring) {
+    return `<button type="button" class="score-trigger score-trigger-loading" data-score-kind="pending" data-score-url="${esc(item.url || '')}" title="Evaluating contextual match...">${renderScoreLoading()}</button>`;
+  }
+  if (item?.relevance == null) return '';
+  const tone = relevanceClass(item.relevance ?? 0);
+  const title = item.contextualScoreSource === 'llm'
+    ? (item.contextualRationale || 'LLM contextual match score')
+    : (item.relevanceRationale || 'Click for match details');
+  return `<button type="button" class="score-trigger" data-score-kind="pending" data-score-url="${esc(item.url || '')}" title="${esc(title)}">${renderScoreRing(item.relevance, tone, '')}</button>`;
+}
+
 function wrapTable(tableMarkup, className = 'table-scroll') {
   return `<div class="${className}">${tableMarkup}</div>`;
 }
@@ -393,7 +433,7 @@ function weakestScoreBlock(blocks = {}) {
 
 export function buildAiSuggestion(targetApps = []) {
   const candidates = targetApps
-    .filter(a => ['applied', 'evaluated'].includes(a.statusNormalized) && a.score > 0)
+    .filter(a => ['applied', 'tailored'].includes(a.statusNormalized) && a.score > 0)
     .sort((a, b) => a.score - b.score);
   const target = candidates[0] || null;
   if (!target) {
@@ -420,7 +460,7 @@ export function buildAiSuggestion(targetApps = []) {
     body,
     ctaLabel: 'Open Score Breakdown',
     targetNum: target.num,
-    targetFilter: target.statusNormalized === 'evaluated' ? 'evaluated' : 'applied',
+    targetFilter: target.statusNormalized === 'tailored' ? 'tailored' : 'applied',
     openScoreModal: true,
   };
 }
@@ -495,7 +535,7 @@ function tabCount(key) {
 const FILTERS = [
   { key: 'pending', label: 'Pending' },
   { key: 'all', label: 'All' },
-  { key: 'evaluated', label: 'Evaluated' },
+  { key: 'tailored', label: 'Tailored' },
   { key: 'applied', label: 'Applied' },
   { key: 'interview', label: 'Interview' },
   { key: 'top', label: 'Top \u22654' },
@@ -516,7 +556,110 @@ function relevanceClass(score) {
   return 'poor';
 }
 
-// Tooltip for evaluated applications — shows the per-block A–E breakdown
+export function shouldWarnLowTailorScore(score) {
+  return Number.isFinite(score) && score < 3;
+}
+
+export function shouldEnableTailorArtifacts(item) {
+  return item?.statusNormalized === 'tailored' && Number(item?.score) > 3;
+}
+
+export function shouldShowTailorArtifactLinks(item) {
+  return shouldEnableTailorArtifacts(item) && Boolean(
+    item?.tailorBundle?.paths?.cv
+    || item?.tailorBundle?.paths?.coverLetter
+    || item?.tailorBundle?.paths?.qa
+    || item?.tailorBundle?.paths?.cvPdf
+    || item?.tailorBundle?.paths?.coverLetterPdf
+  );
+}
+
+export function pendingTailorDecision(item) {
+  const llmScore = Number(item?.contextualScore);
+  const heuristicScore = Number(item?.relevance);
+  const hasLlm = item?.contextualScoreSource === 'llm' && Number.isFinite(llmScore);
+  const score = hasLlm ? llmScore : heuristicScore;
+  return {
+    score,
+    scoreSource: hasLlm ? 'llm' : 'heuristic',
+    shouldWarn: shouldWarnLowTailorScore(score),
+  };
+}
+
+export function pendingTailorStatusLabel(phase) {
+  if (phase === 'scoring') return 'Scoring match...';
+  if (phase === 'tailoring') return 'Tailoring bundle...';
+  if (phase === 'evaluating') return 'Running full report...';
+  return '';
+}
+
+function showTailorResultModal(result = {}, { company = '', role = '' } = {}) {
+  let modal = document.getElementById('tailor-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'tailor-modal';
+    modal.className = 'tailor-modal-backdrop';
+    document.body.appendChild(modal);
+  }
+  const paths = result.paths || {};
+  const preview = result.preview || {};
+  const reportFilename = result.report?.filename || '';
+  const qaPreview = (preview.qa_first || []).map((q) => `
+    <details class="tailor-qa">
+      <summary>${esc(q.question)}</summary>
+      <p>${esc(q.answer)}</p>
+    </details>
+  `).join('');
+
+  modal.innerHTML = `
+    <div class="tailor-modal tailor-modal-result">
+      <header class="tailor-modal-head">
+        <h3>Tailor bundle ready</h3>
+        <button class="btn btn-ghost btn-sm" id="tailor-cancel" type="button">Close</button>
+      </header>
+      <div class="tailor-modal-body">
+        <p class="tailor-modal-hint">
+          Saved for <strong style="color:var(--text)">${esc(company)} - ${esc(role)}</strong>
+          ${reportFilename ? `and added to <a href="#/reports/${encodeURIComponent(reportFilename)}">Reports</a>` : ''}.
+        </p>
+
+        <section class="tailor-section">
+          <header>
+            <h4>Tailored CV</h4>
+            <span class="cell-actions">
+              ${paths.cv ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.cv)}" target="_blank" rel="noreferrer">MD</a>` : ''}
+              ${paths.cvPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.cvPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
+            </span>
+          </header>
+          ${preview.cv_excerpt ? `<pre class="tailor-preview">${esc(preview.cv_excerpt)}...</pre>` : ''}
+        </section>
+
+        <section class="tailor-section">
+          <header>
+            <h4>Cover letter</h4>
+            <span class="cell-actions">
+              ${paths.coverLetter ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetter)}" target="_blank" rel="noreferrer">MD</a>` : ''}
+              ${paths.coverLetterPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.coverLetterPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
+            </span>
+          </header>
+          ${preview.cover_letter_excerpt ? `<pre class="tailor-preview">${esc(preview.cover_letter_excerpt)}...</pre>` : ''}
+        </section>
+
+        <section class="tailor-section">
+          <header>
+            <h4>Application Q&amp;A${preview.qa_count ? ` (${preview.qa_count})` : ''}</h4>
+          </header>
+          ${qaPreview}
+        </section>
+
+        ${reportFilename ? `<a class="btn btn-sm btn-secondary" href="#/reports/${encodeURIComponent(reportFilename)}">View report</a>` : ''}
+      </div>
+    </div>
+  `;
+  modal.querySelector('#tailor-cancel').addEventListener('click', () => modal.remove());
+}
+
+// Tooltip for tailored applications — shows the per-block A–E breakdown
 // (parsed from the report) so the user can see how the global score was
 // derived without opening the report. Returns '' when blocks weren't
 // parseable so callers fall back to a generic tooltip.
@@ -720,10 +863,10 @@ export async function watchPendingTailorCompletion(item, { timeoutMs = 300_000, 
     pending = data.pending || [];
     skipped = data.skipped || [];
     expired = data.expired || [];
-    currentFilter = 'evaluated';
+    currentFilter = 'tailored';
     expandedRow = found.num;
     if (activeContainer) update(activeContainer);
-    toast(`${found.company} moved to Evaluated`);
+    toast(`${found.company} moved to Tailored`);
     return true;
   }
 
@@ -760,10 +903,43 @@ async function openPendingEditModal(item) {
   }
 }
 
+async function startContextualScoring(container, { force = false, urls = null } = {}) {
+  if ((!contextualScoringEnabled() && !force) || contextualScoringActive || pending.length === 0) return;
+  const requestedUrls = Array.isArray(urls)
+    ? new Set(urls.map((url) => String(url || '').trim()).filter(Boolean))
+    : null;
+  const targetUrls = pending
+    .filter((item) => (!requestedUrls || requestedUrls.has(item.url)) && pendingNeedsContextualScore(item, { force }))
+    .map((item) => item.url);
+  if (!targetUrls.length) return;
+
+  const runId = ++contextualScoringRun;
+  contextualScoringActive = true;
+  contextualScoringError = '';
+  pending = pending.map((item) => targetUrls.includes(item.url) ? { ...item, contextualScoring: true } : item);
+  if (container === activeContainer) update(container);
+
+  try {
+    const result = await api.getContextualScores(targetUrls);
+    if (runId !== contextualScoringRun) return;
+    pending = applyContextualScoreResults(pending, result.scores || []);
+  } catch (err) {
+    if (runId !== contextualScoringRun) return;
+    contextualScoringError = err.message || String(err);
+    pending = pending.map((item) => targetUrls.includes(item.url) ? { ...item, contextualScoring: false } : item);
+    toast(`Contextual scoring unavailable: ${contextualScoringError}`, 'error');
+  } finally {
+    if (runId === contextualScoringRun) {
+      contextualScoringActive = false;
+      if (container === activeContainer) update(container);
+    }
+  }
+}
+
 function renderPending(pageItems = null) {
   if (!pending.length) return `<div class="empty-state"><h3>No pending jobs</h3><p>Run a scan to discover new roles, or paste a job description in the chat.</p></div>`;
 
-  const baseFiltered = showTopMatchOnly ? pending.filter(p => p.relevance >= 4) : pending;
+  const baseFiltered = pending.filter(p => pendingPassesScoreFilters(p, { minScore: minPendingScore }));
   const fullFiltered = baseFiltered.filter(p => matchesSearch(p)).filter(matchesPendingFilter);
   const filtered = pageItems ?? fullFiltered;
 
@@ -771,7 +947,7 @@ function renderPending(pageItems = null) {
   const anySelected = selected.size > 0;
 
   if (!filtered.length) {
-    return `<div class="empty-state"><h3>No top matches</h3><p>Uncheck the filter to see all ${pending.length} pending jobs.</p></div>`;
+    return `<div class="empty-state"><h3>No matching pending jobs</h3><p>Try lowering the score threshold or clearing filters.</p></div>`;
   }
 
   const batchBar = anySelected ? `
@@ -787,30 +963,34 @@ function renderPending(pageItems = null) {
 
   const rows = filtered.map(p => {
     const tone = relevanceClass(p.relevance ?? 0);
+    const tailorPhase = tailoringByUrl.get(p.url) || '';
+    const isTailoring = Boolean(tailorPhase);
+    const tailorLabel = pendingTailorStatusLabel(tailorPhase);
     return `
-    <tr data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" data-posted-at="${esc(p.postedAt || '')}" data-location="${esc(p.location || '')}">
-      <td class="col-check"><input type="checkbox" class="pending-check" data-url="${esc(p.url)}" ${selected.has(p.url) ? 'checked' : ''}></td>
+    <tr class="${isTailoring ? 'is-tailoring' : ''}" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" data-posted-at="${esc(p.postedAt || '')}" data-location="${esc(p.location || '')}">
+      <td class="col-check"><input type="checkbox" class="pending-check" data-url="${esc(p.url)}" ${selected.has(p.url) ? 'checked' : ''} ${isTailoring ? 'disabled' : ''}></td>
       <td class="col-company">
         <span class="cell-company">
           <span class="cell-company-logo">${esc(companyInitials(p.company))}</span>
           <span>${esc(p.company)}</span>
         </span>
       </td>
-      <td><span class="cell-role">${esc(p.role)}</span></td>
+      <td>
+        <span class="cell-role">${esc(p.role)}</span>
+        ${isTailoring ? `<span class="pending-tailor-status"><span class="spinner"></span>${esc(tailorLabel)}</span>` : ''}
+      </td>
       <td><span class="cell-date">${p.postedAt || ''}</span></td>
-      <td class="col-score">${p.relevance != null
-        ? `<button type="button" class="score-trigger" data-score-kind="pending" data-score-url="${esc(p.url)}" title="${esc(p.relevanceRationale || 'Click for match details')}">${renderScoreRing(p.relevance, tone, '')}</button>`
-        : ''}</td>
+      <td class="col-score">${renderPendingScoreButton(p)}</td>
       <td class="col-actions">
         <span class="cell-actions">
           <a href="${esc(p.url)}" target="_blank" class="btn btn-ghost btn-sm" title="Open posting">&#x2197;</a>
-          <button class="btn btn-sm btn-outline pending-skip-btn" data-url="${esc(p.url)}" title="Skip this role">Skip</button>
-          <button class="btn btn-sm btn-secondary pending-tailor-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Score this role and draft a tailored CV when it is a strong fit">Tailor</button>
-          <button class="btn btn-sm btn-soft pending-apply-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Mark as Applied">Applied</button>
-          ${overflowMenu([
-            { label: 'Edit role', onClick: () => openPendingEditModal(p) },
-            { label: 'Deep Research', onClick: () => runModePrompt('deep', { company: p.company, role: p.role, url: p.url }) },
-            { label: 'Outreach',      onClick: () => runModePrompt('outreach', { company: p.company, role: p.role, url: p.url }) },
+          <button class="btn btn-sm btn-outline pending-skip-btn" data-url="${esc(p.url)}" title="Skip this role" ${isTailoring ? 'disabled' : ''}>Skip</button>
+          <button class="btn btn-sm btn-secondary pending-tailor-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Score this role and draft a tailored CV when it is a strong fit" ${isTailoring ? 'disabled' : ''}>${isTailoring ? `<span class="spinner"></span>${esc(tailorLabel)}` : 'Tailor'}</button>
+          <button class="btn btn-sm btn-soft pending-apply-btn" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" title="Mark as Applied" ${isTailoring ? 'disabled' : ''}>Applied</button>
+          ${isTailoring ? '' : overflowMenu([
+              { label: 'Edit role', onClick: () => openPendingEditModal(p) },
+              { label: 'Deep Research', onClick: () => runModePrompt('deep', { company: p.company, role: p.role, url: p.url }) },
+              { label: 'Outreach',      onClick: () => runModePrompt('outreach', { company: p.company, role: p.role, url: p.url }) },
           ])}
         </span>
       </td>
@@ -916,7 +1096,7 @@ function renderSkipped() {
               </td>
               <td><span class="cell-role">${esc(r.role)}</span></td>
               <td class="col-score">${r.score > 0
-                ? `<button type="button" class="score-trigger" data-score-kind="evaluated" data-score-num="${r.num}" title="${esc(scoreBlocksTooltip(r.scoreBlocks) || 'Score at rejection')}">${renderScoreRing(r.score, scoreClass(r.score), '')}</button>`
+                ? `<button type="button" class="score-trigger" data-score-kind="tailored" data-score-num="${r.num}" title="${esc(scoreBlocksTooltip(r.scoreBlocks) || 'Score at rejection')}">${renderScoreRing(r.score, scoreClass(r.score), '')}</button>`
                 : ''}</td>
               <td class="col-actions">
                 <span class="cell-actions">
@@ -938,7 +1118,7 @@ function renderTable(items) {
     if (skipped.length || expired.length || rejectedApps().length) return renderSkipped();
     return `<div class="empty-state"><h3>No skipped jobs</h3></div>`;
   }
-  if (!items.length) return `<div class="empty-state"><h3>No applications yet</h3><p>Evaluate a job to get started.</p></div>`;
+  if (!items.length) return `<div class="empty-state"><h3>No applications yet</h3><p>Tailor a job to get started.</p></div>`;
 
   const batchActions = batchActionsForFilter(currentFilter);
   const showCheckboxes = batchActions.length > 0;
@@ -948,7 +1128,7 @@ function renderTable(items) {
   const arrow = (col) => sortCol === col ? `<span class="sort-arrow">${sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>` : '';
   const thClass = (col) => sortCol === col ? 'sorted' : '';
 
-  // Batch action bar for evaluated/applied tabs
+  // Batch action bar for tailored/applied tabs
   const appBatchBar = (showCheckboxes && anyAppSelected) ? `
     <div class="pipeline-batchbar">
       <span class="pipeline-batchbar-count">${selectedApps.size} selected</span>
@@ -976,7 +1156,7 @@ function renderTable(items) {
       </td>
       <td><span class="cell-role">${esc(a.role)}</span></td>
       <td class="col-score">${a.score > 0
-        ? `<button type="button" class="score-trigger" data-score-kind="evaluated" data-score-num="${a.num}" title="${esc(scoreBlocksTooltip(a.scoreBlocks) || 'Click for match details')}">${renderScoreRing(a.score, tone, '')}</button>`
+        ? `<button type="button" class="score-trigger" data-score-kind="tailored" data-score-num="${a.num}" title="${esc(scoreBlocksTooltip(a.scoreBlocks) || 'Click for match details')}">${renderScoreRing(a.score, tone, '')}</button>`
         : ''}</td>
       <td class="col-status"><span class="badge badge-status ${a.statusNormalized}">${esc(a.statusNormalized)}</span></td>
       <td class="col-actions">
@@ -985,14 +1165,23 @@ function renderTable(items) {
           ${statusActions.map(action => `
             <button class="btn btn-sm btn-${action.tone} app-status-btn" data-num="${a.num}" data-status="${esc(action.status)}" title="${esc(action.title)}">${esc(action.label)}</button>
           `).join('')}
-          ${a.statusNormalized === 'evaluated' && a.score >= 4.5 ? `
+          ${shouldEnableTailorArtifacts(a) ? `
             <button class="btn btn-sm btn-outline app-pdf-btn" data-url="${esc(a.jobUrl || '')}" data-company="${esc(a.company)}" data-role="${esc(a.role)}">PDF</button>
+          ` : ''}
+          ${shouldShowTailorArtifactLinks(a) ? `
+            ${a.tailorBundle?.paths?.cv ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.cv))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored CV markdown">CV</a>` : ''}
+            ${a.tailorBundle?.paths?.cvPdf ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.cvPdf))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored CV PDF">CV PDF</a>` : ''}
+            ${a.tailorBundle?.paths?.coverLetter ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.coverLetter))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored cover letter markdown">Cover</a>` : ''}
+            ${a.tailorBundle?.paths?.coverLetterPdf ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.coverLetterPdf))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored cover letter PDF">Cover PDF</a>` : ''}
           ` : ''}
           ${a.reportPath ? `<button class="btn btn-ghost btn-sm view-report-btn" data-report="${esc(a.reportPath)}" title="View report">&#x1F4C4;</button>` : ''}
           ${overflowMenu([
             { label: 'Outreach',       onClick: () => runModePrompt('outreach', { company: a.company, role: a.role, url: a.jobUrl || '' }) },
-            ...(a.statusNormalized === 'evaluated' && a.score >= 4.5
+            ...(shouldEnableTailorArtifacts(a)
               ? [{ label: 'Apply Mode',     onClick: () => runModePrompt('apply', { company: a.company, role: a.role, url: a.jobUrl || '' }) }]
+              : []),
+            ...(shouldShowTailorArtifactLinks(a) && a.tailorBundle?.paths?.qa
+              ? [{ label: 'Application Q&A', onClick: () => window.open(api.tailorFileUrl(a.tailorBundle.paths.qa), '_blank', 'noopener') }]
               : []),
             ...(a.statusNormalized === 'applied' || a.statusNormalized === 'interview'
               ? [{ label: 'Prep Interview', onClick: () => runModePrompt('interview-prep', { company: a.company, role: a.role, url: a.jobUrl || '' }) }]
@@ -1036,7 +1225,7 @@ function renderTable(items) {
 }
 
 export function rowActionsForStatus(status) {
-  if (status === 'evaluated') {
+  if (status === 'tailored') {
     return [
       { status: 'Applied', label: 'Applied', tone: 'soft', title: 'Mark as Applied' },
       { status: 'SKIP', label: 'Skip', tone: 'outline', title: 'Move to Skip' },
@@ -1044,7 +1233,7 @@ export function rowActionsForStatus(status) {
   }
   if (status === 'skip') {
     return [
-      { status: 'Evaluated', label: 'Restore', tone: 'soft', title: 'Move back to Evaluated' },
+      { status: 'Tailored', label: 'Restore', tone: 'soft', title: 'Move back to Tailored' },
     ];
   }
   if (status === 'applied' || status === 'responded') {
@@ -1063,7 +1252,7 @@ export function rowActionsForStatus(status) {
 }
 
 export function batchActionsForFilter(filter) {
-  if (filter === 'evaluated') {
+  if (filter === 'tailored') {
     return [
       { status: 'Applied', label: 'Applied', tone: 'soft' },
       { status: 'SKIP', label: 'Skip', tone: 'outline' },
@@ -1071,7 +1260,7 @@ export function batchActionsForFilter(filter) {
   }
   if (filter === 'skip') {
     return [
-      { status: 'Evaluated', label: 'Restore', tone: 'soft' },
+      { status: 'Tailored', label: 'Restore', tone: 'soft' },
     ];
   }
   if (filter === 'applied' || filter === 'responded') {
@@ -1323,7 +1512,8 @@ function update(container) {
   // directly), so it manages its own pagination below.
   const fullItems = isPending ? [] : sorted(filtered());
   const fullPending = isPending
-    ? (showTopMatchOnly ? pending.filter(p => p.relevance >= 4) : pending)
+    ? pending
+        .filter(p => pendingPassesScoreFilters(p, { minScore: minPendingScore }))
         .filter(matchesSearch)
         .filter(matchesPendingFilter)
     : [];
@@ -1335,7 +1525,7 @@ function update(container) {
   const items = isPending ? [] : fullItems.slice(sliceStart, sliceEnd);
   const pendingPage = isPending ? fullPending.slice(sliceStart, sliceEnd) : [];
   const activeOffers = apps.filter(a =>
-    ['evaluated', 'applied', 'responded', 'interview', 'offer'].includes(a.statusNormalized)
+    ['tailored', 'applied', 'responded', 'interview', 'offer'].includes(a.statusNormalized)
   ).length;
   const pendingCount = pending.length;
   const totalCount = apps.length + pending.length;
@@ -1395,28 +1585,31 @@ function update(container) {
       <div class="scan-progress-slot">${pendingRefreshBanner}</div>
 
       <section class="pipeline-toolbar${filterPopoverOpen ? ' has-popover' : ''}">
-        <div class="pipeline-toolbar-row">
-          ${renderFilters()}
-          <div class="pipeline-toolbar-end">
+        <div class="pipeline-toolbar-primary">
+          <div class="pipeline-toolbar-search">
             <label class="search-input">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="6" r="4.5"/><line x1="9.5" y1="9.5" x2="13" y2="13"/></svg>
               <input type="text" id="pipeline-search" placeholder="Search company or role..." value="${esc(searchQuery)}">
             </label>
             ${renderFilterButton()}
+            ${filterPopoverOpen ? renderFilterPopover() : ''}
           </div>
-        </div>
-        ${filterPopoverOpen ? renderFilterPopover() : ''}
-        <div class="pipeline-toolbar-divider">
-          <label class="toggle-row">
-            <input type="checkbox" id="top-match-toggle" ${showTopMatchOnly ? 'checked' : ''}>
-            <span>Top matches only (4+)</span>
-          </label>
-          <div style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">
+          ${isPending ? `
+            <label class="discover-score-slider pipeline-score-slider">
+              <span>Min score: <strong id="pipeline-min-label">${minPendingScore.toFixed(1)}</strong></span>
+              <input type="range" min="0" max="5" step="0.5" value="${minPendingScore}" id="pipeline-min-input" />
+            </label>
+            <button class="btn btn-sm btn-outline" id="pending-rescore-btn" type="button"${contextualScoringActive ? ' disabled' : ''}>AI Rescore</button>
+          ` : ''}
+          <div class="pipeline-toolbar-actions">
             <button class="btn btn-sm btn-primary" id="add-job-btn" type="button">Add Job</button>
             <button class="btn-icon" id="refresh-btn" title="${isPending && pending.length > 0 ? 'Refresh + verify each pending posting is still live' : 'Refresh'}"${scanProgress?.visible || pendingRefreshState?.active ? ' disabled' : ''}>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 6a4.5 4.5 0 1 1-1.3-3.18"/><polyline points="11.5 1 11.5 4 8.5 4"/></svg>
             </button>
           </div>
+        </div>
+        <div class="pipeline-toolbar-tabs">
+          ${renderFilters()}
         </div>
       </section>
 
@@ -1485,7 +1678,7 @@ function update(container) {
       const num = btn.dataset.num;
       const status = btn.dataset.status;
       const app = apps.find(a => String(a.num) === num);
-      const previousStatus = app?.status || 'Evaluated';
+      const previousStatus = app?.status || 'Tailored';
       try {
         await api.updateApplication(num, status);
         pushUndo({
@@ -1545,12 +1738,13 @@ function update(container) {
   container.querySelectorAll('.view-report-btn').forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
-      window.location.hash = '#/analytics';
+      const report = String(btn.dataset.report || '').split('/').pop();
+      window.location.hash = report ? `#/reports/${encodeURIComponent(report)}` : '#/analytics/reports';
     };
   });
 
   // Score-rationale modal — opens when a row's score ring is clicked.
-  // Two flavors: evaluated apps look up by num, pending look up by url.
+  // Two flavors: tailored apps look up by num, pending look up by url.
   container.querySelectorAll('.score-trigger').forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
@@ -1561,16 +1755,27 @@ function update(container) {
       } else {
         const num = parseInt(btn.dataset.scoreNum, 10);
         const item = apps.find(a => a.num === num);
-        if (item) openScoreModal(item, { kind: 'evaluated' });
+        if (item) openScoreModal(item, { kind: 'tailored' });
       }
     };
   });
 
-  // Top match filter toggle
-  container.querySelector('#top-match-toggle')?.addEventListener('change', (e) => {
-    showTopMatchOnly = e.target.checked;
+  container.querySelector('#pipeline-min-input')?.addEventListener('input', (e) => {
+    minPendingScore = Number.parseFloat(e.target.value);
+    const label = container.querySelector('#pipeline-min-label');
+    if (label) label.textContent = minPendingScore.toFixed(1);
+  });
+  container.querySelector('#pipeline-min-input')?.addEventListener('change', (e) => {
+    minPendingScore = Number.parseFloat(e.target.value);
     selected.clear();
+    currentPage = 1;
     update(container);
+  });
+
+  container.querySelector('#pending-rescore-btn')?.addEventListener('click', async () => {
+    try {
+      await startContextualScoring(container, { force: true });
+    } catch {}
   });
 
   // Checkboxes
@@ -1665,7 +1870,7 @@ function update(container) {
     });
   });
 
-  // Outreach (works for both pending and evaluated items)
+  // Outreach (works for both pending and tailored items)
   container.querySelectorAll('.pending-outreach-btn').forEach(btn => {
     btn.onclick = () => runModePrompt('outreach', {
       company: btn.dataset.company,
@@ -1695,8 +1900,8 @@ function update(container) {
     };
   });
 
-  // Single: Tailor (replaces the old Evaluate flow). Same backing mode for
-  // now; tailoring also drafts a CV downstream when the score is strong.
+  // Single: Tailor supports both fast bundle-only mode and the older
+  // tailor+evaluation flow via the shared choice modal.
   container.querySelectorAll('.pending-tailor-btn').forEach(btn => {
     btn.onclick = async () => {
       const pendingItem = {
@@ -1704,10 +1909,76 @@ function update(container) {
         company: btn.dataset.company,
         role: btn.dataset.role,
       };
+      const scorePendingItem = async () => {
+        const current = pending.find((item) => item.url === pendingItem.url) || pendingItem;
+        if (current.contextualScoreSource === 'llm' || !contextualScoringEnabled()) return current;
+        tailoringByUrl.set(pendingItem.url, 'scoring');
+        update(container);
+        await startContextualScoring(container, { urls: [pendingItem.url] });
+        return pending.find((item) => item.url === pendingItem.url) || current;
+      };
+
       const doTailor = async () => {
-        const started = await runModePrompt('evaluate', pendingItem);
-        if (started && !isAlreadyEvaluated(pendingItem.company, pendingItem.role)) {
-          watchPendingTailorCompletion(pendingItem).catch(() => {});
+        try {
+          const scoredItem = await scorePendingItem();
+          const decision = pendingTailorDecision(scoredItem);
+          if (decision.shouldWarn) {
+            tailoringByUrl.delete(pendingItem.url);
+            update(container);
+            const okLowScore = await confirmModal({
+              title: 'Low-fit tailor?',
+              confirmText: 'Tailor anyway',
+              body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:10px"><strong style="color:var(--text)">${esc(scoredItem.company)} - ${esc(scoredItem.role)}</strong> is only scoring <strong style="color:var(--yellow)">${Number.isFinite(decision.score) ? decision.score.toFixed(1) : 'n/a'}/5</strong>.</p><p style="font-size:13px;color:var(--subtext0)">This usually means weak fit. Tailoring now may burn time and credits before the role is worth pursuing.</p>`,
+            });
+            if (!okLowScore) return null;
+          }
+          tailoringByUrl.set(pendingItem.url, 'tailoring');
+          update(container);
+          const result = await api.tailor(scoredItem);
+          await loadData();
+          currentFilter = 'tailored';
+          const matched = apps.find((app) => (
+            app.jobUrl === scoredItem.url
+            || (
+              String(app.company || '').trim().toLowerCase() === String(scoredItem.company || '').trim().toLowerCase()
+              && String(app.role || '').trim().toLowerCase() === String(scoredItem.role || '').trim().toLowerCase()
+            )
+          ));
+          if (matched?.num) expandedRow = matched.num;
+          toast(`Tailor bundle ready for ${scoredItem.company}`);
+          showTailorResultModal(result, scoredItem);
+          return scoredItem;
+        } catch (err) {
+          toast(`Tailor failed: ${err.message}`, 'error');
+          return null;
+        } finally {
+          tailoringByUrl.delete(pendingItem.url);
+          update(container);
+        }
+      };
+
+      const doEvaluate = async () => {
+        try {
+          const scoredItem = await scorePendingItem();
+          tailoringByUrl.set(pendingItem.url, 'evaluating');
+          update(container);
+          await runModePrompt('evaluate', scoredItem);
+          await loadData();
+          currentFilter = 'tailored';
+          update(container);
+        } catch (err) {
+          toast(`Evaluation failed: ${err.message}`, 'error');
+        }
+      };
+
+      const runChosenAction = async () => {
+        const choice = await promptTailorAction({ company: pendingItem.company, role: pendingItem.role });
+        if (choice === 'evaluate') {
+          await doEvaluate();
+          return;
+        }
+        if (choice === 'tailor') {
+          await doTailor();
         }
       };
 
@@ -1716,9 +1987,9 @@ function update(container) {
           title: 'Already Tailored',
           body: `<p style="font-size:14px;color:var(--subtext)">A tailored report already exists for <strong style="color:var(--text)">${esc(btn.dataset.company)} - ${esc(btn.dataset.role)}</strong>. Re-running will use additional API credits.</p>`,
         });
-        if (ok) await doTailor();
+        if (ok) await runChosenAction();
       } else {
-        await doTailor();
+        await runChosenAction();
       }
     };
   });
@@ -1839,7 +2110,9 @@ function update(container) {
       toast(`Added ${(added.company || cleanCompany || 'job')} to pending`);
       currentFilter = 'pending';
       currentPage = 1;
-      render(container);
+      await loadData();
+      update(container);
+      startContextualScoring(container, { urls: [added.url || cleanUrl] }).catch(() => {});
     } catch (err) {
       const msg = err.message?.includes('409')
         ? 'That URL is already in your pipeline.'
@@ -1869,7 +2142,7 @@ function update(container) {
       currentFilter = suggestion.targetFilter || target.statusNormalized || 'applied';
       expandedRow = target.num;
       update(container);
-      if (suggestion.openScoreModal) openScoreModal(target, { kind: 'evaluated' });
+      if (suggestion.openScoreModal) openScoreModal(target, { kind: 'tailored' });
     };
   }
 }

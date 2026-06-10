@@ -52,7 +52,16 @@ the numeric score. It exists for narrative context in the report only.
 - 4.5+ → Strong match, recommend applying immediately
 - 4.0-4.4 → Good match, worth applying
 - 3.5-3.9 → Decent but not ideal, apply only if specific reason
-- Below 3.5 → Recommend against applying (see Ethical Use in CLAUDE.md)
+- 3.0-3.4 → Borderline, only tailor if the user still wants a focused shot
+- Below 3.0 → Recommend against applying or tailoring unless the user explicitly overrides
+
+**Tailor bundle rule:**
+- If Global score is **3.0 or higher**, ALWAYS generate a tailored CV and cover letter in addition to the evaluation.
+- Save them under `output/tailor-bundles/{company-role-date}/` (CV markdown + cover letter markdown at minimum).
+- Include direct report links in the evaluation header or TL;DR area using exact labels:
+  - `**Tailored CV:** <relative-path-or-none>`
+  - `**Cover Letter:** <relative-path-or-none>`
+- If Global score is below 3.0, do NOT spend time generating tailored assets unless the user explicitly asks to proceed anyway.
 
 **Required in every report header — exact format:**
 
