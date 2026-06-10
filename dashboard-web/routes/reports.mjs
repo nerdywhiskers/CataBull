@@ -68,6 +68,46 @@ function workspacePath(root, rel) {
   return join(root, ...clean.split('/'));
 }
 
+export function inferTailorBundleFromReport(raw = '') {
+  const paths = {};
+  const relPaths = new Set();
+  for (const match of String(raw).matchAll(/output\/tailor-bundles\/[a-z0-9._/-]+/gi)) {
+    const rel = match[0].replace(/\/(?:cv|cover-letter|answers)\.(?:md|html|pdf)$/i, '');
+    relPaths.add(`${rel}/cv.md`);
+    relPaths.add(`${rel}/cv.pdf`);
+    relPaths.add(`${rel}/cover-letter.md`);
+    relPaths.add(`${rel}/cover-letter.pdf`);
+    relPaths.add(`${rel}/answers.md`);
+  }
+  for (const match of String(raw).matchAll(/path=([^)\s`&]+)/g)) {
+    try {
+      relPaths.add(decodeURIComponent(match[1]));
+    } catch {
+      relPaths.add(match[1]);
+    }
+  }
+  for (const match of String(raw).matchAll(/output\/tailor-bundles\/[^)\s`]+\/(?:cv|cover-letter|answers)\.(?:md|html|pdf)/g)) {
+    relPaths.add(match[0]);
+  }
+
+  for (const relPath of relPaths) {
+    if (!relPath.startsWith('output/tailor-bundles/')) continue;
+    if (relPath.endsWith('/cv.md')) paths.cv = relPath;
+    else if (relPath.endsWith('/cv.html')) paths.cvHtml = relPath;
+    else if (relPath.endsWith('/cv.pdf')) paths.cvPdf = relPath;
+    else if (relPath.endsWith('/cover-letter.md')) paths.coverLetter = relPath;
+    else if (relPath.endsWith('/cover-letter.html')) paths.coverLetterHtml = relPath;
+    else if (relPath.endsWith('/cover-letter.pdf')) paths.coverLetterPdf = relPath;
+    else if (relPath.endsWith('/answers.md')) paths.qa = relPath;
+  }
+  const firstPath = Object.values(paths)[0];
+  if (!firstPath) return null;
+  return {
+    dir: firstPath.replace(/\/[^/]+$/, ''),
+    paths,
+  };
+}
+
 export function collectReportExportEntries(root, filename, { resolved = null, artifacts = [], tailorBundle = null } = {}) {
   const reportResolved = resolved || resolveReportPath(root, filename);
   if (!reportResolved) return [];
@@ -160,7 +200,8 @@ export default async function (app) {
     const raw = readFileSync(resolved.path, 'utf-8');
     const artifacts = findArtifactsForReport(root, filename);
     const reportApp = parseApplications(root).find((app) => app.reportPath === `reports/${filename}`);
-    return { raw, filename, artifacts, tailorBundle: reportApp?.tailorBundle || null, archived: resolved.archived };
+    const tailorBundle = reportApp?.tailorBundle || inferTailorBundleFromReport(raw);
+    return { raw, filename, artifacts, tailorBundle, archived: resolved.archived };
   });
 
   app.get('/reports/:filename/export.zip', async (req, reply) => {
@@ -170,12 +211,14 @@ export default async function (app) {
     }
     const resolved = resolveReportPath(root, filename);
     if (!resolved) return reply.code(404).send({ error: 'Report not found' });
+    const raw = readFileSync(resolved.path, 'utf-8');
     const artifacts = findArtifactsForReport(root, filename);
     const reportApp = parseApplications(root).find((app) => app.reportPath === `reports/${filename}`);
+    const tailorBundle = reportApp?.tailorBundle || inferTailorBundleFromReport(raw);
     const zip = await buildReportExportZip(root, filename, {
       resolved,
       artifacts,
-      tailorBundle: reportApp?.tailorBundle || null,
+      tailorBundle,
     });
     if (!zip) return reply.code(404).send({ error: 'Nothing to export' });
     const downloadName = filename.replace(/\.md$/i, '') + '-bundle.zip';

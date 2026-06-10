@@ -98,9 +98,11 @@ function renderArtifacts(artifacts) {
 function renderTailorBundle(tailorBundle) {
   if (!tailorBundle?.paths) return '';
   const links = [
-    tailorBundle.paths.cv ? `<a class="btn btn-sm" href="${api.tailorFileUrl(tailorBundle.paths.cv)}" target="_blank" style="text-decoration:none">Tailored CV</a>` : '',
+    tailorBundle.paths.cv ? `<a class="btn btn-sm" href="${api.tailorFileUrl(tailorBundle.paths.cv)}" target="_blank" style="text-decoration:none">CV</a>` : '',
+    tailorBundle.paths.cvPdf ? `<a class="btn btn-sm" href="${api.tailorFileUrl(tailorBundle.paths.cvPdf)}" target="_blank" style="text-decoration:none">CV PDF</a>` : '',
     tailorBundle.paths.coverLetter ? `<a class="btn btn-sm" href="${api.tailorFileUrl(tailorBundle.paths.coverLetter)}" target="_blank" style="text-decoration:none">Cover letter</a>` : '',
-    tailorBundle.paths.qa ? `<a class="btn btn-sm" href="${api.tailorFileUrl(tailorBundle.paths.qa)}" target="_blank" style="text-decoration:none">Application Q&A</a>` : '',
+    tailorBundle.paths.coverLetterPdf ? `<a class="btn btn-sm" href="${api.tailorFileUrl(tailorBundle.paths.coverLetterPdf)}" target="_blank" style="text-decoration:none">Cover PDF</a>` : '',
+    tailorBundle.paths.qa ? '<a class="btn btn-sm" href="#application-q-a" style="text-decoration:none">Application Q&A</a>' : '',
   ].filter(Boolean).join('');
   if (!links) return '';
   return `
@@ -133,6 +135,11 @@ export function extractReportSections(raw = '') {
   return sections;
 }
 
+function visibleReportSections(sections = []) {
+  const hiddenTitles = new Set(['tailored cv', 'cover letter']);
+  return sections.filter((section) => !hiddenTitles.has(String(section.title || '').trim().toLowerCase()));
+}
+
 export function reportPostingUrl(raw = '') {
   const match = String(raw).match(/^\*\*URL:\*\*\s*(https?:\/\/\S+)/m);
   return match ? match[1] : '';
@@ -158,7 +165,7 @@ async function renderReport(container, filename) {
   container.innerHTML = '<div class="empty-state"><p>Loading report...</p></div>';
   try {
     const data = await api.getReport(filename);
-    const sections = extractReportSections(data.raw);
+    const sections = visibleReportSections(extractReportSections(data.raw));
     const postingUrl = reportPostingUrl(data.raw);
     container.innerHTML = `
       <div class="section-header">

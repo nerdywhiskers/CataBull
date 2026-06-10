@@ -11,8 +11,9 @@
  */
 
 import { runAgentPrint } from '../lib/agents.mjs';
-import { runTailor } from '../../lib/tailor.mjs';
+import { appendTailorReportSection, runTailor, writeTailorReport } from '../../lib/tailor.mjs';
 import { readProfile } from '../lib/writers.mjs';
+import { parseApplications } from '../lib/parsers.mjs';
 import { asWorkspace } from '../../lib/workspace.mjs';
 import { basename, extname } from 'path';
 import { launchChromiumWithRetry } from '../../lib/playwright-launch.mjs';
@@ -45,6 +46,22 @@ async function generatePdfFromHtml(ws, htmlRelPath, pdfRelPath) {
 async function generateTailorPdfs(ws, paths = {}) {
   if (paths.cvHtml && paths.cvPdf) await generatePdfFromHtml(ws, paths.cvHtml, paths.cvPdf);
   if (paths.coverLetterHtml && paths.coverLetterPdf) await generatePdfFromHtml(ws, paths.coverLetterHtml, paths.coverLetterPdf);
+}
+
+function findExistingReport(root, { company, role, url } = {}) {
+  const companyKey = String(company || '').trim().toLowerCase();
+  const roleKey = String(role || '').trim().toLowerCase();
+  const urlKey = String(url || '').trim();
+  return parseApplications(root).find((app) => (
+    app.reportPath
+    && (
+      (urlKey && app.jobUrl === urlKey)
+      || (
+        String(app.company || '').trim().toLowerCase() === companyKey
+        && String(app.role || '').trim().toLowerCase() === roleKey
+      )
+    )
+  ));
 }
 
 export default async function (app) {
@@ -86,11 +103,19 @@ export default async function (app) {
         runAgent,
       });
       await generateTailorPdfs(ws, result.paths);
+      const existingReport = findExistingReport(root, { company, role, url });
+      const appended = existingReport?.reportPath
+        ? appendTailorReportSection(ws, existingReport.reportPath, result)
+        : null;
+      const report = appended
+        ? { ...appended, filename: existingReport.reportPath.split('/').pop(), existing: true }
+        : writeTailorReport(ws, result, { company, role, url });
       return {
         success: true,
         slug: result.slug,
         dir: result.dir,
         paths: result.paths,
+        report,
         agent,
         // Send a small preview the frontend can render in the modal.
         // Capped so a huge CV doesn't blow up the response.

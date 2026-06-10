@@ -367,6 +367,48 @@ export function updatePendingItem(root, { url, company, role, postedAt = null, l
   return { updated: true };
 }
 
+function cleanPipelineField(value, max = 240) {
+  return String(value || '').replace(/[\n\r|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+export function updatePendingContextualScores(root, scores = []) {
+  const ws = asWorkspace(root);
+  const content = ws.read('data/pipeline.md');
+  if (content == null || !Array.isArray(scores) || !scores.length) return { updated: 0 };
+
+  const byUrl = new Map(scores
+    .filter(score => score?.id && Number.isFinite(score.score))
+    .map(score => [String(score.id), score]));
+  if (!byUrl.size) return { updated: 0 };
+
+  let updated = 0;
+  const lines = content.split('\n').map((line) => {
+    const match = line.match(/^-\s+\[\s\]\s+(https?:\/\/\S+)\s*\|\s*([^|]+)\s*\|\s*(.+)$/);
+    if (!match) return line;
+    const url = match[1].trim();
+    const score = byUrl.get(url);
+    if (!score) return line;
+
+    const fields = match[3].split('|').map(field => field.trim());
+    const role = fields[0] || '';
+    const extras = fields.slice(1).filter(field => !/^(llm|why|signals):/.test(field));
+    const llm = Math.max(0, Math.min(5, Number(score.score))).toFixed(1);
+    const why = cleanPipelineField(score.rationale, 180);
+    const signals = Array.isArray(score.signals)
+      ? score.signals.map(signal => cleanPipelineField(signal, 60)).filter(Boolean).slice(0, 4).join(',')
+      : '';
+
+    extras.push(`llm:${llm}`);
+    if (why) extras.push(`why:${why}`);
+    if (signals) extras.push(`signals:${signals}`);
+    updated++;
+    return [`- [ ] ${url}`, match[2].trim(), role, ...extras].filter(Boolean).join(' | ');
+  });
+
+  if (updated > 0) ws.write('data/pipeline.md', lines.join('\n'));
+  return { updated };
+}
+
 /** Mark a pending offer in pipeline.md with a status (SKIP or EXPIRED) and date */
 export function markPipelineItem(root, url, status) {
   const ws = asWorkspace(root);

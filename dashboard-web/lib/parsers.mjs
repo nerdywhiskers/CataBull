@@ -359,6 +359,9 @@ export function parsePipeline(cataBullRoot) {
 
     let location = null;
     let matchTier = null;
+    let contextualScore = null;
+    let contextualRationale = null;
+    let contextualSignals = null;
     for (let i = 1; i < fields.length; i++) {
       const f = fields[i];
       if (f === 'SKIP' || f === 'EXPIRED') status = f;
@@ -366,6 +369,16 @@ export function parsePipeline(cataBullRoot) {
       else if (/^posted:/.test(f)) postedAt = f.replace('posted:', '');
       else if (/^loc:/.test(f)) location = f.replace('loc:', '').trim() || null;
       else if (/^match:/.test(f)) matchTier = f.replace('match:', '').trim() || null;
+      else if (/^llm:/.test(f)) {
+        const n = Number.parseFloat(f.replace('llm:', '').trim());
+        if (Number.isFinite(n)) contextualScore = n;
+      } else if (/^why:/.test(f)) contextualRationale = f.replace('why:', '').trim() || null;
+      else if (/^signals:/.test(f)) {
+        contextualSignals = f.replace('signals:', '')
+          .split(',')
+          .map(signal => signal.trim())
+          .filter(Boolean);
+      }
     }
 
     const item = {
@@ -378,6 +391,10 @@ export function parsePipeline(cataBullRoot) {
       postedAt,
       location,
       matchTier,
+      contextualScore,
+      contextualRationale,
+      contextualSignals,
+      contextualScoreSource: Number.isFinite(contextualScore) ? 'llm' : undefined,
     };
 
     if (item.status === 'SKIP') skipped.push(item);

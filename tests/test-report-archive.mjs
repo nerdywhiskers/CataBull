@@ -22,7 +22,13 @@ function assert(condition, msg) {
 
 console.log('\nreport archive helpers');
 
-const { resolveReportPath, archiveReportFile, collectReportExportEntries, buildReportExportZip } = await import(
+const {
+  resolveReportPath,
+  archiveReportFile,
+  inferTailorBundleFromReport,
+  collectReportExportEntries,
+  buildReportExportZip,
+} = await import(
   pathToFileURL(join(ROOT, 'dashboard-web/routes/reports.mjs')).href
 );
 
@@ -41,6 +47,21 @@ assert(existsSync(join(tmpRoot, 'reports', 'archive', '001-acme-2026-06-08.md'))
 const resolvedArchived = resolveReportPath(tmpRoot, '001-acme-2026-06-08.md');
 assert(resolvedArchived?.archived === true, 'resolveReportPath finds archived reports after move');
 assert(archiveReportFile(tmpRoot, 'missing.md') === null, 'archiving missing report returns null');
+
+const inferredBundle = inferTailorBundleFromReport(`
+[CV PDF](/api/v1/tailor/file?path=output%2Ftailor-bundles%2Facme-role-2026-06-08%2Fcv.pdf)
+[CV MD](/api/v1/tailor/file?path=output%2Ftailor-bundles%2Facme-role-2026-06-08%2Fcv.md)
+[Cover PDF](/api/v1/tailor/file?path=output%2Ftailor-bundles%2Facme-role-2026-06-08%2Fcover-letter.pdf)
+[Cover MD](/api/v1/tailor/file?path=output%2Ftailor-bundles%2Facme-role-2026-06-08%2Fcover-letter.md)
+[Q&A](/api/v1/tailor/file?path=output%2Ftailor-bundles%2Facme-role-2026-06-08%2Fanswers.md)
+`);
+assert(inferredBundle?.dir === 'output/tailor-bundles/acme-role-2026-06-08', 'inferTailorBundleFromReport extracts bundle dir');
+assert(inferredBundle?.paths?.cvPdf === 'output/tailor-bundles/acme-role-2026-06-08/cv.pdf', 'inferTailorBundleFromReport extracts CV PDF path');
+assert(inferredBundle?.paths?.coverLetter === 'output/tailor-bundles/acme-role-2026-06-08/cover-letter.md', 'inferTailorBundleFromReport extracts cover letter markdown path');
+assert(inferredBundle?.paths?.qa === 'output/tailor-bundles/acme-role-2026-06-08/answers.md', 'inferTailorBundleFromReport extracts Q&A path');
+
+const inferredFromDir = inferTailorBundleFromReport('Bundle directory: `output/tailor-bundles/acme-role-2026-06-08`');
+assert(inferredFromDir?.paths?.coverLetterPdf === 'output/tailor-bundles/acme-role-2026-06-08/cover-letter.pdf', 'inferTailorBundleFromReport expands bundle directory into PDF paths');
 
 const exportRoot = join(ROOT, '.tmp-test-report-export');
 mkdirSync(join(exportRoot, 'reports'), { recursive: true });

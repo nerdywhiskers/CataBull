@@ -52,7 +52,11 @@ const {
   validateTailorPayload,
   renderQaMarkdown,
   renderTailorMarkdownHtml,
+  renderTailorReportMarkdown,
+  renderTailorReportSection,
+  appendTailorReportSection,
   writeTailorBundle,
+  writeTailorReport,
   runTailor,
 } = await import('../lib/tailor.mjs');
 const { LocalWorkspace } = await import('../lib/workspace.mjs');
@@ -190,6 +194,57 @@ await withTempWorkspace((ws) => {
   assert(ws.read(result.paths.qa).includes('Tell us about yourself'), 'Q&A rendered');
   assert(ws.read(result.paths.cv).endsWith('\n'), 'cv ends with newline');
 });
+
+await withTempWorkspace((ws) => {
+  ws.write('reports/001-existing-2026-05-06.md', '# Existing\n');
+  const bundle = writeTailorBundle(ws, 'acme-eng-2026-05-07', valid, { company: 'Acme', role: 'Eng' });
+  const report = writeTailorReport(ws, { ...bundle, slug: 'acme-eng-2026-05-07', payload: valid }, {
+    company: 'Acme',
+    role: 'Eng',
+    url: 'https://example.com/job',
+    date: '2026-05-07',
+  });
+  assert(report.filename === '002-acme-eng-2026-05-07.md', 'tailor report uses next report number');
+  assert(ws.exists(report.path), 'tailor report written');
+  const rawReport = ws.read(report.path);
+  assert(rawReport.includes('**URL:** https://example.com/job'), 'tailor report includes posting URL');
+  assert(rawReport.includes('Bundle directory: `output/tailor-bundles/acme-eng-2026-05-07`'), 'tailor report includes bundle directory');
+  assert(rawReport.includes('## Application Q&A'), 'tailor report embeds application Q&A section');
+});
+
+await withTempWorkspace((ws) => {
+  ws.write('reports/001-acme-2026-05-07.md', '# Existing Eval\n\nScore: 4.1/5\n');
+  const bundle = writeTailorBundle(ws, 'acme-eng-2026-05-07', valid, { company: 'Acme', role: 'Eng' });
+  const appended = appendTailorReportSection(ws, 'reports/001-acme-2026-05-07.md', { ...bundle, payload: valid }, { date: '2026-05-07' });
+  assert(appended?.appended === true, 'appendTailorReportSection appends to existing report');
+  const once = ws.read('reports/001-acme-2026-05-07.md');
+  appendTailorReportSection(ws, 'reports/001-acme-2026-05-07.md', { ...bundle, payload: valid }, { date: '2026-05-08' });
+  const twice = ws.read('reports/001-acme-2026-05-07.md');
+  assert(twice.includes('# Existing Eval'), 'appendTailorReportSection preserves evaluation report body');
+  assert((twice.match(/catabull-tailor-bundle:start/g) || []).length === 1, 'appendTailorReportSection replaces prior tailor section on rerun');
+  assert(once.includes('Generated: 2026-05-07'), 'appendTailorReportSection writes generation date');
+});
+
+const reportMarkdown = renderTailorReportMarkdown({
+  company: 'Acme',
+  role: 'Eng',
+  url: 'https://example.com/job',
+  slug: 'acme-eng-2026-05-07',
+  dir: 'output/tailor-bundles/acme-eng-2026-05-07',
+  paths: { cvPdf: 'output/tailor-bundles/acme-eng-2026-05-07/cv.pdf' },
+  payload: valid,
+  date: '2026-05-07',
+});
+assert(reportMarkdown.includes('**TL;DR:** Tailored CV'), 'tailor report exposes TLDR summary');
+assert(reportMarkdown.includes('## Tailored Packet'), 'tailor report includes tailored packet section');
+
+const sectionMarkdown = renderTailorReportSection({
+  dir: 'output/tailor-bundles/acme-eng-2026-05-07',
+  paths: { qa: 'output/tailor-bundles/acme-eng-2026-05-07/answers.md' },
+  payload: valid,
+  date: '2026-05-07',
+});
+assert(sectionMarkdown.includes('### Q1.'), 'tailor section embeds Q&A answers instead of requiring a download');
 
 // ── 7. runTailor (orchestration with stub agent) ─────────────────────
 
