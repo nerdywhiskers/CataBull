@@ -31,9 +31,17 @@ const { normalizeAnalyticsSubTab } = await import(
 const { extractReportSections, reportPostingUrl } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web/public/js/views/reports.mjs')).href
 );
+const { hydrateTailorBundle } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web/routes/reports.mjs')).href
+);
 const { computeProgressMetrics } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web/lib/metrics.mjs')).href
 );
+const { LocalWorkspace } = await import(
+  pathToFileURL(join(ROOT, 'lib/workspace.mjs')).href
+);
+const { mkdtempSync, rmSync } = await import('fs');
+const { tmpdir } = await import('os');
 
 const overview = normalizeAnalyticsSubTab('');
 assert(overview.tab === 'overview' && overview.reportFilename === '', 'empty subtab resolves to overview');
@@ -64,6 +72,21 @@ assert(reportSections.length === 2, 'extractReportSections dedupes repeated head
 assert(reportSections[0].id === 'tl-dr', 'extractReportSections slugifies heading ids');
 assert(reportSections[1].id === 'a-match-with-cv-4-4-5', 'extractReportSections keeps stable ids for score headings');
 assert(reportPostingUrl('**URL:** https://example.com/jobs/123\n') === 'https://example.com/jobs/123', 'reportPostingUrl extracts posting link from report body');
+
+const tmp = mkdtempSync(join(tmpdir(), 'catabull-reports-test-'));
+const ws = new LocalWorkspace(tmp);
+ws.write('output/tailor-bundles/acme-2026-06-10/cv.md', '# CV\n\nPreview body');
+const hydratedBundle = hydrateTailorBundle(tmp, {
+  dir: 'output/tailor-bundles/acme-2026-06-10',
+  paths: {
+    cv: 'output/tailor-bundles/acme-2026-06-10/cv.md',
+    qa: 'output/tailor-bundles/acme-2026-06-10/answers.md',
+  },
+});
+assert(hydratedBundle.paths.cv, 'hydrateTailorBundle preserves existing bundle files');
+assert(!hydratedBundle.paths.qa, 'hydrateTailorBundle drops non-existent QA files instead of surfacing dead links');
+assert(hydratedBundle.previews.cv.includes('Preview body'), 'hydrateTailorBundle includes markdown previews for existing files');
+rmSync(tmp, { recursive: true, force: true });
 
 const metrics = computeProgressMetrics([
   { status: 'Applied', score: 4.2, date: '2026-06-01' },

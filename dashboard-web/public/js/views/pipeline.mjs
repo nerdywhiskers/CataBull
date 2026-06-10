@@ -590,6 +590,7 @@ export function pendingTailorDecision(item) {
 export function pendingTailorStatusLabel(phase) {
   if (phase === 'scoring') return 'Scoring match...';
   if (phase === 'tailoring') return 'Tailoring bundle...';
+  if (phase === 'evaluating') return 'Running full report...';
   return '';
 }
 
@@ -620,7 +621,7 @@ function showTailorResultModal(result = {}, { company = '', role = '' } = {}) {
       <div class="tailor-modal-body">
         <p class="tailor-modal-hint">
           Saved for <strong style="color:var(--text)">${esc(company)} - ${esc(role)}</strong>
-          ${reportFilename ? `and added to <a href="#/analytics/reports/${encodeURIComponent(reportFilename)}">Analytics reports</a>` : ''}.
+          ${reportFilename ? `and added to <a href="#/reports/${encodeURIComponent(reportFilename)}">Reports</a>` : ''}.
         </p>
 
         <section class="tailor-section">
@@ -648,12 +649,11 @@ function showTailorResultModal(result = {}, { company = '', role = '' } = {}) {
         <section class="tailor-section">
           <header>
             <h4>Application Q&amp;A${preview.qa_count ? ` (${preview.qa_count})` : ''}</h4>
-            ${paths.qa ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.qa)}" target="_blank" rel="noreferrer">Download all</a>` : ''}
           </header>
           ${qaPreview}
         </section>
 
-        ${reportFilename ? `<a class="btn btn-sm btn-secondary" href="#/analytics/reports/${encodeURIComponent(reportFilename)}">View report</a>` : ''}
+        ${reportFilename ? `<a class="btn btn-sm btn-secondary" href="#/reports/${encodeURIComponent(reportFilename)}">View report</a>` : ''}
       </div>
     </div>
   `;
@@ -1749,7 +1749,8 @@ function update(container) {
   container.querySelectorAll('.view-report-btn').forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
-      window.location.hash = '#/analytics';
+      const report = String(btn.dataset.report || '').split('/').pop();
+      window.location.hash = report ? `#/reports/${encodeURIComponent(report)}` : '#/analytics/reports';
     };
   });
 
@@ -1978,7 +1979,7 @@ function update(container) {
       const doEvaluate = async () => {
         try {
           const scoredItem = await scorePendingItem();
-          tailoringByUrl.delete(pendingItem.url);
+          tailoringByUrl.set(pendingItem.url, 'evaluating');
           update(container);
           await runModePrompt('evaluate', scoredItem);
           await loadData();

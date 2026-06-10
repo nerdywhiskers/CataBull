@@ -934,7 +934,7 @@ async function openTailorModal(item, container) {
         </header>
         <div class="tailor-modal-body">
           <p class="tailor-modal-hint">
-            Saved to <code>${esc(result.dir)}</code>${reportFilename ? ` and added to <a href="#/analytics/reports/${encodeURIComponent(reportFilename)}">Analytics reports</a>` : ''}.
+            Saved to <code>${esc(result.dir)}</code>${reportFilename ? ` and added to <a href="#/reports/${encodeURIComponent(reportFilename)}">Reports</a>` : ''}.
           </p>
 
           <section class="tailor-section">
@@ -959,15 +959,14 @@ async function openTailorModal(item, container) {
             <pre class="tailor-preview">${esc(preview.cover_letter_excerpt)}…</pre>
           </section>
 
-          <section class="tailor-section">
-            <header>
-              <h4>Application Q&amp;A (${preview.qa_count})</h4>
-              <a class="btn btn-sm" href="${api.tailorFileUrl(paths.qa)}" target="_blank" rel="noreferrer">Download all</a>
-            </header>
-            ${qaPreview}
-          </section>
+        <section class="tailor-section">
+          <header>
+            <h4>Application Q&amp;A (${preview.qa_count})</h4>
+          </header>
+          ${qaPreview}
+        </section>
 
-          ${reportFilename ? `<a class="btn btn-sm btn-secondary" href="#/analytics/reports/${encodeURIComponent(reportFilename)}">View report</a>` : ''}
+          ${reportFilename ? `<a class="btn btn-sm btn-secondary" href="#/reports/${encodeURIComponent(reportFilename)}">View report</a>` : ''}
         </div>
       </div>
     `;

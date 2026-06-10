@@ -61,7 +61,7 @@ function renderList(container, archivedCount = 0) {
     card.onmouseenter = () => card.style.background = 'var(--surface1)';
     card.onmouseleave = () => card.style.background = '';
     card.onclick = () => {
-      window.location.hash = `#/reports/${card.dataset.filename}`;
+      window.location.hash = reportRouteHash(card.dataset.filename);
     };
   });
 }
@@ -76,6 +76,10 @@ function formatIcon(format) {
   if (format === 'pdf') return '\u{1F4C4}';      // \ud83d\udcc4
   if (format === 'html') return '\u{1F310}';     // \ud83c\udf10
   return '\u{1F4DD}';                            // \ud83d\udcdd
+}
+
+export function reportRouteHash(filename = '') {
+  return filename ? `#/reports/${encodeURIComponent(filename)}` : '#/analytics/reports';
 }
 
 function renderArtifacts(artifacts) {
@@ -95,20 +99,55 @@ function renderArtifacts(artifacts) {
   `;
 }
 
+function renderFormatMenu(label, options = []) {
+  if (!options.length) return '';
+  return `
+    <details class="tailor-format-menu" style="position:relative">
+      <summary class="btn btn-sm" style="list-style:none;cursor:pointer">${esc(label)} ▾</summary>
+      <div class="card" style="position:absolute;right:0;top:calc(100% + 6px);padding:8px;display:grid;gap:6px;min-width:140px;z-index:3;background:var(--surface1)">
+        ${options.map((option) => `<a class="btn btn-sm btn-ghost" href="${esc(option.href)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;justify-content:flex-start">${esc(option.label)}</a>`).join('')}
+      </div>
+    </details>
+  `;
+}
+
+function renderPreviewCard(title, preview, options = []) {
+  if (!preview && !options.length) return '';
+  return `
+    <section class="card" style="background:var(--surface0);padding:16px;display:grid;gap:12px">
+      <header style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
+        <h4 style="margin:0;font-size:15px">${esc(title)}</h4>
+        ${renderFormatMenu(title, options)}
+      </header>
+      ${preview ? `<div class="markdown-body" style="max-height:320px;overflow:auto;padding:4px 0">${renderMarkdown(preview)}</div>` : '<p style="margin:0;color:var(--subtext)">No preview available.</p>'}
+    </section>
+  `;
+}
+
 function renderTailorBundle(tailorBundle) {
   if (!tailorBundle?.paths) return '';
-  const links = [
-    tailorBundle.paths.cv ? `<a class="btn btn-sm" href="${api.tailorFileUrl(tailorBundle.paths.cv)}" target="_blank" style="text-decoration:none">CV</a>` : '',
-    tailorBundle.paths.cvPdf ? `<a class="btn btn-sm" href="${api.tailorFileUrl(tailorBundle.paths.cvPdf)}" target="_blank" style="text-decoration:none">CV PDF</a>` : '',
-    tailorBundle.paths.coverLetter ? `<a class="btn btn-sm" href="${api.tailorFileUrl(tailorBundle.paths.coverLetter)}" target="_blank" style="text-decoration:none">Cover letter</a>` : '',
-    tailorBundle.paths.coverLetterPdf ? `<a class="btn btn-sm" href="${api.tailorFileUrl(tailorBundle.paths.coverLetterPdf)}" target="_blank" style="text-decoration:none">Cover PDF</a>` : '',
-    tailorBundle.paths.qa ? '<a class="btn btn-sm" href="#application-q-a" style="text-decoration:none">Application Q&A</a>' : '',
+  const previews = tailorBundle.previews || {};
+  const cvOptions = [
+    tailorBundle.paths.cv ? { label: 'Markdown', href: api.tailorFileUrl(tailorBundle.paths.cv) } : null,
+    tailorBundle.paths.cvPdf ? { label: 'PDF', href: api.tailorFileUrl(tailorBundle.paths.cvPdf) } : null,
+    tailorBundle.paths.cvHtml ? { label: 'HTML', href: api.tailorFileUrl(tailorBundle.paths.cvHtml) } : null,
+  ].filter(Boolean);
+  const coverOptions = [
+    tailorBundle.paths.coverLetter ? { label: 'Markdown', href: api.tailorFileUrl(tailorBundle.paths.coverLetter) } : null,
+    tailorBundle.paths.coverLetterPdf ? { label: 'PDF', href: api.tailorFileUrl(tailorBundle.paths.coverLetterPdf) } : null,
+    tailorBundle.paths.coverLetterHtml ? { label: 'HTML', href: api.tailorFileUrl(tailorBundle.paths.coverLetterHtml) } : null,
+  ].filter(Boolean);
+  const cards = [
+    renderPreviewCard('CV', previews.cv, cvOptions),
+    renderPreviewCard('Cover letter', previews.coverLetter, coverOptions),
+    previews.qa ? `<section class="card" style="background:var(--surface0);padding:16px;display:grid;gap:12px"><header style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><h4 style="margin:0;font-size:15px">Application Q&amp;A</h4><span style="font-size:12px;color:var(--subtext0)">Embedded in report</span></header><div class="markdown-body">${renderMarkdown(previews.qa)}</div></section>` : '',
   ].filter(Boolean).join('');
-  if (!links) return '';
+  if (!cards) return '';
   return `
     <div class="card" style="margin-bottom:16px;background:var(--surface0)">
       <h3 style="font-size:13px;font-weight:600;color:var(--subtext);margin-bottom:10px">Tailor bundle</h3>
-      <div style="display:flex;flex-wrap:wrap;gap:8px">${links}</div>
+      <p style="margin:0 0 14px 0;color:var(--subtext);font-size:12px">Preview the tailored assets here, then open the format you want from each menu.</p>
+      <div style="display:grid;gap:12px">${cards}</div>
     </div>
   `;
 }
@@ -176,7 +215,7 @@ async function renderReport(container, filename) {
         </div>
       </div>
       <div class="card" style="margin-bottom:16px;background:var(--surface0);display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between">
-        <div style="font-size:12px;color:var(--subtext)">Use report links below to jump to generated CV, cover letter, and supporting artifacts.</div>
+        <div style="font-size:12px;color:var(--subtext)">Use the report preview below to review the evaluation, tailored assets, and supporting files in one place.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${postingUrl ? `<a class="btn btn-sm" href="${esc(postingUrl)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none">View posting</a>` : ''}
           <a class="btn btn-sm" href="${api.reportExportUrl(filename)}" style="text-decoration:none">Export bundle</a>
@@ -199,7 +238,7 @@ async function renderReport(container, filename) {
     `;
     decorateReportHeadings(container.querySelector('#report-markdown'));
     container.querySelector('#back-to-reports').onclick = () => {
-      window.location.hash = '#/analytics/reports';
+      window.location.hash = reportRouteHash();
     };
     container.querySelector('#archive-report')?.addEventListener('click', async () => {
       if (!window.confirm(`Archive ${filename}?`)) return;
@@ -207,7 +246,7 @@ async function renderReport(container, filename) {
       if (button) button.disabled = true;
       try {
         await api.archiveReport(filename);
-        window.location.hash = '#/analytics/reports';
+        window.location.hash = reportRouteHash();
       } catch (error) {
         if (button) button.disabled = false;
         window.alert(error.message || 'Could not archive report.');

@@ -209,6 +209,10 @@ assert(
   'pending tailor row labels bundle generation progress'
 );
 assert(
+  pendingTailorStatusLabel('evaluating') === 'Running full report...',
+  'pending tailor row labels full evaluation progress'
+);
+assert(
   pendingTailorStatusLabel('') === '',
   'pending tailor row hides progress label when idle'
 );
