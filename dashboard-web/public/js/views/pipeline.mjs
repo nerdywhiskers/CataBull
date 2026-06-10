@@ -21,7 +21,6 @@ let expired = [];
 let portalsData = null;         // tracked_companies, for industry lookup on pending filter
 let selected = new Set();       // pending URLs
 let selectedApps = new Set();   // application nums
-let showTopMatchOnly = false;
 let minPendingScore = 0;
 let currentFilter = 'pending';
 let sortCol = 'score';
@@ -940,10 +939,7 @@ async function startContextualScoring(container, { force = false, urls = null } 
 function renderPending(pageItems = null) {
   if (!pending.length) return `<div class="empty-state"><h3>No pending jobs</h3><p>Run a scan to discover new roles, or paste a job description in the chat.</p></div>`;
 
-  const baseFiltered = pending.filter(p => pendingPassesScoreFilters(p, {
-    topOnly: showTopMatchOnly,
-    minScore: minPendingScore,
-  }));
+  const baseFiltered = pending.filter(p => pendingPassesScoreFilters(p, { minScore: minPendingScore }));
   const fullFiltered = baseFiltered.filter(p => matchesSearch(p)).filter(matchesPendingFilter);
   const filtered = pageItems ?? fullFiltered;
 
@@ -951,7 +947,7 @@ function renderPending(pageItems = null) {
   const anySelected = selected.size > 0;
 
   if (!filtered.length) {
-    return `<div class="empty-state"><h3>No top matches</h3><p>Uncheck the filter to see all ${pending.length} pending jobs.</p></div>`;
+    return `<div class="empty-state"><h3>No matching pending jobs</h3><p>Try lowering the score threshold or clearing filters.</p></div>`;
   }
 
   const batchBar = anySelected ? `
@@ -1517,10 +1513,7 @@ function update(container) {
   const fullItems = isPending ? [] : sorted(filtered());
   const fullPending = isPending
     ? pending
-        .filter(p => pendingPassesScoreFilters(p, {
-          topOnly: showTopMatchOnly,
-          minScore: minPendingScore,
-        }))
+        .filter(p => pendingPassesScoreFilters(p, { minScore: minPendingScore }))
         .filter(matchesSearch)
         .filter(matchesPendingFilter)
     : [];
@@ -1592,35 +1585,31 @@ function update(container) {
       <div class="scan-progress-slot">${pendingRefreshBanner}</div>
 
       <section class="pipeline-toolbar${filterPopoverOpen ? ' has-popover' : ''}">
-        <div class="pipeline-toolbar-row">
-          ${renderFilters()}
-          <div class="pipeline-toolbar-end">
+        <div class="pipeline-toolbar-primary">
+          <div class="pipeline-toolbar-search">
             <label class="search-input">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="6" r="4.5"/><line x1="9.5" y1="9.5" x2="13" y2="13"/></svg>
               <input type="text" id="pipeline-search" placeholder="Search company or role..." value="${esc(searchQuery)}">
             </label>
             ${renderFilterButton()}
           </div>
-        </div>
-        ${filterPopoverOpen ? renderFilterPopover() : ''}
-        <div class="pipeline-toolbar-divider">
-          <label class="toggle-row">
-            <input type="checkbox" id="top-match-toggle" ${showTopMatchOnly ? 'checked' : ''}>
-            <span>Top matches only (4+)</span>
-          </label>
           ${isPending ? `
             <label class="discover-score-slider pipeline-score-slider">
               <span>Min score: <strong id="pipeline-min-label">${minPendingScore.toFixed(1)}</strong></span>
               <input type="range" min="0" max="5" step="0.5" value="${minPendingScore}" id="pipeline-min-input" />
             </label>
           ` : ''}
-          <div style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="pipeline-toolbar-actions">
             ${isPending ? `<button class="btn btn-sm btn-outline" id="pending-rescore-btn" type="button"${contextualScoringActive ? ' disabled' : ''}>Rescore LLM</button>` : ''}
             <button class="btn btn-sm btn-primary" id="add-job-btn" type="button">Add Job</button>
             <button class="btn-icon" id="refresh-btn" title="${isPending && pending.length > 0 ? 'Refresh + verify each pending posting is still live' : 'Refresh'}"${scanProgress?.visible || pendingRefreshState?.active ? ' disabled' : ''}>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 6a4.5 4.5 0 1 1-1.3-3.18"/><polyline points="11.5 1 11.5 4 8.5 4"/></svg>
             </button>
           </div>
+        </div>
+        ${filterPopoverOpen ? renderFilterPopover() : ''}
+        <div class="pipeline-toolbar-tabs">
+          ${renderFilters()}
         </div>
       </section>
 
@@ -1769,14 +1758,6 @@ function update(container) {
         if (item) openScoreModal(item, { kind: 'tailored' });
       }
     };
-  });
-
-  // Top match filter toggle
-  container.querySelector('#top-match-toggle')?.addEventListener('change', (e) => {
-    showTopMatchOnly = e.target.checked;
-    selected.clear();
-    currentPage = 1;
-    update(container);
   });
 
   container.querySelector('#pipeline-min-input')?.addEventListener('input', (e) => {
