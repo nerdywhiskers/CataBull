@@ -404,9 +404,9 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.01em; }
 .pipeline-filter-popover {
   position: absolute;
   top: calc(100% + 8px);
-  right: 16px;
+  left: 0;
   z-index: 200;   /* sits above the jobs table; toolbar also lifts via .has-popover */
-  width: min(420px, calc(100% - 32px));
+  width: min(390px, calc(100vw - 48px));
   background: var(--surface0);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
@@ -795,15 +795,17 @@ input[type="checkbox"]:checked::after {
   flex-wrap: wrap;
 }
 .pipeline-toolbar-search {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1 1 320px;
-  min-width: min(100%, 320px);
+  flex: 0 1 auto;
+  min-width: 0;
 }
 .pipeline-toolbar-search .search-input {
-  flex: 1 1 auto;
-  max-width: none;
+  flex: 0 1 280px;
+  width: min(280px, 100%);
+  max-width: 280px;
 }
 .pipeline-toolbar-actions {
   display: inline-flex;

@@ -1592,6 +1592,7 @@ function update(container) {
               <input type="text" id="pipeline-search" placeholder="Search company or role..." value="${esc(searchQuery)}">
             </label>
             ${renderFilterButton()}
+            ${filterPopoverOpen ? renderFilterPopover() : ''}
           </div>
           ${isPending ? `
             <label class="discover-score-slider pipeline-score-slider">
@@ -1607,7 +1608,6 @@ function update(container) {
             </button>
           </div>
         </div>
-        ${filterPopoverOpen ? renderFilterPopover() : ''}
         <div class="pipeline-toolbar-tabs">
           ${renderFilters()}
         </div>
