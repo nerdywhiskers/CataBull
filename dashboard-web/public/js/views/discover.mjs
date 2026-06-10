@@ -19,6 +19,7 @@ import { deepProgressFromEvent, pendingRefreshProgressFromState, quickProgressFr
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 import { openScoreModal } from '../components/score-modal.mjs';
+import { promptTailorAction } from '../components/tailor-choice.mjs';
 import { notifyScanComplete, requestPermission } from '../components/notifications.mjs';
 import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
@@ -823,7 +824,7 @@ function bindCardEvents(container) {
     card.querySelector('.discover-tailor')?.addEventListener('click', (e) => {
       e.stopPropagation();
       const item = pending.find((p) => p.url === url) || { company, role, url };
-      openTailorModal(item);
+      openTailorModal(item, container);
     });
     card.querySelector('.discover-applied')?.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -866,10 +867,23 @@ async function confirmLowTailorScore(item) {
   });
 }
 
-async function openTailorModal(item) {
+async function openTailorModal(item, container) {
   const { company, role, url } = item;
   const ok = await confirmLowTailorScore(item);
   if (!ok) return;
+  const action = await promptTailorAction({ company, role });
+  if (!action) return;
+  if (action === 'evaluate') {
+    toast(`Running full evaluation for ${company}`);
+    try {
+      await runModePrompt('evaluate', { url, company, role });
+      await loadData();
+      rerender(container);
+    } catch (err) {
+      toast(`Evaluation failed: ${err.message || String(err)}`, 'error');
+    }
+    return;
+  }
 
   // Modal lives on body so it overlays the whole dashboard. Built once
   // and reused — re-renders into innerHTML for state changes.
@@ -979,7 +993,11 @@ async function openTailorModal(item) {
   renderRunning();
 
   api.tailor({ company, role, url })
-    .then(renderResult)
+    .then(async (result) => {
+      renderResult(result);
+      await loadData();
+      rerender(container);
+    })
     .catch((err) => renderError(err.message || String(err)));
 }
 

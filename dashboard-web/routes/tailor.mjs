@@ -12,7 +12,7 @@
 
 import { runAgentPrint } from '../lib/agents.mjs';
 import { appendTailorReportSection, runTailor, writeTailorReport } from '../../lib/tailor.mjs';
-import { readProfile } from '../lib/writers.mjs';
+import { readProfile, markPipelineTailored } from '../lib/writers.mjs';
 import { parseApplications } from '../lib/parsers.mjs';
 import { asWorkspace } from '../../lib/workspace.mjs';
 import { basename, extname } from 'path';
@@ -110,6 +110,14 @@ export default async function (app) {
       const report = appended
         ? { ...appended, filename: existingReport.reportPath.split('/').pop(), existing: true }
         : writeTailorReport(ws, result, { company, role, url });
+      markPipelineTailored(root, {
+        url,
+        company,
+        role,
+        reportPath: report.path,
+        reportNumber: report.number || existingReport?.reportNumber || '',
+        hasPdf: Boolean(result.paths?.cvPdf),
+      });
       return {
         success: true,
         slug: result.slug,

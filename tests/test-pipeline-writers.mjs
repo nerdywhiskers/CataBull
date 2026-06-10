@@ -25,7 +25,7 @@ function assert(condition, msg) {
 
 console.log('\nPipeline writer helpers');
 
-const { updatePendingContextualScores, updatePendingItem } = await import(
+const { markPipelineTailored, updatePendingContextualScores, updatePendingItem } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'lib', 'writers.mjs')).href
 );
 const { parsePipeline } = await import(
@@ -69,6 +69,25 @@ const missing = updatePendingItem(tmpRoot, {
 });
 assert(missing.updated === false, 'missing pending row returns not updated');
 assert(missing.error === 'pending item not found', 'missing pending row returns explicit error');
+
+const tailored = markPipelineTailored(tmpRoot, {
+  url: 'https://example.com/jobs/1',
+  company: 'NewCo',
+  role: 'Senior Product Designer',
+  reportPath: 'reports/0007-newco-senior-product-designer.md',
+  reportNumber: '0007',
+  hasPdf: true,
+  scoreRaw: '4.4/5',
+});
+assert(tailored.success === true, 'markPipelineTailored succeeds for existing pending rows');
+
+const pipelineAfterTailor = readFileSync(join(tmpRoot, 'data', 'pipeline.md'), 'utf8');
+assert(pipelineAfterTailor.includes('- [x] https://example.com/jobs/1 | NewCo | Senior Product Designer'), 'markPipelineTailored marks the pending pipeline row done');
+
+const appsPath = join(tmpRoot, 'applications.md');
+const tailoredApps = readFileSync(appsPath, 'utf8');
+assert(tailoredApps.includes('| 1 | '), 'markPipelineTailored bootstraps applications tracker rows');
+assert(tailoredApps.includes('| NewCo | Senior Product Designer | 4.4/5 | Tailored | ✅ | [0007](reports/0007-newco-senior-product-designer.md) |'), 'markPipelineTailored writes Tailored status, PDF state, and report link');
 
 rmSync(tmpRoot, { recursive: true, force: true });
 

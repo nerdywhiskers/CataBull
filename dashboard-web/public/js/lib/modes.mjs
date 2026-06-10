@@ -87,8 +87,8 @@ const INLINE_EXPANSIONS = {
     'Then evaluate this offer following _shared.md exactly. Save the report to reports/{###}-{company-slug}-{YYYY-MM-DD}.md using the next available report number.',
     'If the final Global score is 3.0 or higher, you MUST also generate a tailored CV bundle and cover letter, save them under output/tailor-bundles/, and include report links labeled **Tailored CV:** and **Cover Letter:**. If the score is below 3.0, skip tailored assets unless the user explicitly overrides.',
     'Register the evaluation in the tracker. Do not stop after saving the report.',
-    'Write one tracker addition TSV under batch/tracker-additions/ using the canonical columns: num\tdate\tcompany\trole\tstatus\tscore\tpdf\treport\tnotes. Use status Evaluated, include the report markdown link, and set PDF based on whether a tailored PDF was actually generated.',
-    'After writing the TSV, run node merge-tracker.mjs so data/applications.md reflects the new evaluated role before you finish.',
+    'Write one tracker addition TSV under batch/tracker-additions/ using the canonical columns: num\tdate\tcompany\trole\tstatus\tscore\tpdf\treport\tnotes. Use status Tailored, include the report markdown link, and set PDF based on whether a tailored PDF was actually generated.',
+    'After writing the TSV, run node merge-tracker.mjs so data/applications.md reflects the new tailored role before you finish.',
     metaBlock([['URL', target], ['Company', ctx.company], ['Role', ctx.role]]),
   ]),
 
