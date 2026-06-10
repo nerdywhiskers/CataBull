@@ -1,5 +1,5 @@
 import { parseApplications, loadReportSummary, parsePipeline } from '../lib/parsers.mjs';
-import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem, updatePendingItem } from '../lib/writers.mjs';
+import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem, updatePendingItem, updatePendingContextualScores } from '../lib/writers.mjs';
 import { readProfile, readProfileMarkdown, readPortals } from '../lib/writers.mjs';
 import { scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../lib/relevance.mjs';
 import { enrichJobUrl } from '../lib/job-url-metadata.mjs';
@@ -30,10 +30,17 @@ export default async function (app) {
 
     for (const p of pending) {
       const { score, factors } = scorePostingTitle(p.role, inputs);
-      p.relevance = score;
+      const storedContextualScore = Number.isFinite(p.contextualScore) ? p.contextualScore : null;
+      p.relevance = storedContextualScore ?? score;
       p.heuristicRelevance = score;
       p.relevanceFactors = factors;
       p.relevanceRationale = rationaleSummary(factors);
+      if (storedContextualScore != null) {
+        p.contextualScore = storedContextualScore;
+        p.contextualScoreSource = 'llm';
+        p.contextualRationale = p.contextualRationale || '';
+        p.contextualSignals = Array.isArray(p.contextualSignals) ? p.contextualSignals : [];
+      }
     }
 
     pending.sort((a, b) => b.relevance - a.relevance);
@@ -84,6 +91,7 @@ export default async function (app) {
       });
       const payload = extractJsonObject(out.output || '');
       const scores = normalizeContextualScores(payload, postings);
+      updatePendingContextualScores(root, scores);
       return { success: true, agent, scores };
     } catch (err) {
       return reply.code(502).send({ error: err.message || String(err), agent });

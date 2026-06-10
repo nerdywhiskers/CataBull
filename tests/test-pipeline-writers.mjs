@@ -25,8 +25,11 @@ function assert(condition, msg) {
 
 console.log('\nPipeline writer helpers');
 
-const { updatePendingItem } = await import(
+const { updatePendingContextualScores, updatePendingItem } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'lib', 'writers.mjs')).href
+);
+const { parsePipeline } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web', 'lib', 'parsers.mjs')).href
 );
 
 const tmpRoot = join(ROOT, '.tmp-test-pipeline-writers');
@@ -45,6 +48,19 @@ assert(result.updated === true, 'updates existing pending row');
 const updated = readFileSync(join(tmpRoot, 'data', 'pipeline.md'), 'utf8');
 assert(updated.includes('- [ ] https://example.com/jobs/1 | NewCo | Senior Product Designer | posted:2026-06-03 | loc:Los Angeles | match:high'), 'preserves extra metadata while updating pending row');
 assert(updated.includes('https://example.com/jobs/2 | SkippedCo | Skip Role | SKIP | 2026-06-02'), 'does not rewrite skipped rows');
+
+const scored = updatePendingContextualScores(tmpRoot, [{
+  id: 'https://example.com/jobs/1',
+  score: 4.37,
+  rationale: 'Strong creative technology fit | with unsafe pipe',
+  signals: ['AI prototypes', 'Art direction'],
+}]);
+assert(scored.updated === 1, 'persists contextual score metadata on pending row');
+const parsed = parsePipeline(tmpRoot).pending[0];
+assert(parsed.contextualScore === 4.4, 'parsePipeline reads persisted contextual score');
+assert(parsed.contextualScoreSource === 'llm', 'parsePipeline marks persisted contextual score source');
+assert(parsed.contextualRationale === 'Strong creative technology fit with unsafe pipe', 'parsePipeline reads sanitized contextual rationale');
+assert(parsed.contextualSignals?.[0] === 'AI prototypes', 'parsePipeline reads contextual signals');
 
 const missing = updatePendingItem(tmpRoot, {
   url: 'https://example.com/jobs/missing',

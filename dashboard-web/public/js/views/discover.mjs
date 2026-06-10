@@ -904,6 +904,7 @@ async function openTailorModal(item) {
 
   function renderResult(result) {
     const { paths, preview, slug } = result;
+    const reportFilename = result.report?.filename || '';
     const qaPreview = (preview.qa_first || []).map((q) => `
       <details class="tailor-qa">
         <summary>${esc(q.question)}</summary>
@@ -919,7 +920,7 @@ async function openTailorModal(item) {
         </header>
         <div class="tailor-modal-body">
           <p class="tailor-modal-hint">
-            Saved to <code>${esc(result.dir)}</code>. Convert <code>cv.md</code> to PDF via <code>npm run pdf -- ${esc(paths.cv)} output/${esc(slug)}.pdf</code>.
+            Saved to <code>${esc(result.dir)}</code>${reportFilename ? ` and added to <a href="#/analytics/reports/${encodeURIComponent(reportFilename)}">Analytics reports</a>` : ''}.
           </p>
 
           <section class="tailor-section">
@@ -951,6 +952,8 @@ async function openTailorModal(item) {
             </header>
             ${qaPreview}
           </section>
+
+          ${reportFilename ? `<a class="btn btn-sm btn-secondary" href="#/analytics/reports/${encodeURIComponent(reportFilename)}">View report</a>` : ''}
         </div>
       </div>
     `;

@@ -592,6 +592,73 @@ export function pendingTailorStatusLabel(phase) {
   return '';
 }
 
+function showTailorResultModal(result = {}, { company = '', role = '' } = {}) {
+  let modal = document.getElementById('tailor-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'tailor-modal';
+    modal.className = 'tailor-modal-backdrop';
+    document.body.appendChild(modal);
+  }
+  const paths = result.paths || {};
+  const preview = result.preview || {};
+  const reportFilename = result.report?.filename || '';
+  const qaPreview = (preview.qa_first || []).map((q) => `
+    <details class="tailor-qa">
+      <summary>${esc(q.question)}</summary>
+      <p>${esc(q.answer)}</p>
+    </details>
+  `).join('');
+
+  modal.innerHTML = `
+    <div class="tailor-modal tailor-modal-result">
+      <header class="tailor-modal-head">
+        <h3>Tailor bundle ready</h3>
+        <button class="btn btn-ghost btn-sm" id="tailor-cancel" type="button">Close</button>
+      </header>
+      <div class="tailor-modal-body">
+        <p class="tailor-modal-hint">
+          Saved for <strong style="color:var(--text)">${esc(company)} - ${esc(role)}</strong>
+          ${reportFilename ? `and added to <a href="#/analytics/reports/${encodeURIComponent(reportFilename)}">Analytics reports</a>` : ''}.
+        </p>
+
+        <section class="tailor-section">
+          <header>
+            <h4>Tailored CV</h4>
+            <span class="cell-actions">
+              ${paths.cv ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.cv)}" target="_blank" rel="noreferrer">MD</a>` : ''}
+              ${paths.cvPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.cvPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
+            </span>
+          </header>
+          ${preview.cv_excerpt ? `<pre class="tailor-preview">${esc(preview.cv_excerpt)}...</pre>` : ''}
+        </section>
+
+        <section class="tailor-section">
+          <header>
+            <h4>Cover letter</h4>
+            <span class="cell-actions">
+              ${paths.coverLetter ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetter)}" target="_blank" rel="noreferrer">MD</a>` : ''}
+              ${paths.coverLetterPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.coverLetterPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
+            </span>
+          </header>
+          ${preview.cover_letter_excerpt ? `<pre class="tailor-preview">${esc(preview.cover_letter_excerpt)}...</pre>` : ''}
+        </section>
+
+        <section class="tailor-section">
+          <header>
+            <h4>Application Q&amp;A${preview.qa_count ? ` (${preview.qa_count})` : ''}</h4>
+            ${paths.qa ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.qa)}" target="_blank" rel="noreferrer">Download all</a>` : ''}
+          </header>
+          ${qaPreview}
+        </section>
+
+        ${reportFilename ? `<a class="btn btn-sm btn-secondary" href="#/analytics/reports/${encodeURIComponent(reportFilename)}">View report</a>` : ''}
+      </div>
+    </div>
+  `;
+  modal.querySelector('#tailor-cancel').addEventListener('click', () => modal.remove());
+}
+
 // Tooltip for evaluated applications — shows the per-block A–E breakdown
 // (parsed from the report) so the user can see how the global score was
 // derived without opening the report. Returns '' when blocks weren't
@@ -1886,8 +1953,7 @@ function update(container) {
           update(container);
           const result = await api.tailor(scoredItem);
           toast(`Tailor bundle ready for ${scoredItem.company}`);
-          if (result?.paths?.cvPdf) window.open(api.tailorFileUrl(result.paths.cvPdf), '_blank', 'noopener');
-          else if (result?.paths?.cv) window.open(api.tailorFileUrl(result.paths.cv), '_blank', 'noopener');
+          showTailorResultModal(result, scoredItem);
         } catch (err) {
           toast(`Tailor failed: ${err.message}`, 'error');
         } finally {
