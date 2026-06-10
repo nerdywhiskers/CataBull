@@ -158,12 +158,12 @@ export function normalizeStatus(raw) {
   if (s.includes('applied') || s.includes('aplicado') || s === 'enviada' || s === 'aplicada' || s === 'sent') return 'applied';
   if (s.includes('rejected') || s.includes('rechazado') || s === 'rechazada') return 'rejected';
   if (s.includes('discarded') || s.includes('descartado') || s === 'descartada' || s === 'cerrada' || s === 'cancelada' || s.startsWith('duplicado') || s.startsWith('dup')) return 'discarded';
-  if (s.includes('evaluated') || s.includes('evaluada') || s === 'condicional' || s === 'hold' || s === 'monitor' || s === 'evaluar' || s === 'verificar') return 'evaluated';
+  if (s.includes('tailored') || s.includes('tailor') || s.includes('evaluated') || s.includes('evaluada') || s === 'condicional' || s === 'hold' || s === 'monitor' || s === 'evaluar' || s === 'verificar') return 'tailored';
   return s;
 }
 
 export function statusPriority(status) {
-  const priorities = { interview: 0, offer: 1, responded: 2, applied: 3, evaluated: 4, skip: 5, rejected: 6, discarded: 7 };
+  const priorities = { interview: 0, offer: 1, responded: 2, applied: 3, tailored: 4, skip: 5, rejected: 6, discarded: 7 };
   return priorities[normalizeStatus(status)] ?? 8;
 }
 

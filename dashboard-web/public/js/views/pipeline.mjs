@@ -3,6 +3,7 @@ import { deepProgressFromEvent, pendingRefreshProgressFromState, quickProgressFr
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 import { openScoreModal } from '../components/score-modal.mjs';
+import { promptTailorAction } from '../components/tailor-choice.mjs';
 import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
 import { INDUSTRIES } from '../lib/industries.mjs';
@@ -162,7 +163,7 @@ function ensureLiveRefresh(container) {
 
 // ── Pending-list filter popover (industry / location / posted-date) ───
 //
-// Filters only the Pending tab — Evaluated/Applied/etc. already have their
+// Filters only the Pending tab — Tailored/Applied/etc. already have their
 // own status-based tabs. Persisted to localStorage so a fresh page load
 // keeps the user's last filter set.
 const PENDING_FILTER_KEY = 'catabull-pipeline-pending-filter';
@@ -346,7 +347,7 @@ function sorted(list) {
 }
 
 function statusPri(s) {
-  const p = { interview: 0, offer: 1, responded: 2, applied: 3, evaluated: 4, skip: 5, rejected: 6, discarded: 7 };
+  const p = { interview: 0, offer: 1, responded: 2, applied: 3, tailored: 4, skip: 5, rejected: 6, discarded: 7 };
   return p[s] ?? 8;
 }
 
@@ -433,7 +434,7 @@ function weakestScoreBlock(blocks = {}) {
 
 export function buildAiSuggestion(targetApps = []) {
   const candidates = targetApps
-    .filter(a => ['applied', 'evaluated'].includes(a.statusNormalized) && a.score > 0)
+    .filter(a => ['applied', 'tailored'].includes(a.statusNormalized) && a.score > 0)
     .sort((a, b) => a.score - b.score);
   const target = candidates[0] || null;
   if (!target) {
@@ -460,7 +461,7 @@ export function buildAiSuggestion(targetApps = []) {
     body,
     ctaLabel: 'Open Score Breakdown',
     targetNum: target.num,
-    targetFilter: target.statusNormalized === 'evaluated' ? 'evaluated' : 'applied',
+    targetFilter: target.statusNormalized === 'tailored' ? 'tailored' : 'applied',
     openScoreModal: true,
   };
 }
@@ -535,7 +536,7 @@ function tabCount(key) {
 const FILTERS = [
   { key: 'pending', label: 'Pending' },
   { key: 'all', label: 'All' },
-  { key: 'evaluated', label: 'Evaluated' },
+  { key: 'tailored', label: 'Tailored' },
   { key: 'applied', label: 'Applied' },
   { key: 'interview', label: 'Interview' },
   { key: 'top', label: 'Top \u22654' },
@@ -561,7 +562,7 @@ export function shouldWarnLowTailorScore(score) {
 }
 
 export function shouldEnableTailorArtifacts(item) {
-  return item?.statusNormalized === 'evaluated' && Number(item?.score) > 3;
+  return item?.statusNormalized === 'tailored' && Number(item?.score) > 3;
 }
 
 export function shouldShowTailorArtifactLinks(item) {
@@ -589,6 +590,7 @@ export function pendingTailorDecision(item) {
 export function pendingTailorStatusLabel(phase) {
   if (phase === 'scoring') return 'Scoring match...';
   if (phase === 'tailoring') return 'Tailoring bundle...';
+  if (phase === 'evaluating') return 'Running full report...';
   return '';
 }
 
@@ -619,7 +621,7 @@ function showTailorResultModal(result = {}, { company = '', role = '' } = {}) {
       <div class="tailor-modal-body">
         <p class="tailor-modal-hint">
           Saved for <strong style="color:var(--text)">${esc(company)} - ${esc(role)}</strong>
-          ${reportFilename ? `and added to <a href="#/analytics/reports/${encodeURIComponent(reportFilename)}">Analytics reports</a>` : ''}.
+          ${reportFilename ? `and added to <a href="#/reports/${encodeURIComponent(reportFilename)}">Reports</a>` : ''}.
         </p>
 
         <section class="tailor-section">
@@ -647,19 +649,18 @@ function showTailorResultModal(result = {}, { company = '', role = '' } = {}) {
         <section class="tailor-section">
           <header>
             <h4>Application Q&amp;A${preview.qa_count ? ` (${preview.qa_count})` : ''}</h4>
-            ${paths.qa ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.qa)}" target="_blank" rel="noreferrer">Download all</a>` : ''}
           </header>
           ${qaPreview}
         </section>
 
-        ${reportFilename ? `<a class="btn btn-sm btn-secondary" href="#/analytics/reports/${encodeURIComponent(reportFilename)}">View report</a>` : ''}
+        ${reportFilename ? `<a class="btn btn-sm btn-secondary" href="#/reports/${encodeURIComponent(reportFilename)}">View report</a>` : ''}
       </div>
     </div>
   `;
   modal.querySelector('#tailor-cancel').addEventListener('click', () => modal.remove());
 }
 
-// Tooltip for evaluated applications — shows the per-block A–E breakdown
+// Tooltip for tailored applications — shows the per-block A–E breakdown
 // (parsed from the report) so the user can see how the global score was
 // derived without opening the report. Returns '' when blocks weren't
 // parseable so callers fall back to a generic tooltip.
@@ -863,10 +864,10 @@ export async function watchPendingTailorCompletion(item, { timeoutMs = 300_000, 
     pending = data.pending || [];
     skipped = data.skipped || [];
     expired = data.expired || [];
-    currentFilter = 'evaluated';
+    currentFilter = 'tailored';
     expandedRow = found.num;
     if (activeContainer) update(activeContainer);
-    toast(`${found.company} moved to Evaluated`);
+    toast(`${found.company} moved to Tailored`);
     return true;
   }
 
@@ -1099,7 +1100,7 @@ function renderSkipped() {
               </td>
               <td><span class="cell-role">${esc(r.role)}</span></td>
               <td class="col-score">${r.score > 0
-                ? `<button type="button" class="score-trigger" data-score-kind="evaluated" data-score-num="${r.num}" title="${esc(scoreBlocksTooltip(r.scoreBlocks) || 'Score at rejection')}">${renderScoreRing(r.score, scoreClass(r.score), '')}</button>`
+                ? `<button type="button" class="score-trigger" data-score-kind="tailored" data-score-num="${r.num}" title="${esc(scoreBlocksTooltip(r.scoreBlocks) || 'Score at rejection')}">${renderScoreRing(r.score, scoreClass(r.score), '')}</button>`
                 : ''}</td>
               <td class="col-actions">
                 <span class="cell-actions">
@@ -1121,7 +1122,7 @@ function renderTable(items) {
     if (skipped.length || expired.length || rejectedApps().length) return renderSkipped();
     return `<div class="empty-state"><h3>No skipped jobs</h3></div>`;
   }
-  if (!items.length) return `<div class="empty-state"><h3>No applications yet</h3><p>Evaluate a job to get started.</p></div>`;
+  if (!items.length) return `<div class="empty-state"><h3>No applications yet</h3><p>Tailor a job to get started.</p></div>`;
 
   const batchActions = batchActionsForFilter(currentFilter);
   const showCheckboxes = batchActions.length > 0;
@@ -1131,7 +1132,7 @@ function renderTable(items) {
   const arrow = (col) => sortCol === col ? `<span class="sort-arrow">${sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>` : '';
   const thClass = (col) => sortCol === col ? 'sorted' : '';
 
-  // Batch action bar for evaluated/applied tabs
+  // Batch action bar for tailored/applied tabs
   const appBatchBar = (showCheckboxes && anyAppSelected) ? `
     <div class="pipeline-batchbar">
       <span class="pipeline-batchbar-count">${selectedApps.size} selected</span>
@@ -1159,7 +1160,7 @@ function renderTable(items) {
       </td>
       <td><span class="cell-role">${esc(a.role)}</span></td>
       <td class="col-score">${a.score > 0
-        ? `<button type="button" class="score-trigger" data-score-kind="evaluated" data-score-num="${a.num}" title="${esc(scoreBlocksTooltip(a.scoreBlocks) || 'Click for match details')}">${renderScoreRing(a.score, tone, '')}</button>`
+        ? `<button type="button" class="score-trigger" data-score-kind="tailored" data-score-num="${a.num}" title="${esc(scoreBlocksTooltip(a.scoreBlocks) || 'Click for match details')}">${renderScoreRing(a.score, tone, '')}</button>`
         : ''}</td>
       <td class="col-status"><span class="badge badge-status ${a.statusNormalized}">${esc(a.statusNormalized)}</span></td>
       <td class="col-actions">
@@ -1228,7 +1229,7 @@ function renderTable(items) {
 }
 
 export function rowActionsForStatus(status) {
-  if (status === 'evaluated') {
+  if (status === 'tailored') {
     return [
       { status: 'Applied', label: 'Applied', tone: 'soft', title: 'Mark as Applied' },
       { status: 'SKIP', label: 'Skip', tone: 'outline', title: 'Move to Skip' },
@@ -1236,7 +1237,7 @@ export function rowActionsForStatus(status) {
   }
   if (status === 'skip') {
     return [
-      { status: 'Evaluated', label: 'Restore', tone: 'soft', title: 'Move back to Evaluated' },
+      { status: 'Tailored', label: 'Restore', tone: 'soft', title: 'Move back to Tailored' },
     ];
   }
   if (status === 'applied' || status === 'responded') {
@@ -1255,7 +1256,7 @@ export function rowActionsForStatus(status) {
 }
 
 export function batchActionsForFilter(filter) {
-  if (filter === 'evaluated') {
+  if (filter === 'tailored') {
     return [
       { status: 'Applied', label: 'Applied', tone: 'soft' },
       { status: 'SKIP', label: 'Skip', tone: 'outline' },
@@ -1263,7 +1264,7 @@ export function batchActionsForFilter(filter) {
   }
   if (filter === 'skip') {
     return [
-      { status: 'Evaluated', label: 'Restore', tone: 'soft' },
+      { status: 'Tailored', label: 'Restore', tone: 'soft' },
     ];
   }
   if (filter === 'applied' || filter === 'responded') {
@@ -1531,7 +1532,7 @@ function update(container) {
   const items = isPending ? [] : fullItems.slice(sliceStart, sliceEnd);
   const pendingPage = isPending ? fullPending.slice(sliceStart, sliceEnd) : [];
   const activeOffers = apps.filter(a =>
-    ['evaluated', 'applied', 'responded', 'interview', 'offer'].includes(a.statusNormalized)
+    ['tailored', 'applied', 'responded', 'interview', 'offer'].includes(a.statusNormalized)
   ).length;
   const pendingCount = pending.length;
   const totalCount = apps.length + pending.length;
@@ -1688,7 +1689,7 @@ function update(container) {
       const num = btn.dataset.num;
       const status = btn.dataset.status;
       const app = apps.find(a => String(a.num) === num);
-      const previousStatus = app?.status || 'Evaluated';
+      const previousStatus = app?.status || 'Tailored';
       try {
         await api.updateApplication(num, status);
         pushUndo({
@@ -1748,12 +1749,13 @@ function update(container) {
   container.querySelectorAll('.view-report-btn').forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
-      window.location.hash = '#/analytics';
+      const report = String(btn.dataset.report || '').split('/').pop();
+      window.location.hash = report ? `#/reports/${encodeURIComponent(report)}` : '#/analytics/reports';
     };
   });
 
   // Score-rationale modal — opens when a row's score ring is clicked.
-  // Two flavors: evaluated apps look up by num, pending look up by url.
+  // Two flavors: tailored apps look up by num, pending look up by url.
   container.querySelectorAll('.score-trigger').forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
@@ -1764,7 +1766,7 @@ function update(container) {
       } else {
         const num = parseInt(btn.dataset.scoreNum, 10);
         const item = apps.find(a => a.num === num);
-        if (item) openScoreModal(item, { kind: 'evaluated' });
+        if (item) openScoreModal(item, { kind: 'tailored' });
       }
     };
   });
@@ -1887,7 +1889,7 @@ function update(container) {
     });
   });
 
-  // Outreach (works for both pending and evaluated items)
+  // Outreach (works for both pending and tailored items)
   container.querySelectorAll('.pending-outreach-btn').forEach(btn => {
     btn.onclick = () => runModePrompt('outreach', {
       company: btn.dataset.company,
@@ -1917,8 +1919,8 @@ function update(container) {
     };
   });
 
-  // Single: Tailor (replaces the old Evaluate flow). Same backing mode for
-  // now; tailoring also drafts a CV downstream when the score is strong.
+  // Single: Tailor supports both fast bundle-only mode and the older
+  // tailor+evaluation flow via the shared choice modal.
   container.querySelectorAll('.pending-tailor-btn').forEach(btn => {
     btn.onclick = async () => {
       const pendingItem = {
@@ -1947,18 +1949,55 @@ function update(container) {
               confirmText: 'Tailor anyway',
               body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:10px"><strong style="color:var(--text)">${esc(scoredItem.company)} - ${esc(scoredItem.role)}</strong> is only scoring <strong style="color:var(--yellow)">${Number.isFinite(decision.score) ? decision.score.toFixed(1) : 'n/a'}/5</strong>.</p><p style="font-size:13px;color:var(--subtext0)">This usually means weak fit. Tailoring now may burn time and credits before the role is worth pursuing.</p>`,
             });
-            if (!okLowScore) return;
+            if (!okLowScore) return null;
           }
           tailoringByUrl.set(pendingItem.url, 'tailoring');
           update(container);
           const result = await api.tailor(scoredItem);
+          await loadData();
+          currentFilter = 'tailored';
+          const matched = apps.find((app) => (
+            app.jobUrl === scoredItem.url
+            || (
+              String(app.company || '').trim().toLowerCase() === String(scoredItem.company || '').trim().toLowerCase()
+              && String(app.role || '').trim().toLowerCase() === String(scoredItem.role || '').trim().toLowerCase()
+            )
+          ));
+          if (matched?.num) expandedRow = matched.num;
           toast(`Tailor bundle ready for ${scoredItem.company}`);
           showTailorResultModal(result, scoredItem);
+          return scoredItem;
         } catch (err) {
           toast(`Tailor failed: ${err.message}`, 'error');
+          return null;
         } finally {
           tailoringByUrl.delete(pendingItem.url);
           update(container);
+        }
+      };
+
+      const doEvaluate = async () => {
+        try {
+          const scoredItem = await scorePendingItem();
+          tailoringByUrl.set(pendingItem.url, 'evaluating');
+          update(container);
+          await runModePrompt('evaluate', scoredItem);
+          await loadData();
+          currentFilter = 'tailored';
+          update(container);
+        } catch (err) {
+          toast(`Evaluation failed: ${err.message}`, 'error');
+        }
+      };
+
+      const runChosenAction = async () => {
+        const choice = await promptTailorAction({ company: pendingItem.company, role: pendingItem.role });
+        if (choice === 'evaluate') {
+          await doEvaluate();
+          return;
+        }
+        if (choice === 'tailor') {
+          await doTailor();
         }
       };
 
@@ -1967,9 +2006,9 @@ function update(container) {
           title: 'Already Tailored',
           body: `<p style="font-size:14px;color:var(--subtext)">A tailored report already exists for <strong style="color:var(--text)">${esc(btn.dataset.company)} - ${esc(btn.dataset.role)}</strong>. Re-running will use additional API credits.</p>`,
         });
-        if (ok) await doTailor();
+        if (ok) await runChosenAction();
       } else {
-        await doTailor();
+        await runChosenAction();
       }
     };
   });
@@ -2122,7 +2161,7 @@ function update(container) {
       currentFilter = suggestion.targetFilter || target.statusNormalized || 'applied';
       expandedRow = target.num;
       update(container);
-      if (suggestion.openScoreModal) openScoreModal(target, { kind: 'evaluated' });
+      if (suggestion.openScoreModal) openScoreModal(target, { kind: 'tailored' });
     };
   }
 }

@@ -61,6 +61,7 @@ assert(typeof prompt === 'string' && prompt.length > 0, 'evaluate inline prompt 
 assert(prompt.includes('batch/tracker-additions/'), 'evaluate inline prompt tells non-Claude agents where tracker additions must be written');
 assert(prompt.includes('node merge-tracker.mjs'), 'evaluate inline prompt tells non-Claude agents to merge tracker additions after writing them');
 assert(prompt.includes('Register the evaluation in the tracker'), 'evaluate inline prompt explicitly requires tracker registration');
+assert(prompt.includes('Use status Tailored'), 'evaluate inline prompt writes tailored status into tracker additions');
 
 console.log(`\nPassed: ${passed} / ${total}`);
 if (failed > 0) process.exitCode = 1;

@@ -5,6 +5,8 @@ import { scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../
 import { enrichJobUrl } from '../lib/job-url-metadata.mjs';
 import { runAgentPrint } from '../lib/agents.mjs';
 import { buildContextualScoringPrompt, extractJsonObject, MAX_CONTEXTUAL_POSTINGS, normalizeContextualScores } from '../../lib/contextual-scoring.mjs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
+import { join } from 'path';
 
 export default async function (app) {
   const root = app.cataBullRoot;
@@ -12,6 +14,7 @@ export default async function (app) {
   function pendingWithHeuristicScores() {
     const apps = parseApplications(root);
     const { pending: rawPending, skipped, expired } = parsePipeline(root);
+    const reportedUrls = collectReportUrls(root);
 
     const appUrls = new Set(apps.map(a => a.jobUrl).filter(Boolean));
     const appKeys = new Set(apps.map(a => `${a.company.toLowerCase()}||${a.role.toLowerCase()}`));
@@ -19,6 +22,7 @@ export default async function (app) {
 
     const pending = rawPending.filter(p => {
       if (appUrls.has(p.url)) return false;
+      if (reportedUrls.has(p.url)) return false;
       if (skippedUrls.has(p.url)) return false;
       if (appKeys.has(`${p.company.toLowerCase()}||${p.role.toLowerCase()}`)) return false;
       return true;
@@ -45,6 +49,21 @@ export default async function (app) {
 
     pending.sort((a, b) => b.relevance - a.relevance);
     return { apps, pending, skipped, expired };
+  }
+
+  function collectReportUrls(rootDir) {
+    const reportsDir = join(rootDir, 'reports');
+    if (!existsSync(reportsDir)) return new Set();
+    const urls = new Set();
+    for (const file of readdirSync(reportsDir)) {
+      if (!file.endsWith('.md') || file === '.gitkeep') continue;
+      try {
+        const text = readFileSync(join(reportsDir, file), 'utf-8');
+        const match = text.match(/^\*\*URL:\*\*\s*(https?:\/\/\S+)/m);
+        if (match?.[1]) urls.add(match[1]);
+      } catch {}
+    }
+    return urls;
   }
 
   app.get('/applications', async () => {

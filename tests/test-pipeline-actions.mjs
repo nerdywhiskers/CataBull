@@ -59,12 +59,12 @@ const { api } = await import(
 
 const skipRowActions = rowActionsForStatus('skip');
 assert(skipRowActions.length === 1, 'skip rows expose one primary restore action');
-assert(skipRowActions[0].status === 'Evaluated', 'skip row restore action moves back to Evaluated');
+assert(skipRowActions[0].status === 'Tailored', 'skip row restore action moves back to Tailored');
 assert(skipRowActions[0].label === 'Restore', 'skip row restore action is labeled Restore');
 
 const skipBatchActions = batchActionsForFilter('skip');
 assert(skipBatchActions.length === 1, 'skip filter exposes one batch restore action');
-assert(skipBatchActions[0].status === 'Evaluated', 'skip batch action restores selected rows to Evaluated');
+assert(skipBatchActions[0].status === 'Tailored', 'skip batch action restores selected rows to Tailored');
 assert(skipBatchActions[0].label === 'Restore', 'skip batch action is labeled Restore');
 
 console.log('\nPipeline AI suggestions');
@@ -94,11 +94,11 @@ const rationaleSuggestion = buildAiSuggestion([
     company: 'Beta',
     role: 'Design Lead',
     score: 3.6,
-    statusNormalized: 'evaluated',
+    statusNormalized: 'tailored',
     rationaleExcerpt: 'Needs clearer leadership examples.',
   },
 ]);
-assert(rationaleSuggestion.targetFilter === 'evaluated', 'evaluated suggestion routes back to evaluated tab');
+assert(rationaleSuggestion.targetFilter === 'tailored', 'tailored suggestion routes back to tailored tab');
 assert(rationaleSuggestion.body.includes('Needs clearer leadership examples.'), 'AI suggestion falls back to rationale excerpt when block scores are missing');
 
 console.log('\nOverflow dropdown placement');
@@ -128,27 +128,27 @@ assert(
   'tailor flow does not warn at the 3.0 threshold'
 );
 assert(
-  shouldEnableTailorArtifacts({ statusNormalized: 'evaluated', score: 3.1 }) === true,
-  'evaluated roles above 3.0 unlock tailor artifacts'
+  shouldEnableTailorArtifacts({ statusNormalized: 'tailored', score: 3.1 }) === true,
+  'tailored roles above 3.0 unlock tailor artifacts'
 );
 assert(
-  shouldEnableTailorArtifacts({ statusNormalized: 'evaluated', score: 3.0 }) === false,
-  'evaluated roles at exactly 3.0 stay below the tailor artifact threshold'
+  shouldEnableTailorArtifacts({ statusNormalized: 'tailored', score: 3.0 }) === false,
+  'tailored roles at exactly 3.0 stay below the tailor artifact threshold'
 );
 assert(
   shouldEnableTailorArtifacts({ statusNormalized: 'applied', score: 4.8 }) === false,
-  'tailor artifacts stay scoped to evaluated roles'
+  'tailor artifacts stay scoped to tailored roles'
 );
 assert(
-  shouldShowTailorArtifactLinks({ statusNormalized: 'evaluated', score: 3.8, tailorBundle: { paths: { cv: 'output/tailor-bundles/x/cv.md' } } }) === true,
-  'evaluated roles above 3 show tailored artifact links when bundle files exist'
+  shouldShowTailorArtifactLinks({ statusNormalized: 'tailored', score: 3.8, tailorBundle: { paths: { cv: 'output/tailor-bundles/x/cv.md' } } }) === true,
+  'tailored roles above 3 show tailored artifact links when bundle files exist'
 );
 assert(
-  shouldShowTailorArtifactLinks({ statusNormalized: 'evaluated', score: 3.8, tailorBundle: null }) === false,
+  shouldShowTailorArtifactLinks({ statusNormalized: 'tailored', score: 3.8, tailorBundle: null }) === false,
   'tailored artifact links stay hidden when no bundle exists'
 );
 assert(
-  shouldShowTailorArtifactLinks({ statusNormalized: 'evaluated', score: 2.8, tailorBundle: { paths: { cv: 'output/tailor-bundles/x/cv.md' } } }) === false,
+  shouldShowTailorArtifactLinks({ statusNormalized: 'tailored', score: 2.8, tailorBundle: { paths: { cv: 'output/tailor-bundles/x/cv.md' } } }) === false,
   'tailored artifact links stay hidden below the >3 threshold even if files exist'
 );
 const llmTailorDecision = pendingTailorDecision({
@@ -209,6 +209,10 @@ assert(
   'pending tailor row labels bundle generation progress'
 );
 assert(
+  pendingTailorStatusLabel('evaluating') === 'Running full report...',
+  'pending tailor row labels full evaluation progress'
+);
+assert(
   pendingTailorStatusLabel('') === '',
   'pending tailor row hides progress label when idle'
 );
@@ -256,7 +260,7 @@ api.getApplications = async () => {
     return { applications: [], pending: [{ url: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer' }], skipped: [], expired: [] };
   }
   return {
-    applications: [{ num: 42, jobUrl: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer', statusNormalized: 'evaluated' }],
+    applications: [{ num: 42, jobUrl: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer', statusNormalized: 'tailored' }],
     pending: [],
     skipped: [],
     expired: [],
@@ -266,8 +270,8 @@ const watchResult = await watchPendingTailorCompletion(
   { url: 'https://jobs.example/p1', company: 'Gamma', role: 'Engineer' },
   { timeoutMs: 50, intervalMs: 0 }
 );
-assert(watchResult === true, 'pending tailor watcher resolves when evaluated row appears');
-assert(getApplicationsCalls === 2, 'pending tailor watcher polls until the evaluated row exists');
+assert(watchResult === true, 'pending tailor watcher resolves when tailored row appears');
+assert(getApplicationsCalls === 2, 'pending tailor watcher polls until the tailored row exists');
 api.getApplications = originalGetApplications;
 
 console.log(`\nPassed: ${passed} / ${total}`);

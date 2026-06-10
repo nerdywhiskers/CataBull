@@ -7,11 +7,11 @@
 # no dates, no extra text. Dates go in the date column.
 
 states:
-  - id: evaluated
-    label: Evaluated
-    aliases: [evaluada]
-    description: Offer evaluated with report, pending decision
-    dashboard_group: evaluated
+  - id: tailored
+    label: Tailored
+    aliases: [tailored, tailor, evaluated, evaluada]
+    description: Offer tailored and/or evaluated, pending decision
+    dashboard_group: tailored
 
   - id: applied
     label: Applied

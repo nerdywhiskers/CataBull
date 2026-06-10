@@ -68,6 +68,37 @@ function workspacePath(root, rel) {
   return join(root, ...clean.split('/'));
 }
 
+function readOptionalPreview(root, relPath, { maxChars = 2400 } = {}) {
+  const absPath = workspacePath(root, relPath);
+  if (!absPath || !existsSync(absPath)) return '';
+  try {
+    return readFileSync(absPath, 'utf-8').slice(0, maxChars).trim();
+  } catch {
+    return '';
+  }
+}
+
+export function hydrateTailorBundle(root, tailorBundle) {
+  if (!tailorBundle?.paths) return null;
+  const paths = Object.fromEntries(
+    Object.entries(tailorBundle.paths)
+      .filter(([, relPath]) => {
+        const absPath = workspacePath(root, relPath);
+        return absPath && existsSync(absPath);
+      })
+  );
+  if (!Object.keys(paths).length) return null;
+  return {
+    ...tailorBundle,
+    paths,
+    previews: {
+      cv: readOptionalPreview(root, paths.cv),
+      coverLetter: readOptionalPreview(root, paths.coverLetter),
+      qa: readOptionalPreview(root, paths.qa),
+    },
+  };
+}
+
 export function inferTailorBundleFromReport(raw = '') {
   const paths = {};
   const relPaths = new Set();
@@ -200,7 +231,7 @@ export default async function (app) {
     const raw = readFileSync(resolved.path, 'utf-8');
     const artifacts = findArtifactsForReport(root, filename);
     const reportApp = parseApplications(root).find((app) => app.reportPath === `reports/${filename}`);
-    const tailorBundle = reportApp?.tailorBundle || inferTailorBundleFromReport(raw);
+    const tailorBundle = hydrateTailorBundle(root, reportApp?.tailorBundle || inferTailorBundleFromReport(raw));
     return { raw, filename, artifacts, tailorBundle, archived: resolved.archived };
   });
 
@@ -214,7 +245,7 @@ export default async function (app) {
     const raw = readFileSync(resolved.path, 'utf-8');
     const artifacts = findArtifactsForReport(root, filename);
     const reportApp = parseApplications(root).find((app) => app.reportPath === `reports/${filename}`);
-    const tailorBundle = reportApp?.tailorBundle || inferTailorBundleFromReport(raw);
+    const tailorBundle = hydrateTailorBundle(root, reportApp?.tailorBundle || inferTailorBundleFromReport(raw));
     const zip = await buildReportExportZip(root, filename, {
       resolved,
       artifacts,
