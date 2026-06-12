@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from 'child_process';
 import { platform } from 'os';
 import { join } from 'path';
-import { accessSync, constants as fsConstants, existsSync, mkdirSync, statSync } from 'fs';
+import { accessSync, constants as fsConstants, existsSync, mkdirSync, realpathSync, statSync } from 'fs';
 
 export const SUPPORTED_AGENTS = ['claude', 'codex', 'opencode', 'gemini', 'hermes', 'openclaw'];
 
@@ -20,7 +20,9 @@ export const AGENT_CONTINUATION_SUPPORT = {
   openclaw: true,
 };
 
-export const isWin = platform() === 'win32';
+const currentPlatform = platform();
+export const isWin = currentPlatform === 'win32';
+export const isMac = currentPlatform === 'darwin';
 const loginShell = process.env.SHELL || '/bin/bash';
 
 function psQuote(value) {
@@ -71,6 +73,36 @@ function isExecutableFile(path) {
   } catch {
     return false;
   }
+}
+
+export function clearMacQuarantine(path) {
+  if (!isMac || !path) return false;
+  const targets = new Set([path]);
+  try { targets.add(realpathSync(path)); } catch {}
+
+  let changed = false;
+  for (const target of targets) {
+    try {
+      execFileSync('xattr', ['-d', 'com.apple.quarantine', target], {
+        timeout: 3000,
+        stdio: ['ignore', 'ignore', 'ignore'],
+      });
+      changed = true;
+    } catch {
+      // Missing xattr, missing xattr binary, or no permission. Spawn below
+      // will still surface the actionable repair hint.
+    }
+  }
+  return changed;
+}
+
+export function agentStartFailureMessage(agentName, command, error) {
+  const message = error?.message || 'unknown error';
+  const data = `Failed to start ${agentName}: ${message}`;
+  const shouldHint = !isWin && /(posix_spawn|EACCES|ENOEXEC|permission denied|bad cpu type)/i.test(message);
+  if (!shouldHint) return data;
+  const commandLabel = command || agentName;
+  return `${data}\nThe binary at "${commandLabel}" couldn't be executed. CataBull tried to clear macOS quarantine automatically first. Common remaining causes: the wrong architecture is installed (Intel binary on Apple Silicon, or vice versa), the file is still quarantined (try \`xattr -d com.apple.quarantine "${commandLabel}"\`), or your shell aliases ${agentName} to something the dashboard can't spawn directly. \`which ${agentName}\` should print a real file path; if it shows "aliased to" or empty, reinstall ${agentName} as a real binary.`;
 }
 
 export function resolveAgentCommand(name) {
@@ -250,6 +282,7 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
 export function agentPtyConfig(agentName, root) {
   const command = resolveAgentCommand(agentName);
   if (!command) return null;
+  clearMacQuarantine(command);
 
   if (agentName === 'opencode') {
     const args = [];
@@ -293,6 +326,7 @@ export function agentPtyConfig(agentName, root) {
 export function testAgentCommand(name, root = process.cwd()) {
   const command = resolveAgentCommand(name);
   if (!command) return { ok: false, error: `Agent "${name}" not found on PATH.` };
+  clearMacQuarantine(command);
 
   try {
     const env = name === 'opencode' ? opencodeEnv(root) : process.env;
@@ -312,7 +346,7 @@ export function testAgentCommand(name, root = process.cwd()) {
       });
     return { ok: true, version: (out || '').trim().split('\n')[0] };
   } catch (err) {
-    return { ok: false, error: err.message || 'Command failed' };
+    return { ok: false, error: agentStartFailureMessage(name, command, err) };
   }
 }
 
@@ -417,6 +451,8 @@ export function runAgentPrint(agentName, prompt, root, {
       return;
     }
 
+    clearMacQuarantine(command);
+
     const shell = isWin ? winShell(command, plan.args) : { command, args: plan.args };
 
     const proc = spawn(shell.command, shell.args, {
@@ -442,7 +478,7 @@ export function runAgentPrint(agentName, prompt, root, {
 
     proc.stdout.on('data', data => { stdout += data; });
     proc.stderr.on('data', data => { stderr += data; });
-    proc.on('error', error => finish({ ok: false, error: error.message || `Failed to start ${agentName}` }));
+    proc.on('error', error => finish({ ok: false, error: agentStartFailureMessage(agentName, command, error) }));
     proc.on('close', code => {
       let output = (stdout || '').trim();
       const error = (stderr || '').trim();
