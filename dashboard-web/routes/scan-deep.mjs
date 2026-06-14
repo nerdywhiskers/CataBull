@@ -24,6 +24,7 @@ import yaml from 'js-yaml';
 import { runLevel3, normalizeUrl, extractCompany, extractRole, isAggregatorPage } from '../../scan/level3.mjs';
 import { searchWeb, WebSearchError } from '../../scan/websearch.mjs';
 import { runJobSpy, detectRunner as detectJobSpyRunner, DEFAULT_SITES as JOBSPY_DEFAULT_SITES } from '../../scan/market/jobspy.mjs';
+import { getMarketProvider, listMarketProviders, normalizeMarketProviderName } from '../../scan/market/providers/index.mjs';
 import { classifyLiveness } from '../../lib/liveness-core.mjs';
 import { isActiveLiveness, normalizeJobBoardLiveness } from '../../lib/job-board-liveness.mjs';
 import { checkLinkedInGuestPosting } from '../../lib/linkedin-liveness.mjs';
@@ -37,6 +38,8 @@ import { finishScanRun, startScanRun, updateScanRun } from '../lib/scan-run-stat
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = join(__dirname, '..', '..');
+const DEFAULT_LEVEL4_PROVIDERS = ['jobspy', 'remotive', 'himalayas', 'workingnomads', 'remoteok', 'weworkremotely'];
+const DEFAULT_MARKET_PROVIDER_LIMIT = 25;
 
 export function buildDeepScanQueries(portals = {}) {
   const queries = [];
@@ -493,28 +496,152 @@ function appendToScanHistory(root, offers) {
 //
 // Silently skips (returns { available: false }) when neither `uv` nor
 // `python3` resolves on PATH — JobSpy is opt-in via install.
-async function runLevel4({ root, portals, remainingCap, seenUrls, seenCompanyRoles, livenessCheck, send }) {
+export async function runLevel4({
+  root,
+  portals,
+  remainingCap,
+  seenUrls,
+  seenCompanyRoles,
+  livenessCheck,
+  send,
+  detectRunnerImpl = detectJobSpyRunner,
+  runJobSpyImpl = runJobSpy,
+  getMarketProviderImpl = getMarketProvider,
+  listMarketProvidersImpl = listMarketProviders,
+}) {
   send('progress', { stage: 'l4:detect' });
-  const runner = await detectJobSpyRunner();
-  if (runner.kind === 'none') {
-    send('progress', { stage: 'l4:skipped', reason: 'no python runtime (install uv or python3)' });
-    return { available: false, added: [], skipped: { title: 0, dup: 0, expired: 0, aggregator: 0, unverified: 0 }, errors: [] };
-  }
 
-  // Derive the JobSpy query from the user's title filter. We OR the
-  // positive keywords so JobSpy returns hits matching any. Capped at 6
-  // keywords because most aggregators don't tokenize huge boolean strings
-  // sensibly.
-  const positives = (portals.title_filter?.positive || []).slice(0, 6);
-  if (positives.length === 0) {
+  const queries = buildLevel4Queries(portals);
+  if (queries.length === 0) {
     send('progress', { stage: 'l4:skipped', reason: 'no positive keywords in title_filter' });
-    return { available: true, added: [], skipped: { title: 0, dup: 0, expired: 0, aggregator: 0, unverified: 0 }, errors: [], note: 'no positive keywords' };
+    return { available: true, added: [], skipped: zeroLevel4Skipped(), errors: [], note: 'no positive keywords' };
   }
 
-  // jobspy expects a plain search_term string; treat each positive keyword
-  // as a separate run and aggregate. This avoids weird quoting issues some
-  // aggregators have with OR.
-  const market = portals.market || {};
+  const market = readMarketSettings(root, portals);
+  if (market.enabled === false) {
+    send('progress', { stage: 'l4:skipped', reason: 'market discovery disabled in profile config' });
+    return { available: true, added: [], skipped: zeroLevel4Skipped(), errors: [], note: 'market discovery disabled' };
+  }
+  const providerNames = resolveLevel4ProviderNames(market, { listMarketProvidersImpl });
+  if (providerNames.length === 0) {
+    send('progress', { stage: 'l4:skipped', reason: 'no enabled market providers' });
+    return { available: true, added: [], skipped: zeroLevel4Skipped(), errors: [], note: 'no enabled market providers' };
+  }
+
+  send('progress', { stage: 'l4:start', queries: queries.length, providers: providerNames.length });
+
+  const allHits = [];
+  const errors = [];
+  const providerLimits = resolveMarketProviderLimits(market);
+
+  for (const providerName of providerNames) {
+    if (providerName === 'jobspy') {
+      await collectJobSpyHits({ market, queries, send, errors, allHits, detectRunnerImpl, runJobSpyImpl, limit: providerLimits.jobspy });
+      continue;
+    }
+
+    const provider = getMarketProviderImpl(providerName);
+    if (!provider) {
+      errors.push({ provider: providerName, error: 'provider not found' });
+      send('progress', { stage: 'l4:provider:error', provider: providerName, error: 'provider not found' });
+      continue;
+    }
+
+    send('progress', { stage: 'l4:provider:start', provider: provider.name, totalQueries: queries.length });
+    let providerHits = 0;
+    for (let index = 0; index < queries.length; index++) {
+      const query = queries[index];
+      send('progress', { stage: 'l4:query:start', provider: provider.name, queryIndex: index, total: queries.length, query });
+      try {
+        const result = await provider.fetch({ query, limit: providerLimits[provider.name] || DEFAULT_MARKET_PROVIDER_LIMIT });
+        if (result?.error) errors.push({ provider: provider.name, query, error: result.error });
+        const jobs = result?.jobs || [];
+        providerHits += jobs.length;
+        if (jobs.length > 0) allHits.push(...jobs);
+        send('progress', { stage: 'l4:query:done', provider: provider.name, queryIndex: index, total: queries.length, query, hits: jobs.length });
+      } catch (err) {
+        const message = err?.message || String(err);
+        errors.push({ provider: provider.name, query, error: message });
+        send('progress', { stage: 'l4:provider:error', provider: provider.name, query, error: message });
+      }
+    }
+    send('progress', { stage: 'l4:provider:done', provider: provider.name, hits: providerHits });
+  }
+
+  if (allHits.length === 0) {
+    send('progress', { stage: 'l4:done', added: 0, hits: 0 });
+    return { available: true, added: [], skipped: zeroLevel4Skipped(), errors };
+  }
+
+  const { added, skipped } = await filterLevel4Hits({
+    portals,
+    hits: allHits,
+    remainingCap,
+    seenUrls,
+    seenCompanyRoles,
+    livenessCheck,
+    send,
+    errors,
+  });
+
+  send('progress', { stage: 'l4:done', added: added.length, hits: allHits.length });
+  return { available: true, added, skipped, errors };
+}
+
+function buildLevel4Queries(portals = {}) {
+  return (portals.title_filter?.positive || [])
+    .slice(0, 6)
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+}
+
+function resolveLevel4ProviderNames(market = {}, { listMarketProvidersImpl = listMarketProviders } = {}) {
+  const configured = Array.isArray(market.providers) && market.providers.length
+    ? market.providers
+    : DEFAULT_LEVEL4_PROVIDERS;
+  const available = new Set((listMarketProvidersImpl() || []).map((provider) => provider.name));
+  const seen = new Set();
+  const names = [];
+  for (const raw of configured) {
+    const name = normalizeMarketProviderName(raw);
+    if (!name || seen.has(name)) continue;
+    if (name !== 'jobspy' && !available.has(name)) continue;
+    seen.add(name);
+    names.push(name);
+  }
+  return names;
+}
+
+function resolveMarketProviderLimits(market = {}) {
+  const out = { jobspy: normalizeProviderLimit(market.results_per_site, 15) };
+  for (const [name, value] of Object.entries(market.provider_limits || {})) {
+    const normalized = normalizeMarketProviderName(name);
+    if (!normalized) continue;
+    out[normalized] = normalizeProviderLimit(value, DEFAULT_MARKET_PROVIDER_LIMIT);
+  }
+  return out;
+}
+
+function normalizeProviderLimit(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.min(100, Math.floor(n)) : fallback;
+}
+
+async function collectJobSpyHits({ market, queries, send, errors, allHits, detectRunnerImpl, runJobSpyImpl, limit }) {
+  let runner;
+  try {
+    runner = await detectRunnerImpl();
+  } catch (err) {
+    const message = err?.message || String(err);
+    errors.push({ provider: 'jobspy', error: message });
+    send('progress', { stage: 'l4:provider:error', provider: 'jobspy', error: message });
+    return;
+  }
+  if (runner.kind === 'none') {
+    send('progress', { stage: 'l4:provider:skip', provider: 'jobspy', reason: 'no python runtime (install uv or python3)' });
+    return;
+  }
+
   const configuredSites = Array.isArray(market.sites) && market.sites.length
     ? market.sites
     : JOBSPY_DEFAULT_SITES;
@@ -525,88 +652,110 @@ async function runLevel4({ root, portals, remainingCap, seenUrls, seenCompanyRol
     .filter((s) => withLinkedin || s !== 'linkedin');
   if (withLinkedin && !sites.includes('linkedin')) sites.push('linkedin');
   if (sites.length === 0) {
-    send('progress', { stage: 'l4:skipped', reason: 'no enabled JobSpy sites' });
-    return { available: true, added: [], skipped: { title: 0, dup: 0, expired: 0, aggregator: 0 }, errors: [], note: 'no enabled JobSpy sites' };
+    send('progress', { stage: 'l4:provider:skip', provider: 'jobspy', reason: 'no enabled JobSpy sites' });
+    return;
   }
-  const resultsPerSite = Number.isFinite(market.results_per_site) ? market.results_per_site : 15;
+
+  const resultsPerSite = limit || normalizeProviderLimit(market.results_per_site, 15);
   const hoursOld = Number.isFinite(market.hours_old) ? market.hours_old : 168;
-  const isRemote = market.is_remote !== false; // default true unless explicitly off
-
-  send('progress', { stage: 'l4:start', queries: positives.length, sites: sites.length, runner: runner.kind });
-
-  const allHits = [];
-  const errors = [];
-  const totalRuns = positives.length * Math.max(1, sites.length);
+  const isRemote = market.is_remote !== false;
+  const totalRuns = queries.length * Math.max(1, sites.length);
   let runIndex = 0;
-  for (let i = 0; i < positives.length; i++) {
-    const kw = positives[i];
+
+  send('progress', { stage: 'l4:provider:start', provider: 'jobspy', runner: runner.kind, totalQueries: totalRuns });
+  for (const query of queries) {
     for (const site of sites) {
       const currentRun = runIndex++;
-      send('progress', { stage: 'l4:query:start', queryIndex: currentRun, total: totalRuns, query: kw, site });
-      const r = await runJobSpy({
-        query: kw,
-        isRemote,
-        sites: [site],
-        withLinkedin: site === 'linkedin',
-        resultsPerSite,
-        hoursOld,
-      });
-      if (r.error) errors.push({ query: kw, site, error: r.error });
-      const got = r.jobs?.length || 0;
-      send('progress', { stage: 'l4:query:done', queryIndex: currentRun, total: totalRuns, query: kw, site, hits: got });
-      if (got > 0) allHits.push(...r.jobs);
+      send('progress', { stage: 'l4:query:start', provider: 'jobspy', queryIndex: currentRun, total: totalRuns, query, site });
+      try {
+        const result = await runJobSpyImpl({
+          query,
+          isRemote,
+          sites: [site],
+          withLinkedin: site === 'linkedin',
+          resultsPerSite,
+          hoursOld,
+        });
+        if (result?.error) errors.push({ provider: 'jobspy', query, site, error: result.error });
+        const jobs = result?.jobs || [];
+        if (jobs.length > 0) allHits.push(...jobs);
+        send('progress', { stage: 'l4:query:done', provider: 'jobspy', queryIndex: currentRun, total: totalRuns, query, site, hits: jobs.length });
+      } catch (err) {
+        const message = err?.message || String(err);
+        errors.push({ provider: 'jobspy', query, site, error: message });
+        send('progress', { stage: 'l4:provider:error', provider: 'jobspy', query, site, error: message });
+      }
     }
   }
+  send('progress', { stage: 'l4:provider:done', provider: 'jobspy', hits: allHits.filter((job) => String(job.source || '').startsWith('jobspy:')).length });
+}
 
-  if (allHits.length === 0) {
-    send('progress', { stage: 'l4:done', added: 0, hits: 0 });
-    return { available: true, added: [], skipped: { title: 0, dup: 0, expired: 0, aggregator: 0 }, errors };
-  }
-
-  // Filter + dedupe pass — mirrors Level 3's logic so the two stages
-  // produce identically-shaped pipeline entries.
+async function filterLevel4Hits({ portals, hits, remainingCap, seenUrls, seenCompanyRoles, livenessCheck, send, errors }) {
   const classifyTitle = buildTitleClassifier(portals.title_filter);
-  const skipped = { title: 0, dup: 0, expired: 0, aggregator: 0, unverified: 0 };
+  const skipped = zeroLevel4Skipped();
   const candidates = [];
-  for (const h of allHits) {
-    if (isAggregatorPage({ url: h.url, title: h.title })) { skipped.aggregator++; continue; }
-    const match = classifyTitle(h.title);
+  const batchUrls = new Set();
+  for (const hit of hits) {
+    if (isAggregatorPage({ url: hit.url, title: hit.title })) { skipped.aggregator++; continue; }
+    const match = classifyTitle(hit.title);
     if (match.decision === 'skip') { skipped.title++; continue; }
-    const normalized = normalizeUrl(h.url);
-    if (!normalized || seenUrls.has(normalized)) { skipped.dup++; continue; }
-    candidates.push({ ...h, normalizedUrl: normalized, matchTier: match.tier, matchReason: match.reason });
+    const normalized = normalizeUrl(hit.url);
+    if (!normalized || seenUrls.has(normalized) || batchUrls.has(normalized)) { skipped.dup++; continue; }
+    batchUrls.add(normalized);
+    candidates.push({ ...hit, normalizedUrl: normalized, matchTier: match.tier, matchReason: match.reason });
   }
 
   send('progress', { stage: 'l4:liveness:start', total: candidates.length });
 
   const added = [];
-  for (let i = 0; i < candidates.length; i++) {
+  for (let index = 0; index < candidates.length; index++) {
     if (remainingCap && added.length >= remainingCap) break;
-    const c = candidates[i];
-    send('progress', { stage: 'l4:liveness:check', index: i, total: candidates.length, url: c.url });
+    const candidate = candidates[index];
+    send('progress', { stage: 'l4:liveness:check', index, total: candidates.length, url: candidate.url, provider: candidate.source });
     let result;
-    try { result = await livenessCheck(c.url); }
-    catch (err) { result = { result: 'uncertain', reason: 'liveness check threw' }; errors.push({ url: c.url, error: err.message }); }
+    try {
+      result = await livenessCheck(candidate.url);
+    } catch (err) {
+      result = { result: 'uncertain', reason: 'liveness check threw' };
+      errors.push({ url: candidate.url, error: err.message });
+    }
     if (result?.result === 'expired') { skipped.expired++; continue; }
-    if (!isActiveLiveness(result)) { skipped.unverified = (skipped.unverified || 0) + 1; continue; }
-    const companyKey = `${String(c.company || 'unknown').toLowerCase()}::${String(c.title || '').toLowerCase()}`;
+    if (!isActiveLiveness(result)) { skipped.unverified++; continue; }
+    if (seenUrls.has(candidate.normalizedUrl)) { skipped.dup++; continue; }
+    const companyKey = `${String(candidate.company || 'unknown').toLowerCase()}::${String(candidate.title || '').toLowerCase()}`;
     if (seenCompanyRoles.has(companyKey)) { skipped.dup++; continue; }
     seenCompanyRoles.add(companyKey);
-    seenUrls.add(c.normalizedUrl);
+    seenUrls.add(candidate.normalizedUrl);
     added.push({
-      url: c.url,
-      title: c.title,
-      company: c.company,
-      location: c.location || '',
-      postedAt: c.postedAt || '',
-      source: c.source,
-      matchTier: c.matchTier,
-      matchReason: c.matchReason,
+      url: candidate.url,
+      title: candidate.title,
+      company: candidate.company,
+      location: candidate.location || '',
+      postedAt: candidate.postedAt || '',
+      source: candidate.source,
+      matchTier: candidate.matchTier,
+      matchReason: candidate.matchReason,
     });
   }
 
-  send('progress', { stage: 'l4:done', added: added.length, hits: allHits.length });
-  return { available: true, added, skipped, errors };
+  return { added, skipped };
+}
+
+function zeroLevel4Skipped() {
+  return { title: 0, dup: 0, expired: 0, aggregator: 0, unverified: 0 };
+}
+
+function readMarketSettings(root, portals = {}) {
+  const profileMarket = readProfile(root)?.preferences?.market || {};
+  const legacyMarket = portals.market || {};
+  return {
+    ...legacyMarket,
+    ...profileMarket,
+    provider_limits: {
+      ...(legacyMarket.provider_limits || {}),
+      ...(profileMarket.provider_limits || {}),
+    },
+  };
 }
 
 // ── Playwright liveness ─────────────────────────────────────────────
