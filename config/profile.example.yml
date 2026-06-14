@@ -77,3 +77,19 @@ location:
   visa_status: "No sponsorship needed"
   # For remote roles outside your country:
   # onsite_availability: "1 week/month in any city"
+
+preferences:
+  market:
+    enabled: true
+    providers: [jobspy, remotive, himalayas, workingnomads, remoteok, weworkremotely]
+    provider_limits:
+      remotive: 25
+      himalayas: 25
+      workingnomads: 25
+      remoteok: 25
+      weworkremotely: 25
+    sites: [indeed, wellfound, zip_recruiter, google, glassdoor]
+    with_linkedin: false
+    results_per_site: 15
+    hours_old: 168
+    country_indeed: "USA"

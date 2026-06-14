@@ -1,15 +1,15 @@
 # Market Discovery — Design Spec (W6)
 
-> **Status: shipped Phase 1 (2026-05-15).** Adapted for the post-PR
-> Level 3 architecture — JobSpy results flow through the same dedupe +
-> liveness + pipeline.md pipeline as Level 3, not a separate
-> `data/market.md` triage file.
+> **Status: shipped Phase 1 + feed/API provider expansion (2026-06-13).**
+> Level 4 now merges JobSpy with public machine-readable remote boards
+> before the existing dedupe + liveness + `pipeline.md` promotion flow.
 >
 > Code lives at:
 > - [`scan/market/jobspy_wrapper.py`](../../scan/market/jobspy_wrapper.py) — Python sidecar
 > - [`scan/market/jobspy.mjs`](../../scan/market/jobspy.mjs) — Node adapter
+> - [`scan/market/providers/`](../../scan/market/providers/) — feed/API market providers
 > - `runLevel4()` in [`dashboard-web/routes/scan-deep.mjs`](../../dashboard-web/routes/scan-deep.mjs)
-> - Tests: [`test-jobspy.mjs`](../../test-jobspy.mjs) (29 cases)
+> - Tests: `tests/test-jobspy.mjs`, `tests/test-market-providers.mjs`, `tests/test-market-integration.mjs`
 > - Doctor: `JobSpy runner` check in [`doctor.mjs`](../../doctor.mjs)
 > - Install bootstrap: [`marketing/install.sh`](https://github.com/nerdywhiskers/CataBull/blob/marketing/marketing/install.sh) and `install.ps1` (on the `marketing` branch) install `uv` automatically
 >
@@ -18,10 +18,28 @@
 > integration delivers the core value with less surface area.
 
 A separate scan mode that complements the curated ATS scan by querying
-job aggregators (Indeed, Google Jobs, Glassdoor, ZipRecruiter, optionally
-LinkedIn) via [JobSpy](https://github.com/speedyapply/JobSpy) as a Python
-sidecar. Surfaces roles at companies the user doesn't yet track and
-promising employers worth adding to `portals.yml`.
+both aggregator boards through [JobSpy](https://github.com/speedyapply/JobSpy)
+and public machine-readable remote-job feeds/APIs. Surfaces roles at
+companies the user doesn't yet track and promising employers worth
+adding to `portals.yml`.
+
+## Current Level-4 providers
+
+- **JobSpy** — Indeed, Wellfound, ZipRecruiter, Google Jobs, Glassdoor, optional LinkedIn
+- **Remotive** — public JSON API
+- **Himalayas** — public JSON search API
+- **Working Nomads** — public JSON feed
+- **Remote OK** — public JSON API
+- **We Work Remotely** — public RSS feed
+
+### API keys
+
+No API keys required for the built-in feed/API providers above.
+
+Caveats:
+- Remotive and Remote OK require attribution / link-back according to their API terms.
+- LinkedIn remains opt-in through JobSpy because of legal / anti-bot risk.
+- Provider failures are soft. One board breaking must not kill all of Level 4.
 
 ## Goal
 
@@ -33,16 +51,18 @@ monitoring.
 
 - **Curated ATS scan stays the primary signal.** Market mode is for
   discovery, not daily monitoring.
-- **No noise into `pipeline.md`.** Market hits land in a separate file
-  (`data/market.md`) and require explicit triage to be promoted.
+- **Reuse the existing funnel.** Market hits pass through the same title
+  filter, dedupe, liveness, and `pipeline.md` writer that Level 3 uses.
 - **Agent-mediated triage.** Raw aggregator hits are noisy — the agent
   reads, filters by archetype/profile fit, and surfaces a short list
   rather than dumping 200 rows.
 - **Legal-grey-area defaults.** LinkedIn scraping is risky (ToS, *hiQ
   v. LinkedIn* aftershocks). Default sources skip LinkedIn; opt-in flag
   if the user accepts the risk.
-- **Python is a first-class boundary.** Subprocess only — no
-  long-running service, no FastAPI sidecar.
+- **Feed/API providers first.** Prefer machine-readable JSON/RSS sources
+  over brittle HTML scraping whenever possible.
+- **Python is a first-class boundary for JobSpy only.** Public feed/API
+  providers stay in-process in Node.
 
 ## File layout
 
@@ -187,14 +207,22 @@ true`. Otherwise warn-only.
 ```yaml
 preferences:
   market:
-    enabled: false                 # explicit opt-in; doctor stays quiet otherwise
-    sites: [indeed, google, zip_recruiter, glassdoor]
+    enabled: true
+    providers: [jobspy, remotive, himalayas, workingnomads, remoteok, weworkremotely]
+    provider_limits:
+      remotive: 25
+      himalayas: 25
+      workingnomads: 25
+      remoteok: 25
+      weworkremotely: 25
+    sites: [indeed, wellfound, zip_recruiter, google, glassdoor]
     with_linkedin: false           # legal/risk opt-in
-    results_per_site: 25
+    results_per_site: 15
     hours_old: 168                 # past week
     country_indeed: USA            # Indeed needs explicit country
-    auto_promote_companies: false  # never silently mutate portals.yml
 ```
+
+First-wave feed/API providers above do **not** require API keys.
 
 ## Phasing
 

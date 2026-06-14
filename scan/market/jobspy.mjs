@@ -23,6 +23,7 @@ import { spawn } from 'child_process';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
+import { finalizeJob } from './providers/_shared.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WRAPPER_PATH = join(__dirname, 'jobspy_wrapper.py');
@@ -153,20 +154,16 @@ export async function runJobSpy(opts = {}) {
 export function normalizeJobs(records) {
   const out = [];
   for (const r of records) {
-    const url = r.job_url_direct || r.job_url;
-    const title = String(r.title || '').trim();
-    if (!url || !title) continue;
-    const company = String(r.company || '').trim() || 'Unknown';
     const site = String(r.site || '').toLowerCase() || 'jobspy';
-    out.push({
-      url,
-      title,
-      company,
-      location: String(r.location || '').trim(),
-      postedAt: r.date_posted ? String(r.date_posted).slice(0, 10) : '',
-      source: `jobspy:${site}`,
-      searchSnippet: typeof r.description === 'string' ? r.description.slice(0, 280) : '',
-    });
+    const job = finalizeJob({
+      url: r.job_url_direct || r.job_url,
+      title: r.title,
+      company: r.company,
+      location: r.location,
+      postedAt: r.date_posted,
+      searchSnippet: r.description,
+    }, `jobspy:${site}`);
+    if (job) out.push(job);
   }
   return out;
 }
