@@ -1,6 +1,7 @@
 import {
   AGENT_CONTINUATION_SUPPORT,
   SUPPORTED_AGENTS,
+  agentStartFailureMessage,
   agentPtyConfig,
   detectAgents,
   detectAgentsDetailed,
@@ -112,15 +113,7 @@ export default async function (app) {
         env: cfg.env,
       });
     } catch (error) {
-      // posix_spawnp failures bubble up as cryptic errors. Surface the
-      // resolved binary path and the most likely fixes (macOS quarantine,
-      // broken alias) so the user can act on it.
-      const isPosixSpawn = /posix_spawn/i.test(error?.message || '');
-      const hint = isPosixSpawn
-        ? `\nThe binary at "${cfg.command}" couldn't be executed. Common causes on macOS: the file is quarantined (try \`xattr -d com.apple.quarantine "${cfg.command}"\`), the wrong architecture is installed (Intel binary on Apple Silicon, or vice versa), or your shell aliases ${agentName} to something the dashboard can't spawn directly. \`which ${agentName}\` should print a real file path; if it shows "aliased to" or empty, reinstall ${agentName} as a real binary.`
-        : '';
-      const data = `Failed to start ${agentName}: ${error?.message || 'unknown error'}${hint}`;
-      socket.send(JSON.stringify({ type: 'error', data }));
+      socket.send(JSON.stringify({ type: 'error', data: agentStartFailureMessage(agentName, cfg.command, error) }));
       socket.close();
       return;
     }

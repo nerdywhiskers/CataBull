@@ -174,6 +174,34 @@ assert(
   'Opencode PTY session omits unsupported --pure flag',
 );
 
+const { agentStartFailureMessage } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web/lib/agents.mjs')).href
+);
+
+const opencodeSpawnError = agentStartFailureMessage(
+  'opencode',
+  '/usr/local/bin/opencode',
+  new Error('posix_spawnp failed'),
+);
+assert(
+  opencodeSpawnError.includes('CataBull tried to clear macOS quarantine automatically first'),
+  'Opencode spawn errors mention automatic quarantine repair',
+);
+assert(
+  opencodeSpawnError.includes('wrong architecture'),
+  'Opencode spawn errors mention wrong-architecture installs',
+);
+assert(
+  opencodeSpawnError.includes('which opencode'),
+  'Opencode spawn errors mention shell alias/path checks',
+);
+
+const plainStartError = agentStartFailureMessage('opencode', '/usr/local/bin/opencode', new Error('network down'));
+assert(
+  !plainStartError.includes('wrong architecture'),
+  'non-spawn errors do not include Mac binary repair hint',
+);
+
 console.log('\n5. Claude chat-panel session args');
 
 const claudeFresh = agentPrintArgs('claude', ROOT, {
