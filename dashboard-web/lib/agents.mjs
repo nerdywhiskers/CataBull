@@ -47,6 +47,17 @@ function ensureDir(path) {
   return path;
 }
 
+function fallbackAgentCandidates(name) {
+  const home = process.env.HOME || '';
+  return [
+    home ? join(home, '.local', 'bin', name) : '',
+    home ? join(home, '.npm-global', 'bin', name) : '',
+    `/home/linuxbrew/.linuxbrew/bin/${name}`,
+    `/opt/homebrew/bin/${name}`,
+    `/usr/local/bin/${name}`,
+  ].filter(Boolean);
+}
+
 export function opencodeEnv(root) {
   const outputRoot = ensureDir(join(root, 'output'));
   return {
@@ -133,6 +144,9 @@ export function resolveAgentCommand(name) {
       } catch {
         // try next shell
       }
+    }
+    for (const candidate of fallbackAgentCandidates(name)) {
+      if (isExecutableFile(candidate)) return candidate;
     }
     return null;
   } catch {
@@ -401,7 +415,23 @@ function latestOpencodeTextFromDb(root, sessionID) {
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
-    return '';
+    try {
+      const script = `import sqlite3, sys
+con = sqlite3.connect(sys.argv[1])
+cur = con.cursor()
+row = cur.execute(
+  "select json_extract(p.data,'$.text') from part p join message m on m.id = p.message_id where p.session_id = ? and json_extract(m.data,'$.role') = 'assistant' and json_extract(p.data,'$.type') = 'text' order by p.time_created desc limit 1",
+  (sys.argv[2],),
+).fetchone()
+print((row[0] if row and row[0] else ''), end='')`;
+      return execFileSync('python3', ['-c', script, db, sessionID], {
+        encoding: 'utf-8',
+        timeout: 8000,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+    } catch {
+      return '';
+    }
   }
 }
 

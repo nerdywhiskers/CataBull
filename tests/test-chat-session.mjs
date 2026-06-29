@@ -297,6 +297,7 @@ const {
   resolveAgentSwitchTarget,
   resolveInitialChatAgent,
   shouldContinueAgentSession,
+  terminalPromptDispatchPlan,
   textContainsPermissionPrompt,
 } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web/public/js/views/chat.mjs')).href
@@ -360,6 +361,20 @@ assert(
 );
 
 console.log('\n9. Approval prompt detection');
+
+assert(
+  JSON.stringify(terminalPromptDispatchPlan('claude', 'hello')) === JSON.stringify([
+    { data: 'hello\r', delayMs: 0 },
+  ]),
+  'non-Codex terminal prompt path sends prompt and Enter together'
+);
+assert(
+  JSON.stringify(terminalPromptDispatchPlan('codex', 'hello')) === JSON.stringify([
+    { data: 'hello', delayMs: 0 },
+    { data: '\r', delayMs: 350 },
+  ]),
+  'Codex terminal prompt path sends Enter as a delayed second frame'
+);
 
 assert(
   textContainsPermissionPrompt('Permission request: run command?'),
