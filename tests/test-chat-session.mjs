@@ -257,7 +257,7 @@ const openclawFresh = agentPrintArgs('openclaw', ROOT, {
   sessionId: null,
 });
 assert(
-  JSON.stringify(openclawFresh.args) === JSON.stringify(['--no-color', 'agent', '--agent', 'main', '--message', 'status', '--json']),
+  JSON.stringify(openclawFresh.args) === JSON.stringify(['agent', '--agent', 'main', '--message', 'status', '--json']),
   'fresh OpenClaw turn without sticky id omits --session-id',
 );
 
@@ -267,7 +267,6 @@ const openclawSticky = agentPrintArgs('openclaw', ROOT, {
 });
 assert(
   JSON.stringify(openclawSticky.args) === JSON.stringify([
-    '--no-color',
     'agent',
     '--agent', 'main',
     '--session-id', '123e4567-e89b-12d3-a456-426614174000',
@@ -297,6 +296,7 @@ const {
   resolveAgentSwitchTarget,
   resolveInitialChatAgent,
   shouldContinueAgentSession,
+  terminalPromptDispatchPlan,
   textContainsPermissionPrompt,
 } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web/public/js/views/chat.mjs')).href
@@ -360,6 +360,20 @@ assert(
 );
 
 console.log('\n9. Approval prompt detection');
+
+assert(
+  JSON.stringify(terminalPromptDispatchPlan('claude', 'hello')) === JSON.stringify([
+    { data: 'hello\r', delayMs: 0 },
+  ]),
+  'non-Codex terminal prompt path sends prompt and Enter together'
+);
+assert(
+  JSON.stringify(terminalPromptDispatchPlan('codex', 'hello')) === JSON.stringify([
+    { data: 'hello', delayMs: 0 },
+    { data: '\r', delayMs: 350 },
+  ]),
+  'Codex terminal prompt path sends Enter as a delayed second frame'
+);
 
 assert(
   textContainsPermissionPrompt('Permission request: run command?'),
