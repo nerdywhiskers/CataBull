@@ -79,7 +79,7 @@ export default async function (app) {
       return reply.code(404).send({ ok: false, error: `Agent "${agentName}" not found on PATH.` });
     }
 
-    return runAgentPrint(agentName, prompt, root, { timeoutMs, continueSession, sessionId });
+    return runAgentPrint(agentName, prompt, root, { timeoutMs, continueSession, sessionId, allowEdits: true });
   });
 
   app.get('/terminal/ws', { websocket: true }, async (socket, req) => {

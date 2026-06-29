@@ -89,6 +89,23 @@ const tailoredApps = readFileSync(appsPath, 'utf8');
 assert(tailoredApps.includes('| 1 | '), 'markPipelineTailored bootstraps applications tracker rows');
 assert(tailoredApps.includes('| NewCo | Senior Product Designer | 4.4/5 | Tailored | ✅ | [0007](reports/0007-newco-senior-product-designer.md) |'), 'markPipelineTailored writes Tailored status, PDF state, and report link');
 
+writeFileSync(appsPath, `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-03 | NewCo | Senior Product Designer | 4.4/5 | Applied | ❌ | [0007](reports/0007-newco-senior-product-designer.md) | |\n`);
+const preserved = markPipelineTailored(tmpRoot, {
+  url: 'https://example.com/jobs/1',
+  company: 'NewCo',
+  role: 'Senior Product Designer',
+  reportPath: 'reports/0007-newco-senior-product-designer-v2.md',
+  reportNumber: '0007',
+  hasPdf: true,
+  scoreRaw: '4.7/5',
+});
+assert(preserved.success === true, 'markPipelineTailored still succeeds when a stronger application status already exists');
+const preservedApps = readFileSync(appsPath, 'utf8');
+assert(
+  preservedApps.includes('| NewCo | Senior Product Designer | 4.7/5 | Applied | ✅ | [0007](reports/0007-newco-senior-product-designer-v2.md) |'),
+  'markPipelineTailored preserves Applied instead of regressing back to Tailored while still refreshing score/pdf/report fields'
+);
+
 rmSync(tmpRoot, { recursive: true, force: true });
 
 console.log(`\nPassed: ${passed} / ${total}`);
