@@ -16,7 +16,6 @@ The onboarding wizard detects these agents and requires a successful test before
 | Claude Code | `npm install -g @anthropic-ai/claude-code` |
 | Codex CLI | See [github.com/openai/codex](https://github.com/openai/codex) |
 | OpenCode | `npm install -g opencode-ai` |
-| Gemini CLI | `npm install -g @google/gemini-cli` |
 | Hermes Agent | `curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh \| bash` or see [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) |
 | OpenClaw | `npm install -g openclaw@latest` or see [OpenClaw install docs](https://docs.openclaw.ai/install/index) |
 

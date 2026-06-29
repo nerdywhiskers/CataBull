@@ -3,19 +3,17 @@ import { platform } from 'os';
 import { join } from 'path';
 import { accessSync, constants as fsConstants, existsSync, mkdirSync, realpathSync, statSync } from 'fs';
 
-export const SUPPORTED_AGENTS = ['claude', 'codex', 'opencode', 'gemini', 'hermes', 'openclaw'];
+export const SUPPORTED_AGENTS = ['claude', 'codex', 'opencode', 'hermes', 'openclaw'];
 
 // Which agents support resuming the previous one-shot conversation. claude
 // and opencode take a sticky --session-id / --session uuid (we control the
 // id, fresh uuid = new chat). codex exec resumes via `exec resume --last`.
-// gemini's -p mode has no equivalent yet. hermes exposes --resume / --continue
-// on `chat`; openclaw has --session-id / --session-key on `agent`. Both stay
-// false here until the dashboard chooses a resume policy and threads ids in.
+// hermes exposes --resume / --continue on `chat`; openclaw has --session-id /
+// --session-key on `agent`.
 export const AGENT_CONTINUATION_SUPPORT = {
   claude: true,
   codex: true,
   opencode: true,
-  gemini: false,
   hermes: true,
   openclaw: true,
 };
@@ -218,22 +216,6 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     return { args, env: opencodeEnv(root), promptVia: 'argv' };
   }
 
-  if (agentName === 'gemini') {
-    // Gemini runs headless when stdin is piped (non-TTY) and reads the prompt
-    // from stdin. The -p/--prompt flag instead expects an *inline* value
-    // (`gemini -p "<prompt>"`) and errors "Not enough arguments following: p"
-    // when the prompt is on stdin — and inline args choke on large prompts —
-    // so we omit it and let stdin carry the prompt. --skip-trust bypasses the
-    // trusted-folder check that otherwise aborts in the (non-git) home
-    // workspace.
-    const args = ['--skip-trust'];
-    // --yolo auto-approves tool calls so the agent can write files
-    // (profile.yml, modes/_profile.md) during generation. Read-only steps
-    // don't pass allowEdits and stay approval-gated.
-    if (allowEdits) args.push('--yolo');
-    return { args, env: process.env, promptVia: 'stdin' };
-  }
-
   if (agentName === 'hermes') {
     // Verified against hermes --help on a real install:
     //   - `hermes chat -q <prompt>` is the one-shot/non-interactive path
@@ -269,7 +251,6 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     //     own browser-owned sticky session instead of colliding with whatever
     //     default routing context OpenClaw would otherwise choose.
     //   - `--message` carries the prompt inline (no stdin path exists).
-    //   - `--no-color` keeps stdout ANSI-free.
     //   - `--json` is required: the default (human) output path stalls
     //     without a TTY and produced no stdout in 90+ seconds in
     //     headless tests. `--json` emits a structured envelope quickly
@@ -280,7 +261,7 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     //     keys in the shell env, bypassing openclaw's own config. Gateway
     //     mode is the documented normal path. (The previous `--agent`
     //     with no value was a bug — `--agent <id>` requires a value.)
-    const args = ['--no-color', 'agent', '--agent', 'main'];
+    const args = ['agent', '--agent', 'main'];
     if (sessionId) args.push('--session-id', sessionId);
     args.push('--message', prompt, '--json');
     return {

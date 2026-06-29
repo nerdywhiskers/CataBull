@@ -778,7 +778,7 @@ export async function runPrompt(text, {
   //
   // displayText is what the user sees in chat (e.g. `/catabull evaluate
   // <url>`). text is what's sent to the agent (e.g. the multi-paragraph
-  // inline expansion built for codex/opencode/gemini, which would be ugly
+  // inline expansion built for codex/opencode/hermes/openclaw, which would be ugly
   // to render verbatim). When omitted, displayText defaults to text — that
   // case covers free-form user typing where they already see what they
   // wrote in the composer.

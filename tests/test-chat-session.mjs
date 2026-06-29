@@ -257,7 +257,7 @@ const openclawFresh = agentPrintArgs('openclaw', ROOT, {
   sessionId: null,
 });
 assert(
-  JSON.stringify(openclawFresh.args) === JSON.stringify(['--no-color', 'agent', '--agent', 'main', '--message', 'status', '--json']),
+  JSON.stringify(openclawFresh.args) === JSON.stringify(['agent', '--agent', 'main', '--message', 'status', '--json']),
   'fresh OpenClaw turn without sticky id omits --session-id',
 );
 
@@ -267,7 +267,6 @@ const openclawSticky = agentPrintArgs('openclaw', ROOT, {
 });
 assert(
   JSON.stringify(openclawSticky.args) === JSON.stringify([
-    '--no-color',
     'agent',
     '--agent', 'main',
     '--session-id', '123e4567-e89b-12d3-a456-426614174000',
