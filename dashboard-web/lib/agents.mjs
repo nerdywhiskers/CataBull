@@ -176,7 +176,7 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     if (sessionId) {
       args.push(continueSession ? '--resume' : '--session-id', sessionId);
     }
-    if (allowEdits) args.push('--permission-mode', 'acceptEdits');
+    if (allowEdits) args.push('--dangerously-skip-permissions');
     return { args, env: process.env, promptVia: 'stdin' };
   }
 
@@ -190,12 +190,12 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
       'exec',
       '--skip-git-repo-check',
       '--sandbox', 'workspace-write',
-      '-c', 'approval_policy="on-request"',
+      '-c', 'approval_policy="never"',
     ];
     // CataBull wants Codex sessions to always be able to write inside the
-    // workspace while still prompting when the model decides approval is
-    // needed. Pass the policy explicitly so chat runs do not drift with user
-    // config defaults or fall back to read-only.
+    // workspace without human approval prompts, because chat-mode one-shot
+    // runs cannot answer interactive confirmations. Keep the sandbox scoped
+    // to the workspace instead of escalating to full disk access.
     // Codex exec does not expose a sticky session-id flag in this mode. The
     // modern CLI resumes with a subcommand rather than the removed --continue
     // flag. "-" makes the resumed turn read the prompt from stdin, matching
@@ -212,6 +212,7 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     // — fine for a single-user dashboard. Reset = drop the seen flag so
     // the next call omits --continue and a new session is created.
     if (continueSession) args.push('--continue');
+    if (allowEdits) args.push('--dangerously-skip-permissions');
     args.push(prompt);
     return { args, env: opencodeEnv(root), promptVia: 'argv' };
   }
@@ -280,7 +281,7 @@ export function agentPtyConfig(agentName, root) {
   clearMacQuarantine(command);
 
   if (agentName === 'opencode') {
-    const args = [];
+    const args = ['--dangerously-skip-permissions'];
     const shell = isWin ? winShell(command, args) : { command, args };
     return {
       command: shell.command,
@@ -297,14 +298,18 @@ export function agentPtyConfig(agentName, root) {
   // OpenClaw's conversational entrypoint is `openclaw chat`, not the
   // bare binary (confirmed). Without the subcommand the CLI prints
   // help and exits, which the rail surfaces as an immediate disconnect.
-  // Codex interactive sessions need the same workspace-write + on-request
-  // policy as one-shot runs so the terminal rail does not silently fall back
-  // to read-only or some host-level config default.
+  // Codex interactive sessions need the same workspace-write policy as one-shot
+  // runs, but with approvals disabled so the chat drawer never deadlocks on an
+  // invisible prompt. Hermes uses explicit `chat --yolo` for the same reason.
   const ptyArgs = agentName === 'openclaw'
     ? ['chat']
     : agentName === 'codex'
-      ? ['--sandbox', 'workspace-write', '--ask-for-approval', 'on-request']
-      : [];
+      ? ['--sandbox', 'workspace-write', '--ask-for-approval', 'never']
+      : agentName === 'claude'
+        ? ['--dangerously-skip-permissions']
+        : agentName === 'hermes'
+          ? ['chat', '--yolo']
+          : [];
   const shell = isWin ? winShell(command, ptyArgs) : { command, args: ptyArgs };
   return {
     command: shell.command,
