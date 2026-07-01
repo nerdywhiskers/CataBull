@@ -312,6 +312,29 @@ export function shouldContinueAgentSession({ supportsContinuation, hasSession })
   return Boolean(supportsContinuation && hasSession);
 }
 
+export function terminalPromptDispatchPlan(agentName = '', text = '') {
+  const prompt = String(text || '');
+  if ((agentName || '').toLowerCase() === 'codex') {
+    // Codex's PTY/TUI path needs the prompt text to settle in the composer
+    // before Enter lands; combining `${text}\r` or firing both frames in the
+    // same tick can leave the prompt typed but never submitted.
+    return [
+      { data: prompt, delayMs: 0 },
+      { data: '\r', delayMs: 350 },
+    ];
+  }
+  return [{ data: `${prompt}\r`, delayMs: 0 }];
+}
+
+async function sendPromptToTerminalSession(socket, agentName, text) {
+  for (const step of terminalPromptDispatchPlan(agentName, text)) {
+    if (step.delayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, step.delayMs));
+    }
+    socket.send(JSON.stringify({ type: 'input', data: step.data }));
+  }
+}
+
 export function textContainsPermissionPrompt(value = '') {
   return stripAnsi(String(value || ''))
     .split(/\r?\n/)
@@ -755,7 +778,7 @@ export async function runPrompt(text, {
   //
   // displayText is what the user sees in chat (e.g. `/catabull evaluate
   // <url>`). text is what's sent to the agent (e.g. the multi-paragraph
-  // inline expansion built for codex/opencode/gemini, which would be ugly
+  // inline expansion built for codex/opencode/hermes/openclaw, which would be ugly
   // to render verbatim). When omitted, displayText defaults to text — that
   // case covers free-form user typing where they already see what they
   // wrote in the composer.
@@ -885,7 +908,7 @@ export async function runPrompt(text, {
     logSystem('Agent still initializing, sending prompt anyway', 'error');
   }
 
-  ws.send(JSON.stringify({ type: 'input', data: `${text}\r` }));
+  await sendPromptToTerminalSession(ws, currentAgent, text);
   return true;
 }
 

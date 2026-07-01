@@ -87,7 +87,7 @@ export default async function (app) {
     const runAgent = async (prompt) => {
       const out = await runAgentPrint(agent, prompt, root, {
         timeoutMs,
-        allowEdits: false,
+        allowEdits: true,
         rejectOnError: true,
       });
       return out.output || '';
