@@ -7,7 +7,7 @@
  * scenarios without touching the user's real ~/.catabull/.
  */
 
-import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync } from 'fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -35,6 +35,7 @@ const {
   isHermesProfileHome,
   scaffoldWorkspace,
   ensureWorkspace,
+  syncSystemLayer,
   RESOLUTION_REASONS,
   readGlobalWorkspacePreference,
   homeWorkspaceRoot,
@@ -413,6 +414,26 @@ assert(Array.isArray(RESOLUTION_REASONS), 'exported as array');
 for (const reason of ['env', 'cwd', 'home', 'project']) {
   assert(RESOLUTION_REASONS.includes(reason), `includes "${reason}"`);
 }
+
+// ── 9. syncSystemLayer — refresh stale workspace wrappers ─────────────
+
+console.log('\n9. syncSystemLayer');
+
+withTemp((pkgDir) => {
+  mkdirSync(join(pkgDir, 'scripts'), { recursive: true });
+  writeFileSync(join(pkgDir, 'merge-tracker.mjs'), '#!/usr/bin/env node\nimport \'./scripts/merge-tracker.mjs\';\n');
+  writeFileSync(join(pkgDir, 'scripts', 'merge-tracker.mjs'), 'export const live = true;\n');
+
+  withTemp((wsDir) => {
+    writeFileSync(join(wsDir, 'merge-tracker.mjs'), 'console.log("stale workspace helper");\n');
+    const result = syncSystemLayer(pkgDir, wsDir);
+    const syncedWrapper = readFileSync(join(wsDir, 'merge-tracker.mjs'), 'utf8');
+
+    assert(result.reason === 'home', 'syncSystemLayer mirrors package files into home workspace');
+    assert(result.synced.includes('merge-tracker.mjs'), 'merge-tracker wrapper is part of the synced system layer');
+    assert(syncedWrapper.includes('scripts/merge-tracker.mjs'), 'stale workspace merge-tracker wrapper is overwritten by package-backed wrapper');
+  });
+});
 
 // ── DONE ──────────────────────────────────────────────────────────────
 
