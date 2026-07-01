@@ -300,10 +300,21 @@ console.log('\n10. Version file');
 
 if (fileExists('VERSION')) {
   const version = readFile('VERSION').trim();
+  let packageVersion = null;
+  try {
+    packageVersion = JSON.parse(readFile('package.json')).version;
+  } catch {
+    packageVersion = null;
+  }
   if (/^\d+\.\d+\.\d+$/.test(version)) {
     pass(`VERSION is valid semver: ${version}`);
   } else {
     fail(`VERSION is not valid semver: "${version}"`);
+  }
+  if (packageVersion === version) {
+    pass(`package.json version matches VERSION: ${version}`);
+  } else {
+    fail(`package.json version (${packageVersion || 'missing'}) does not match VERSION (${version})`);
   }
 } else {
   fail('VERSION file missing');
