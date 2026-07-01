@@ -172,8 +172,8 @@ assert(
 
 const opencodePty = agentPtyConfig('opencode', ROOT);
 assert(
-  JSON.stringify(opencodePty?.args || []) === JSON.stringify(['--dangerously-skip-permissions']),
-  'Opencode PTY session starts with auto-approve permissions enabled',
+  JSON.stringify(opencodePty?.args || []) === JSON.stringify(['run', '-i', '--dangerously-skip-permissions']),
+  'Opencode PTY session starts in interactive run mode with auto-approve permissions enabled',
 );
 
 const { agentStartFailureMessage } = await import(
