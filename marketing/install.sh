@@ -7,17 +7,20 @@
 #
 # What it does:
 #   1. Detect Node 18+. If missing, install fnm + Node 22 (no admin needed).
-#   2. npm install -g github:nerdywhiskers/CataBull
-#   3. catabull setup  (installs Playwright Chromium into user cache)
+#   2. Resolve the latest deployed GitHub Release tag (fallback: main).
+#   3. npm install -g github:nerdywhiskers/CataBull#<release-tag-or-main>
+#   4. catabull setup  (installs Playwright Chromium into user cache)
 #
 # Environment overrides:
 #   CATABULL_REPO       — github:<owner>/<repo> source (default: nerdywhiskers/CataBull)
+#   CATABULL_REF        — explicit git ref/tag to install (skips GitHub release lookup)
 #   CATABULL_NODE_MAJOR — Node major version to install if missing (default: 22)
 #   CATABULL_SKIP_SETUP — set to 1 to skip the post-install `catabull setup` step
 
 set -euo pipefail
 
 REPO="${CATABULL_REPO:-nerdywhiskers/CataBull}"
+REF="${CATABULL_REF:-}"
 MIN_NODE_MAJOR=18
 NODE_MAJOR="${CATABULL_NODE_MAJOR:-22}"
 
@@ -40,6 +43,23 @@ echo
 # --- Sanity checks ---
 command -v curl >/dev/null 2>&1 || fail "curl is required but not found."
 command -v bash >/dev/null 2>&1 || fail "bash is required."
+
+resolve_release_ref() {
+  [ -n "$REF" ] && return 0
+  say "→ Resolving latest deployed release"
+  local api="https://api.github.com/repos/$REPO/releases/latest"
+  local json
+  if ! json="$(curl -fsSL -H 'Accept: application/vnd.github+json' "$api" 2>/dev/null)"; then
+    REF="main"
+    warn "No published GitHub Release found for $REPO yet — falling back to main"
+    return 0
+  fi
+  REF="$(printf '%s' "$json" | tr -d '\n' | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')"
+  [ -n "$REF" ] && [ "$REF" != "$json" ] || fail "Could not parse latest release tag for $REPO"
+}
+
+resolve_release_ref
+hint "Release ref: $REF"
 
 # --- 1. Node detection ---
 have_node=0
@@ -89,8 +109,8 @@ if [ "$have_node" -eq 0 ]; then
 fi
 
 # --- 3. Install catabull globally from GitHub ---
-say "→ Installing catabull from github:$REPO"
-npm install -g "github:$REPO" >/dev/null
+say "→ Installing catabull from github:$REPO#$REF"
+npm install -g "github:$REPO#$REF" >/dev/null
 command -v catabull >/dev/null 2>&1 || fail "catabull installed but not on PATH. You may need to add the npm global bin to your PATH and re-open your terminal."
 say "✓ catabull $(catabull --version 2>/dev/null || echo 'installed')"
 

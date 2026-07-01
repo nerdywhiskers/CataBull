@@ -5,17 +5,20 @@
 #
 # What it does:
 #   1. Detect Node 18+. If missing, install fnm + Node 22 (no admin needed).
-#   2. npm install -g github:nerdywhiskers/CataBull
-#   3. catabull setup  (installs Playwright Chromium into user cache)
+#   2. Resolve the latest deployed GitHub Release tag (fallback: main).
+#   3. npm install -g github:nerdywhiskers/CataBull#<release-tag-or-main>
+#   4. catabull setup  (installs Playwright Chromium into user cache)
 #
 # Environment overrides:
 #   $env:CATABULL_REPO       -- github:<owner>/<repo> source
+#   $env:CATABULL_REF        -- explicit git ref/tag to install (skips GitHub release lookup)
 #   $env:CATABULL_NODE_MAJOR -- Node major version to install if missing
 #   $env:CATABULL_SKIP_SETUP -- set to '1' to skip the post-install setup
 
 $ErrorActionPreference = 'Stop'
 
 $Repo          = if ($env:CATABULL_REPO)       { $env:CATABULL_REPO }       else { 'nerdywhiskers/CataBull' }
+$Ref           = if ($env:CATABULL_REF)        { $env:CATABULL_REF }        else { $null }
 $MinNodeMajor  = 18
 $NodeMajor     = if ($env:CATABULL_NODE_MAJOR) { [int]$env:CATABULL_NODE_MAJOR } else { 22 }
 $FnmInstallDir = Join-Path $env:LOCALAPPDATA 'fnm'
@@ -28,6 +31,19 @@ function Fail ([string]$msg) { Write-Host $msg -ForegroundColor Red; exit 1 }
 Say  "CataBull installer"
 Hint "Source: github:$Repo"
 Write-Host ''
+
+if (-not $Ref) {
+  Say '-> Resolving latest deployed release'
+  try {
+    $latest = Invoke-RestMethod -Headers @{ Accept = 'application/vnd.github+json' } -Uri "https://api.github.com/repos/$Repo/releases/latest"
+    $Ref = $latest.tag_name
+  } catch {
+    $Ref = 'main'
+    Warn "No published GitHub Release found for $Repo yet -- falling back to main."
+  }
+  if (-not $Ref) { Fail "Latest GitHub Release for $Repo did not return a tag name." }
+}
+Hint "Release ref: $Ref"
 
 # Refresh the current session's PATH from the registry so anything we
 # install/modify lands on PATH without requiring a new shell.
@@ -104,8 +120,8 @@ if (-not $haveNode) {
 }
 
 # --- 3. Install catabull globally from GitHub ---
-Say "-> Installing catabull from github:$Repo"
-& npm install -g "github:$Repo" | Out-Null
+Say "-> Installing catabull from github:$Repo#$Ref"
+& npm install -g "github:$Repo#$Ref" | Out-Null
 
 $catabullCmd = Get-Command catabull -ErrorAction SilentlyContinue
 if (-not $catabullCmd) { Fail "catabull installed but not on PATH. Try restarting PowerShell, then run 'catabull'." }
