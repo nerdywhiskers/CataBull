@@ -24,7 +24,7 @@ let currentStep = 0;
 let status = {};
 let profileData = {};
 let availableAgents = [];
-let supportedAgents = ['claude', 'codex', 'opencode', 'gemini', 'hermes', 'openclaw'];
+let supportedAgents = ['claude', 'codex', 'opencode', 'hermes', 'openclaw'];
 let selectedAgent = '';
 let agentTestResult = null; // { ok, version, error }
 let generateState = 'idle'; // idle | running | done | error
@@ -52,10 +52,6 @@ const AGENT_INSTALL_HELP = {
   opencode: {
     label: 'OpenCode',
     help: '<code>npm install -g opencode-ai</code>',
-  },
-  gemini: {
-    label: 'Gemini CLI',
-    help: '<code>npm install -g @google/gemini-cli</code>',
   },
   hermes: {
     label: 'Hermes Agent',

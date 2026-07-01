@@ -54,6 +54,10 @@ const deepL3 = deepProgressFromEvent({ stage: 'l3:search:start', queryName: 'AI 
 assert(/Level 3/.test(deepL3?.eyebrow || ''), 'deep Level 3 event labels level');
 assert(/AI roles/.test(deepL3?.title || ''), 'deep Level 3 event includes query name');
 
+const deepL4 = deepProgressFromEvent({ stage: 'l4:provider:start', provider: 'remotive', totalQueries: 3 });
+assert(/Level 4/.test(deepL4?.eyebrow || ''), 'deep Level 4 event labels level');
+assert(/remotive/i.test(deepL4?.title || ''), 'deep Level 4 provider event includes provider name');
+
 const html = renderScanProgress({ visible: true, tone: 'running', eyebrow: 'Quick Scan', title: 'Scanning', detail: 'Direct ATS only', meta: '2/5 complete' });
 assert(/scan-progress/.test(html), 'renderScanProgress returns shared progress markup');
 assert(/Quick Scan/.test(html) && /2\/5 complete/.test(html), 'rendered markup includes supplied copy');

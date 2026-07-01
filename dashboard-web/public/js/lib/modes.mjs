@@ -211,7 +211,7 @@ export function runModePrompt(modeId, context = {}, runOptions = {}) {
     : buildInlinePrompt(mode, context);
 
   // Always show the user the clean slash form, regardless of what the
-  // underlying agent actually receives. Without this, codex/opencode/gemini
+  // underlying agent actually receives. Without this, codex/opencode/hermes/openclaw
   // users see the entire multi-paragraph inline expansion rendered as if
   // they typed it themselves.
   const displayText = buildPrompt(mode, context);

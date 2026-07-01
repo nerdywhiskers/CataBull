@@ -104,9 +104,9 @@ assert(
     'exec',
     '--skip-git-repo-check',
     '--sandbox', 'workspace-write',
-    '-c', 'approval_policy="on-request"',
+    '-c', 'approval_policy="never"',
   ]),
-  'fresh Codex turn forces workspace-write + on-request',
+  'fresh Codex turn forces workspace-write + never-ask approvals',
 );
 
 const codexContinued = agentPrintArgs('codex', ROOT, { continueSession: true });
@@ -115,10 +115,10 @@ assert(
     'exec',
     '--skip-git-repo-check',
     '--sandbox', 'workspace-write',
-    '-c', 'approval_policy="on-request"',
+    '-c', 'approval_policy="never"',
     'resume', '--last', '-',
   ]),
-  'continued Codex turn keeps workspace-write + on-request and resumes last',
+  'continued Codex turn keeps workspace-write + never-ask approvals and resumes last',
 );
 assert(
   !codexContinued.args.includes('--continue'),
@@ -137,41 +137,71 @@ const codexPty = agentPtyConfig('codex', ROOT);
 assert(
   JSON.stringify(codexPty?.args || []) === JSON.stringify([
     '--sandbox', 'workspace-write',
-    '--ask-for-approval', 'on-request',
+    '--ask-for-approval', 'never',
   ]),
-  'Codex PTY session also forces workspace-write + on-request',
+  'Codex PTY session also forces workspace-write + never-ask approvals',
 );
 
 console.log('\n4. Opencode chat-panel args');
 
-const opencodeFresh = agentPrintArgs('opencode', ROOT, { continueSession: false });
+const opencodeFresh = agentPrintArgs('opencode', ROOT, { continueSession: false, allowEdits: true });
 assert(
   JSON.stringify(opencodeFresh.args) === JSON.stringify([
     'run',
     '--format', 'json',
     '--dir', ROOT,
+    '--dangerously-skip-permissions',
     '',
   ]),
-  'fresh Opencode turn uses JSON format and positional prompt',
+  'fresh Opencode turn uses JSON format, workspace dir, and auto-approves workspace actions',
 );
 assert(opencodeFresh.promptVia === 'argv', 'fresh Opencode prompt is passed via argv');
 
-const opencodeContinued = agentPrintArgs('opencode', ROOT, { continueSession: true });
+const opencodeContinued = agentPrintArgs('opencode', ROOT, { continueSession: true, allowEdits: true });
 assert(
   JSON.stringify(opencodeContinued.args) === JSON.stringify([
     'run',
     '--format', 'json',
     '--dir', ROOT,
     '--continue',
+    '--dangerously-skip-permissions',
     '',
   ]),
-  'continued Opencode turn resumes and still passes prompt via argv',
+  'continued Opencode turn resumes, auto-approves workspace actions, and still passes prompt via argv',
 );
 
 const opencodePty = agentPtyConfig('opencode', ROOT);
 assert(
-  JSON.stringify(opencodePty?.args || []) === JSON.stringify([]),
-  'Opencode PTY session omits unsupported --pure flag',
+  JSON.stringify(opencodePty?.args || []) === JSON.stringify(['run', '-i', '--dangerously-skip-permissions']),
+  'Opencode PTY session starts in interactive run mode with auto-approve permissions enabled',
+);
+
+const { agentStartFailureMessage } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web/lib/agents.mjs')).href
+);
+
+const opencodeSpawnError = agentStartFailureMessage(
+  'opencode',
+  '/usr/local/bin/opencode',
+  new Error('posix_spawnp failed'),
+);
+assert(
+  opencodeSpawnError.includes('CataBull tried to clear macOS quarantine automatically first'),
+  'Opencode spawn errors mention automatic quarantine repair',
+);
+assert(
+  opencodeSpawnError.includes('wrong architecture'),
+  'Opencode spawn errors mention wrong-architecture installs',
+);
+assert(
+  opencodeSpawnError.includes('which opencode'),
+  'Opencode spawn errors mention shell alias/path checks',
+);
+
+const plainStartError = agentStartFailureMessage('opencode', '/usr/local/bin/opencode', new Error('network down'));
+assert(
+  !plainStartError.includes('wrong architecture'),
+  'non-spawn errors do not include Mac binary repair hint',
 );
 
 console.log('\n5. Claude chat-panel session args');
@@ -179,27 +209,37 @@ console.log('\n5. Claude chat-panel session args');
 const claudeFresh = agentPrintArgs('claude', ROOT, {
   sessionId: '123e4567-e89b-12d3-a456-426614174000',
   continueSession: false,
+  allowEdits: true,
 });
 assert(
   JSON.stringify(claudeFresh.args) === JSON.stringify([
     '-p',
     '--output-format', 'text',
     '--session-id', '123e4567-e89b-12d3-a456-426614174000',
+    '--dangerously-skip-permissions',
   ]),
-  'fresh Claude turn uses --session-id to create the named session',
+  'fresh Claude turn uses --session-id and bypasses permission prompts for workspace actions',
 );
 
 const claudeContinued = agentPrintArgs('claude', ROOT, {
   sessionId: '123e4567-e89b-12d3-a456-426614174000',
   continueSession: true,
+  allowEdits: true,
 });
 assert(
   JSON.stringify(claudeContinued.args) === JSON.stringify([
     '-p',
     '--output-format', 'text',
     '--resume', '123e4567-e89b-12d3-a456-426614174000',
+    '--dangerously-skip-permissions',
   ]),
-  'continued Claude turn uses --resume instead of reusing --session-id',
+  'continued Claude turn uses --resume and bypasses permission prompts',
+);
+
+const claudePty = agentPtyConfig('claude', ROOT);
+assert(
+  JSON.stringify(claudePty?.args || []) === JSON.stringify(['--dangerously-skip-permissions']),
+  'Claude PTY session starts with permission prompts bypassed',
 );
 
 console.log('\n6. Hermes chat-panel continuation args');
@@ -222,6 +262,12 @@ assert(
   'continued Hermes turn uses --continue',
 );
 
+const hermesPty = agentPtyConfig('hermes', ROOT);
+assert(
+  JSON.stringify(hermesPty?.args || []) === JSON.stringify(['chat', '--yolo']),
+  'Hermes PTY session starts in chat mode with yolo enabled',
+);
+
 console.log('\n7. OpenClaw chat-panel session args');
 
 const openclawFresh = agentPrintArgs('openclaw', ROOT, {
@@ -229,7 +275,7 @@ const openclawFresh = agentPrintArgs('openclaw', ROOT, {
   sessionId: null,
 });
 assert(
-  JSON.stringify(openclawFresh.args) === JSON.stringify(['--no-color', 'agent', '--agent', 'main', '--message', 'status', '--json']),
+  JSON.stringify(openclawFresh.args) === JSON.stringify(['agent', '--agent', 'main', '--message', 'status', '--json']),
   'fresh OpenClaw turn without sticky id omits --session-id',
 );
 
@@ -239,7 +285,6 @@ const openclawSticky = agentPrintArgs('openclaw', ROOT, {
 });
 assert(
   JSON.stringify(openclawSticky.args) === JSON.stringify([
-    '--no-color',
     'agent',
     '--agent', 'main',
     '--session-id', '123e4567-e89b-12d3-a456-426614174000',
@@ -269,6 +314,7 @@ const {
   resolveAgentSwitchTarget,
   resolveInitialChatAgent,
   shouldContinueAgentSession,
+  terminalPromptDispatchPlan,
   textContainsPermissionPrompt,
 } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web/public/js/views/chat.mjs')).href
@@ -332,6 +378,20 @@ assert(
 );
 
 console.log('\n9. Approval prompt detection');
+
+assert(
+  JSON.stringify(terminalPromptDispatchPlan('claude', 'hello')) === JSON.stringify([
+    { data: 'hello\r', delayMs: 0 },
+  ]),
+  'non-Codex terminal prompt path sends prompt and Enter together'
+);
+assert(
+  JSON.stringify(terminalPromptDispatchPlan('codex', 'hello')) === JSON.stringify([
+    { data: 'hello', delayMs: 0 },
+    { data: '\r', delayMs: 350 },
+  ]),
+  'Codex terminal prompt path sends Enter as a delayed second frame'
+);
 
 assert(
   textContainsPermissionPrompt('Permission request: run command?'),

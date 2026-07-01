@@ -170,7 +170,7 @@ export const api = {
   checkLivenessAll: () => request('/liveness/check-all', { method: 'POST', body: {} }),
   expireUrl: (url) => request('/liveness/expire', { method: 'POST', body: { url } }),
 
-  // Terminal agent detection (claude / codex / opencode / gemini on PATH)
+  // Terminal agent detection (claude / codex / opencode / hermes / openclaw on PATH)
   terminalAgents: () => request('/terminal/agents'),
   testAgent: (name) => request('/terminal/test', { method: 'POST', body: { name } }),
   runTerminalPrompt: (agent, prompt, { signal, timeoutMs, continueSession, sessionId } = {}) => request('/terminal/run', { method: 'POST', body: { agent, prompt, timeoutMs, continueSession, sessionId }, signal }),

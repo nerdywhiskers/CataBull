@@ -272,7 +272,8 @@ export function markPipelineTailored(root, {
     parts[2] = company;
     parts[3] = role;
     parts[4] = scoreRaw || parts[4] || '';
-    parts[5] = 'Tailored';
+    const existingStatus = String(parts[5] || '').trim();
+    parts[5] = existingStatus && existingStatus.toLowerCase() !== 'tailored' ? existingStatus : 'Tailored';
     parts[6] = hasPdf ? '✅' : (parts[6] || '❌');
     parts[7] = reportCell || parts[7] || '';
     parts[8] = parts[8] || '';

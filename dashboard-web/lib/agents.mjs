@@ -1,26 +1,26 @@
 import { execFileSync, spawn } from 'child_process';
 import { platform } from 'os';
 import { join } from 'path';
-import { accessSync, constants as fsConstants, existsSync, mkdirSync, statSync } from 'fs';
+import { accessSync, constants as fsConstants, existsSync, mkdirSync, realpathSync, statSync } from 'fs';
 
-export const SUPPORTED_AGENTS = ['claude', 'codex', 'opencode', 'gemini', 'hermes', 'openclaw'];
+export const SUPPORTED_AGENTS = ['claude', 'codex', 'opencode', 'hermes', 'openclaw'];
 
 // Which agents support resuming the previous one-shot conversation. claude
 // and opencode take a sticky --session-id / --session uuid (we control the
 // id, fresh uuid = new chat). codex exec resumes via `exec resume --last`.
-// gemini's -p mode has no equivalent yet. hermes exposes --resume / --continue
-// on `chat`; openclaw has --session-id / --session-key on `agent`. Both stay
-// false here until the dashboard chooses a resume policy and threads ids in.
+// hermes exposes --resume / --continue on `chat`; openclaw has --session-id /
+// --session-key on `agent`.
 export const AGENT_CONTINUATION_SUPPORT = {
   claude: true,
   codex: true,
   opencode: true,
-  gemini: false,
   hermes: true,
   openclaw: true,
 };
 
-export const isWin = platform() === 'win32';
+const currentPlatform = platform();
+export const isWin = currentPlatform === 'win32';
+export const isMac = currentPlatform === 'darwin';
 const loginShell = process.env.SHELL || '/bin/bash';
 
 function psQuote(value) {
@@ -43,6 +43,17 @@ function winPreferCmdShim(command) {
 function ensureDir(path) {
   mkdirSync(path, { recursive: true });
   return path;
+}
+
+function fallbackAgentCandidates(name) {
+  const home = process.env.HOME || '';
+  return [
+    home ? join(home, '.local', 'bin', name) : '',
+    home ? join(home, '.npm-global', 'bin', name) : '',
+    `/home/linuxbrew/.linuxbrew/bin/${name}`,
+    `/opt/homebrew/bin/${name}`,
+    `/usr/local/bin/${name}`,
+  ].filter(Boolean);
 }
 
 export function opencodeEnv(root) {
@@ -71,6 +82,36 @@ function isExecutableFile(path) {
   } catch {
     return false;
   }
+}
+
+export function clearMacQuarantine(path) {
+  if (!isMac || !path) return false;
+  const targets = new Set([path]);
+  try { targets.add(realpathSync(path)); } catch {}
+
+  let changed = false;
+  for (const target of targets) {
+    try {
+      execFileSync('xattr', ['-d', 'com.apple.quarantine', target], {
+        timeout: 3000,
+        stdio: ['ignore', 'ignore', 'ignore'],
+      });
+      changed = true;
+    } catch {
+      // Missing xattr, missing xattr binary, or no permission. Spawn below
+      // will still surface the actionable repair hint.
+    }
+  }
+  return changed;
+}
+
+export function agentStartFailureMessage(agentName, command, error) {
+  const message = error?.message || 'unknown error';
+  const data = `Failed to start ${agentName}: ${message}`;
+  const shouldHint = !isWin && /(posix_spawn|EACCES|ENOEXEC|permission denied|bad cpu type)/i.test(message);
+  if (!shouldHint) return data;
+  const commandLabel = command || agentName;
+  return `${data}\nThe binary at "${commandLabel}" couldn't be executed. CataBull tried to clear macOS quarantine automatically first. Common remaining causes: the wrong architecture is installed (Intel binary on Apple Silicon, or vice versa), the file is still quarantined (try \`xattr -d com.apple.quarantine "${commandLabel}"\`), or your shell aliases ${agentName} to something the dashboard can't spawn directly. \`which ${agentName}\` should print a real file path; if it shows "aliased to" or empty, reinstall ${agentName} as a real binary.`;
 }
 
 export function resolveAgentCommand(name) {
@@ -102,6 +143,9 @@ export function resolveAgentCommand(name) {
         // try next shell
       }
     }
+    for (const candidate of fallbackAgentCandidates(name)) {
+      if (isExecutableFile(candidate)) return candidate;
+    }
     return null;
   } catch {
     return null;
@@ -132,7 +176,7 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     if (sessionId) {
       args.push(continueSession ? '--resume' : '--session-id', sessionId);
     }
-    if (allowEdits) args.push('--permission-mode', 'acceptEdits');
+    if (allowEdits) args.push('--dangerously-skip-permissions');
     return { args, env: process.env, promptVia: 'stdin' };
   }
 
@@ -146,12 +190,12 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
       'exec',
       '--skip-git-repo-check',
       '--sandbox', 'workspace-write',
-      '-c', 'approval_policy="on-request"',
+      '-c', 'approval_policy="never"',
     ];
     // CataBull wants Codex sessions to always be able to write inside the
-    // workspace while still prompting when the model decides approval is
-    // needed. Pass the policy explicitly so chat runs do not drift with user
-    // config defaults or fall back to read-only.
+    // workspace without human approval prompts, because chat-mode one-shot
+    // runs cannot answer interactive confirmations. Keep the sandbox scoped
+    // to the workspace instead of escalating to full disk access.
     // Codex exec does not expose a sticky session-id flag in this mode. The
     // modern CLI resumes with a subcommand rather than the removed --continue
     // flag. "-" makes the resumed turn read the prompt from stdin, matching
@@ -168,24 +212,9 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     // — fine for a single-user dashboard. Reset = drop the seen flag so
     // the next call omits --continue and a new session is created.
     if (continueSession) args.push('--continue');
+    if (allowEdits) args.push('--dangerously-skip-permissions');
     args.push(prompt);
     return { args, env: opencodeEnv(root), promptVia: 'argv' };
-  }
-
-  if (agentName === 'gemini') {
-    // Gemini runs headless when stdin is piped (non-TTY) and reads the prompt
-    // from stdin. The -p/--prompt flag instead expects an *inline* value
-    // (`gemini -p "<prompt>"`) and errors "Not enough arguments following: p"
-    // when the prompt is on stdin — and inline args choke on large prompts —
-    // so we omit it and let stdin carry the prompt. --skip-trust bypasses the
-    // trusted-folder check that otherwise aborts in the (non-git) home
-    // workspace.
-    const args = ['--skip-trust'];
-    // --yolo auto-approves tool calls so the agent can write files
-    // (profile.yml, modes/_profile.md) during generation. Read-only steps
-    // don't pass allowEdits and stay approval-gated.
-    if (allowEdits) args.push('--yolo');
-    return { args, env: process.env, promptVia: 'stdin' };
   }
 
   if (agentName === 'hermes') {
@@ -223,7 +252,6 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     //     own browser-owned sticky session instead of colliding with whatever
     //     default routing context OpenClaw would otherwise choose.
     //   - `--message` carries the prompt inline (no stdin path exists).
-    //   - `--no-color` keeps stdout ANSI-free.
     //   - `--json` is required: the default (human) output path stalls
     //     without a TTY and produced no stdout in 90+ seconds in
     //     headless tests. `--json` emits a structured envelope quickly
@@ -234,7 +262,7 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
     //     keys in the shell env, bypassing openclaw's own config. Gateway
     //     mode is the documented normal path. (The previous `--agent`
     //     with no value was a bug — `--agent <id>` requires a value.)
-    const args = ['--no-color', 'agent', '--agent', 'main'];
+    const args = ['agent', '--agent', 'main'];
     if (sessionId) args.push('--session-id', sessionId);
     args.push('--message', prompt, '--json');
     return {
@@ -250,9 +278,15 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
 export function agentPtyConfig(agentName, root) {
   const command = resolveAgentCommand(agentName);
   if (!command) return null;
+  clearMacQuarantine(command);
 
   if (agentName === 'opencode') {
-    const args = [];
+    // Bare `opencode --dangerously-skip-permissions` exits with top-level help
+    // and code 1 because that flag belongs to `opencode run`, not the root
+    // command. Use interactive run mode so the chat rail keeps a live PTY
+    // session *and* auto-approves tool permissions instead of deadlocking on
+    // invisible prompts.
+    const args = ['run', '-i', '--dangerously-skip-permissions'];
     const shell = isWin ? winShell(command, args) : { command, args };
     return {
       command: shell.command,
@@ -269,14 +303,18 @@ export function agentPtyConfig(agentName, root) {
   // OpenClaw's conversational entrypoint is `openclaw chat`, not the
   // bare binary (confirmed). Without the subcommand the CLI prints
   // help and exits, which the rail surfaces as an immediate disconnect.
-  // Codex interactive sessions need the same workspace-write + on-request
-  // policy as one-shot runs so the terminal rail does not silently fall back
-  // to read-only or some host-level config default.
+  // Codex interactive sessions need the same workspace-write policy as one-shot
+  // runs, but with approvals disabled so the chat drawer never deadlocks on an
+  // invisible prompt. Hermes uses explicit `chat --yolo` for the same reason.
   const ptyArgs = agentName === 'openclaw'
     ? ['chat']
     : agentName === 'codex'
-      ? ['--sandbox', 'workspace-write', '--ask-for-approval', 'on-request']
-      : [];
+      ? ['--sandbox', 'workspace-write', '--ask-for-approval', 'never']
+      : agentName === 'claude'
+        ? ['--dangerously-skip-permissions']
+        : agentName === 'hermes'
+          ? ['chat', '--yolo']
+          : [];
   const shell = isWin ? winShell(command, ptyArgs) : { command, args: ptyArgs };
   return {
     command: shell.command,
@@ -293,6 +331,7 @@ export function agentPtyConfig(agentName, root) {
 export function testAgentCommand(name, root = process.cwd()) {
   const command = resolveAgentCommand(name);
   if (!command) return { ok: false, error: `Agent "${name}" not found on PATH.` };
+  clearMacQuarantine(command);
 
   try {
     const env = name === 'opencode' ? opencodeEnv(root) : process.env;
@@ -312,7 +351,7 @@ export function testAgentCommand(name, root = process.cwd()) {
       });
     return { ok: true, version: (out || '').trim().split('\n')[0] };
   } catch (err) {
-    return { ok: false, error: err.message || 'Command failed' };
+    return { ok: false, error: agentStartFailureMessage(name, command, err) };
   }
 }
 
@@ -367,7 +406,23 @@ function latestOpencodeTextFromDb(root, sessionID) {
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
-    return '';
+    try {
+      const script = `import sqlite3, sys
+con = sqlite3.connect(sys.argv[1])
+cur = con.cursor()
+row = cur.execute(
+  "select json_extract(p.data,'$.text') from part p join message m on m.id = p.message_id where p.session_id = ? and json_extract(m.data,'$.role') = 'assistant' and json_extract(p.data,'$.type') = 'text' order by p.time_created desc limit 1",
+  (sys.argv[2],),
+).fetchone()
+print((row[0] if row and row[0] else ''), end='')`;
+      return execFileSync('python3', ['-c', script, db, sessionID], {
+        encoding: 'utf-8',
+        timeout: 8000,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+    } catch {
+      return '';
+    }
   }
 }
 
@@ -417,6 +472,8 @@ export function runAgentPrint(agentName, prompt, root, {
       return;
     }
 
+    clearMacQuarantine(command);
+
     const shell = isWin ? winShell(command, plan.args) : { command, args: plan.args };
 
     const proc = spawn(shell.command, shell.args, {
@@ -442,7 +499,7 @@ export function runAgentPrint(agentName, prompt, root, {
 
     proc.stdout.on('data', data => { stdout += data; });
     proc.stderr.on('data', data => { stderr += data; });
-    proc.on('error', error => finish({ ok: false, error: error.message || `Failed to start ${agentName}` }));
+    proc.on('error', error => finish({ ok: false, error: agentStartFailureMessage(agentName, command, error) }));
     proc.on('close', code => {
       let output = (stdout || '').trim();
       const error = (stderr || '').trim();

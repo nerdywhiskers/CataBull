@@ -936,6 +936,22 @@ async function startContextualScoring(container, { force = false, urls = null } 
   }
 }
 
+export function areAllPendingItemsSelected(selectedUrls, items = []) {
+  if (!items.length) return false;
+  const selectedSet = selectedUrls instanceof Set ? selectedUrls : new Set(selectedUrls || []);
+  return items.every((item) => selectedSet.has(item.url));
+}
+
+export function setPendingSelectionForItems(selectedUrls, items = [], checked = false) {
+  const next = selectedUrls instanceof Set ? new Set(selectedUrls) : new Set(selectedUrls || []);
+  for (const item of items) {
+    if (!item?.url) continue;
+    if (checked) next.add(item.url);
+    else next.delete(item.url);
+  }
+  return next;
+}
+
 function renderPending(pageItems = null) {
   if (!pending.length) return `<div class="empty-state"><h3>No pending jobs</h3><p>Run a scan to discover new roles, or paste a job description in the chat.</p></div>`;
 
@@ -943,7 +959,7 @@ function renderPending(pageItems = null) {
   const fullFiltered = baseFiltered.filter(p => matchesSearch(p)).filter(matchesPendingFilter);
   const filtered = pageItems ?? fullFiltered;
 
-  const allSelected = filtered.length > 0 && filtered.every(p => selected.has(p.url));
+  const allSelected = areAllPendingItemsSelected(selected, fullFiltered);
   const anySelected = selected.size > 0;
 
   if (!filtered.length) {
@@ -1782,8 +1798,7 @@ function update(container) {
   const selectAll = container.querySelector('#select-all');
   if (selectAll) {
     selectAll.onchange = () => {
-      if (selectAll.checked) pending.forEach(p => selected.add(p.url));
-      else selected.clear();
+      selected = setPendingSelectionForItems(selected, fullPending, selectAll.checked);
       update(container);
     };
   }

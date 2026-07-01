@@ -47,7 +47,7 @@ globalThis.localStorage = { getItem: () => null, setItem: noop, removeItem: noop
 
 console.log('\nPipeline action mappings');
 
-const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, pendingPassesScoreFilters, pendingTailorStatusLabel, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision } = await import(
+const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, pendingPassesScoreFilters, pendingTailorStatusLabel, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision, areAllPendingItemsSelected, setPendingSelectionForItems } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'pipeline.mjs')).href
 );
 const { shouldAutoExpireLivenessResult } = await import(
@@ -196,6 +196,46 @@ assert(
 assert(
   pendingPassesScoreFilters({ relevance: 4.1 }, { topOnly: true, minScore: 4 }) === true,
   'top-match and slider filters can both pass'
+);
+
+const partiallySelectedPending = new Set(['https://jobs.example/a', 'https://jobs.example/hidden']);
+assert(
+  areAllPendingItemsSelected(partiallySelectedPending, [
+    { url: 'https://jobs.example/a' },
+    { url: 'https://jobs.example/b' },
+  ]) === false,
+  'pending select-all stays unchecked when any filtered row is missing from selection'
+);
+assert(
+  areAllPendingItemsSelected(new Set(['https://jobs.example/a', 'https://jobs.example/b']), [
+    { url: 'https://jobs.example/a' },
+    { url: 'https://jobs.example/b' },
+  ]) === true,
+  'pending select-all reflects selection across the full filtered set'
+);
+const selectedFilteredPending = setPendingSelectionForItems(
+  partiallySelectedPending,
+  [{ url: 'https://jobs.example/a' }, { url: 'https://jobs.example/b' }],
+  true
+);
+assert(
+  selectedFilteredPending.has('https://jobs.example/a')
+    && selectedFilteredPending.has('https://jobs.example/b')
+    && selectedFilteredPending.has('https://jobs.example/hidden')
+    && selectedFilteredPending.size === 3,
+  'pending select-all adds only filtered rows and preserves unrelated hidden selections'
+);
+const deselectedFilteredPending = setPendingSelectionForItems(
+  selectedFilteredPending,
+  [{ url: 'https://jobs.example/a' }, { url: 'https://jobs.example/b' }],
+  false
+);
+assert(
+  deselectedFilteredPending.has('https://jobs.example/hidden')
+    && !deselectedFilteredPending.has('https://jobs.example/a')
+    && !deselectedFilteredPending.has('https://jobs.example/b')
+    && deselectedFilteredPending.size === 1,
+  'clearing pending select-all removes only filtered rows instead of wiping all selections'
 );
 
 const loadingScoreButton = renderPendingScoreButton({ url: 'https://jobs.example/a', contextualScoring: true });

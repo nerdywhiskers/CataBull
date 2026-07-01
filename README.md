@@ -15,7 +15,6 @@ Your local-first AI job search command center.
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Anthropic%20CLI-D97757?logo=anthropic&logoColor=white)](https://docs.anthropic.com/en/docs/claude-code/overview)
 [![Codex](https://img.shields.io/badge/Codex-OpenAI%20CLI-412991)](https://github.com/openai/codex)
 [![OpenCode](https://img.shields.io/badge/OpenCode-terminal%20AI%20agent-1E1E1E?logo=gnometerminal&logoColor=white)](https://opencode.ai/)
-[![Gemini CLI](https://img.shields.io/badge/Gemini%20CLI-Google%20Gemini-886FBF?logo=googlegemini&logoColor=white)](https://github.com/google-gemini/gemini-cli)
 [![Hermes](https://img.shields.io/badge/Hermes-Nous%20Research-FFD21E?logo=huggingface&logoColor=black)](https://github.com/NousResearch/hermes-agent)
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-agent%20CLI-F97316)](https://docs.openclaw.ai/install/index)
 
@@ -25,7 +24,7 @@ Live site: [catabull landing page](https://nerdywhiskers.github.io/CataBull/)
 
 </div>
 
-CataBull is a local-first dashboard, scanner, evaluator, and tailored application bundle generator for serious job searches. It works with Claude Code, Codex, OpenCode, Gemini, Hermes, and OpenClaw, while keeping your CV, target list, reports, and application history on your machine.
+CataBull is a local-first dashboard, scanner, evaluator, and tailored application bundle generator for serious job searches. It works with Claude Code, Codex, OpenCode, Hermes, and OpenClaw, while keeping your CV, target list, reports, and application history on your machine.
 
 ## Install
 
@@ -85,7 +84,6 @@ Onboarding requires a working CLI agent on `PATH`; the wizard asks you to pick o
 | Claude Code | `npm install -g @anthropic-ai/claude-code` |
 | Codex CLI | See [github.com/openai/codex](https://github.com/openai/codex) |
 | OpenCode | `npm install -g opencode-ai` |
-| Gemini CLI | `npm install -g @google/gemini-cli` |
 | Hermes Agent | `curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh \| bash` or see [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) |
 | OpenClaw | `npm install -g openclaw@latest` or see [OpenClaw install docs](https://docs.openclaw.ai/install/index) |
 
@@ -100,7 +98,7 @@ Onboarding requires a working CLI agent on `PATH`; the wizard asks you to pick o
 | ATS providers | Greenhouse, Ashby, Lever, Workday, BambooHR, and Teamtailor through direct APIs where possible |
 | Health monitoring | Periodic portal health checks with auto-disable after repeated failures |
 | Deep evaluation | A-E rubric for CV match, level strategy, compensation research, cultural fit, and red flags |
-| Integrated terminal | Claude Code, Codex, OpenCode, Gemini, Hermes, or OpenClaw session docked inside the dashboard |
+| Integrated terminal | Claude Code, Codex, OpenCode, Hermes, or OpenClaw session docked inside the dashboard |
 | Local-first | No telemetry; your CV, applications, reports, and target list stay on disk |
 
 ## Stack
