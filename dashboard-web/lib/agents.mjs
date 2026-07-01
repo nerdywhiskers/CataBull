@@ -281,7 +281,12 @@ export function agentPtyConfig(agentName, root) {
   clearMacQuarantine(command);
 
   if (agentName === 'opencode') {
-    const args = ['--dangerously-skip-permissions'];
+    // Bare `opencode --dangerously-skip-permissions` exits with top-level help
+    // and code 1 because that flag belongs to `opencode run`, not the root
+    // command. Use interactive run mode so the chat rail keeps a live PTY
+    // session *and* auto-approves tool permissions instead of deadlocking on
+    // invisible prompts.
+    const args = ['run', '-i', '--dangerously-skip-permissions'];
     const shell = isWin ? winShell(command, args) : { command, args };
     return {
       command: shell.command,
