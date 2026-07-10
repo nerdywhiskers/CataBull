@@ -1,5 +1,5 @@
 import { parseApplications, loadReportSummary, parsePipeline } from '../lib/parsers.mjs';
-import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem, updatePendingItem, updatePendingContextualScores } from '../lib/writers.mjs';
+import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem, updatePendingItem, updatePendingContextualScores, canonicalCompanyRoleKey, enforcePipelineConsistency } from '../lib/writers.mjs';
 import { readProfile, readProfileMarkdown, readPortals } from '../lib/writers.mjs';
 import { scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../lib/relevance.mjs';
 import { enrichJobUrl } from '../lib/job-url-metadata.mjs';
@@ -12,19 +12,24 @@ export default async function (app) {
   const root = app.cataBullRoot;
 
   function pendingWithHeuristicScores() {
+    enforcePipelineConsistency(root);
     const apps = parseApplications(root);
     const { pending: rawPending, skipped, expired } = parsePipeline(root);
     const reportedUrls = collectReportUrls(root);
 
     const appUrls = new Set(apps.map(a => a.jobUrl).filter(Boolean));
-    const appKeys = new Set(apps.map(a => `${a.company.toLowerCase()}||${a.role.toLowerCase()}`));
+    const appKeys = new Set(apps.map(a => canonicalCompanyRoleKey(a.company, a.role)));
     const skippedUrls = new Set(skipped.map(s => s.url));
+    const seenPendingKeys = new Set();
 
     const pending = rawPending.filter(p => {
+      const key = canonicalCompanyRoleKey(p.company, p.role);
       if (appUrls.has(p.url)) return false;
       if (reportedUrls.has(p.url)) return false;
       if (skippedUrls.has(p.url)) return false;
-      if (appKeys.has(`${p.company.toLowerCase()}||${p.role.toLowerCase()}`)) return false;
+      if (appKeys.has(key)) return false;
+      if (seenPendingKeys.has(key)) return false;
+      seenPendingKeys.add(key);
       return true;
     });
 
@@ -128,14 +133,16 @@ export default async function (app) {
 
     const ok = updateApplicationStatus(root, app_.reportNumber, app_.num, status);
     if (!ok) return reply.code(500).send({ error: 'Failed to update status' });
-    return { success: true };
+    const cleanup = enforcePipelineConsistency(root);
+    return { success: true, cleanup };
   });
 
   app.post('/pipeline/skip', async (req, reply) => {
     const { url } = req.body || {};
     if (!url) return reply.code(400).send({ error: 'url is required' });
     const ok = skipPipelineItem(root, url);
-    return { success: ok };
+    const cleanup = enforcePipelineConsistency(root);
+    return { success: ok, cleanup };
   });
 
   app.post('/pipeline/unskip', async (req, reply) => {
@@ -149,7 +156,8 @@ export default async function (app) {
     const { url, company, role } = req.body || {};
     if (!url || !company || !role) return reply.code(400).send({ error: 'url, company, and role are required' });
     markPipelineApplied(root, url, company, role);
-    return { success: true };
+    const cleanup = enforcePipelineConsistency(root);
+    return { success: true, cleanup };
   });
 
   app.post('/pipeline/delete-pending', async () => {
@@ -203,8 +211,15 @@ export default async function (app) {
         return reply.code(400).send({ error: 'company and role are required (or the URL must expose them for auto-fill)' });
       }
 
+      const existingApps = parseApplications(root);
+      const targetKey = canonicalCompanyRoleKey(finalCompany, finalRole);
+      if (existingApps.some((app) => canonicalCompanyRoleKey(app.company, app.role) === targetKey)) {
+        return reply.code(409).send({ error: 'Role already exists in the pipeline tracker with a later status' });
+      }
+
       const result = addPendingItem(root, { url, company: finalCompany, role: finalRole, postedAt: finalPostedAt, location: finalLocation });
       if (result.duplicate) return reply.code(409).send({ error: 'URL already exists in pipeline.md' });
+      enforcePipelineConsistency(root);
       if (!result.added) return reply.code(500).send({ error: 'Failed to add entry' });
       return { success: true, company: finalCompany, role: finalRole, location: finalLocation || null };
     } catch (err) {

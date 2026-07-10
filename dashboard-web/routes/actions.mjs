@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import { join } from 'path';
 import { getStatus, getSchedule, setSchedule, runScan, restartScheduler } from '../lib/scheduler.mjs';
 import { parsePipeline } from '../lib/parsers.mjs';
-import { expirePipelineItem } from '../lib/writers.mjs';
+import { expirePipelineItem, enforcePipelineConsistency } from '../lib/writers.mjs';
 import { createLineBuffer, parseProgressLine } from '../lib/scan-progress-stream.mjs';
 import { finishScanRun, readScanRunState, startScanRun, updateScanRun } from '../lib/scan-run-state.mjs';
 import { spawnWithTimeout } from '../lib/spawn-timeout.mjs';
@@ -236,14 +236,15 @@ export default async function (app) {
   // Check liveness of all pending URLs and auto-expire dead ones
   app.post('/liveness/check-all', async (req, reply) => {
     reply.raw.setTimeout(600000);
+    const cleanupBefore = enforcePipelineConsistency(root);
     const { pending } = parsePipeline(root);
-    if (!pending.length) return { checked: 0, expired: 0, results: [] };
+    if (!pending.length) return { checked: 0, expired: 0, duplicatesRemoved: cleanupBefore.removed, results: [] };
 
     const urls = pending.map(p => p.url);
 
     const result = await runNodeScript(join(packageRoot, 'check-liveness.mjs'), urls, { cwd: root, timeoutMs: 600000, env: scriptEnv });
-    if (result.exitCode === -1) return { checked: 0, expired: 0, error: 'Timed out' };
-    if (result.exitCode === -2) return { checked: 0, expired: 0, error: result.stderr.trim() };
+    if (result.exitCode === -1) return { checked: 0, expired: 0, duplicatesRemoved: cleanupBefore.removed, error: 'Timed out' };
+    if (result.exitCode === -2) return { checked: 0, expired: 0, duplicatesRemoved: cleanupBefore.removed, error: result.stderr.trim() };
 
     const results = parseLivenessOutput(result.stdout + result.stderr);
     const pendingByUrl = new Map(pending.map((item) => [item.url, item]));
@@ -257,10 +258,12 @@ export default async function (app) {
       expiredCount++;
       if (r.status === 'uncertain') barrierExpiredCount++;
     }
+    const cleanupAfter = enforcePipelineConsistency(root);
     return {
       checked: urls.length,
       expired: expiredCount,
       agedBarrierExpired: barrierExpiredCount,
+      duplicatesRemoved: cleanupBefore.removed + cleanupAfter.removed,
       results,
     };
   });

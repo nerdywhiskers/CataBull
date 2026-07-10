@@ -16,6 +16,25 @@ import { asWorkspace } from '../../lib/workspace.mjs';
 // either function runs.
 import { parseApplications } from './parsers.mjs';
 
+const COMPANY_SUFFIX_RE = /\b(?:inc|llc|ltd|corp|corporation|company|co|group|holdings?)\b/g;
+
+export function canonicalCompanyRoleKey(company, role) {
+  const companyKey = String(company || '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(COMPANY_SUFFIX_RE, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const roleKey = String(role || '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return `${companyKey}||${roleKey}`;
+}
+
 /** Resolve the canonical applications.md path.
  * Checks data/applications.md first (newer convention), falls back to root.
  */
@@ -209,6 +228,74 @@ export function updateApplicationStatus(root, reportNumber, rowNum, newStatus) {
   return true;
 }
 
+function parsePipelineIdentity(line) {
+  const match = line.match(/^-\s+\[([ x])\]\s+(https?:\/\/\S+)\s*\|\s*([^|]+)\s*\|\s*(.+)$/);
+  if (!match) return null;
+  const fields = match[4].split('|').map((field) => field.trim()).filter(Boolean);
+  const role = fields[0] || '';
+  return {
+    done: match[1] === 'x',
+    url: match[2].trim(),
+    company: match[3].trim(),
+    role,
+    key: canonicalCompanyRoleKey(match[3], role),
+  };
+}
+
+export function enforcePipelineConsistency(root) {
+  const ws = asWorkspace(root);
+  const content = ws.read('data/pipeline.md');
+  if (content == null) return { removed: 0, removedBecauseTracked: 0, removedBecauseDuplicatePending: 0 };
+
+  const blockedKeys = new Set(
+    parseApplications(root)
+      .map((app) => canonicalCompanyRoleKey(app.company, app.role))
+      .filter((key) => key && key !== '||')
+  );
+
+  const lines = content.split('\n');
+  let inProcessed = false;
+  for (const line of lines) {
+    if (/^##\s+Procesad/i.test(line)) {
+      inProcessed = true;
+      continue;
+    }
+    if (inProcessed) continue;
+    const item = parsePipelineIdentity(line);
+    if (!item || !item.done || !item.key || item.key === '||') continue;
+    blockedKeys.add(item.key);
+  }
+
+  const seenPendingKeys = new Set();
+  let removedBecauseTracked = 0;
+  let removedBecauseDuplicatePending = 0;
+  inProcessed = false;
+  const kept = lines.filter((line) => {
+    if (/^##\s+Procesad/i.test(line)) {
+      inProcessed = true;
+      return true;
+    }
+    if (inProcessed) return true;
+
+    const item = parsePipelineIdentity(line);
+    if (!item || item.done || !item.key || item.key === '||') return true;
+    if (blockedKeys.has(item.key)) {
+      removedBecauseTracked += 1;
+      return false;
+    }
+    if (seenPendingKeys.has(item.key)) {
+      removedBecauseDuplicatePending += 1;
+      return false;
+    }
+    seenPendingKeys.add(item.key);
+    return true;
+  });
+
+  const removed = removedBecauseTracked + removedBecauseDuplicatePending;
+  if (removed > 0) ws.write('data/pipeline.md', kept.join('\n'));
+  return { removed, removedBecauseTracked, removedBecauseDuplicatePending };
+}
+
 function buildReportLink(reportNumber, reportPath) {
   if (!reportPath) return '';
   const number = String(reportNumber || '').trim() || String(reportPath).match(/(?:^|\/)(\d+)-/)?.[1] || '';
@@ -253,8 +340,7 @@ export function markPipelineTailored(root, {
   const appsContent = ensureApplicationsFile(ws, appsRelPath);
   const lines = appsContent.split('\n');
   const today = new Date().toISOString().slice(0, 10);
-  const normalizedCompany = company.trim().toLowerCase();
-  const normalizedRole = role.trim().toLowerCase();
+  const normalizedKey = canonicalCompanyRoleKey(company, role);
   const reportCell = buildReportLink(reportNumber, reportPath);
   let nextNum = 1;
 
@@ -265,8 +351,7 @@ export function markPipelineTailored(root, {
     if (parts.length < 8) continue;
     const rowNum = parseInt(parts[0], 10);
     if (Number.isFinite(rowNum)) nextNum = Math.max(nextNum, rowNum + 1);
-    if (String(parts[2] || '').trim().toLowerCase() !== normalizedCompany) continue;
-    if (String(parts[3] || '').trim().toLowerCase() !== normalizedRole) continue;
+    if (canonicalCompanyRoleKey(parts[2], parts[3]) !== normalizedKey) continue;
 
     parts[1] = parts[1] || today;
     parts[2] = company;
@@ -547,9 +632,9 @@ export function markPipelineApplied(root, url, company, role) {
 
   markPipelineDone(ws, url);
 
+  const existingKey = canonicalCompanyRoleKey(company, role);
   const existing = parseApplications(root).find(app =>
-    app.company.trim().toLowerCase() === company.trim().toLowerCase()
-    && app.role.trim().toLowerCase() === role.trim().toLowerCase()
+    canonicalCompanyRoleKey(app.company, app.role) === existingKey
   );
   if (existing) {
     updateApplicationStatus(root, existing.reportNumber, existing.num, 'Applied');

@@ -25,7 +25,7 @@ function assert(condition, msg) {
 
 console.log('\nPipeline writer helpers');
 
-const { markPipelineTailored, updatePendingContextualScores, updatePendingItem } = await import(
+const { markPipelineTailored, updatePendingContextualScores, updatePendingItem, enforcePipelineConsistency, canonicalCompanyRoleKey } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'lib', 'writers.mjs')).href
 );
 const { parsePipeline } = await import(
@@ -105,6 +105,27 @@ assert(
   preservedApps.includes('| NewCo | Senior Product Designer | 4.7/5 | Applied | ✅ | [0007](reports/0007-newco-senior-product-designer-v2.md) |'),
   'markPipelineTailored preserves Applied instead of regressing back to Tailored while still refreshing score/pdf/report fields'
 );
+
+mkdirSync(join(tmpRoot, 'data'), { recursive: true });
+writeFileSync(join(tmpRoot, 'data', 'pipeline.md'), `# Pipeline\n\n## Pendientes\n- [ ] https://example.com/jobs/duplicate-1 | AMD, Inc. | AI Creative Technologist\n- [ ] https://example.com/jobs/duplicate-2 | AMD | AI Creative Technologist\n- [ ] https://example.com/jobs/unique | OtherCo | Design Engineer\n- [x] https://example.com/jobs/skipped | HiddenCo | Hidden Role | SKIP | 2026-06-06\n- [ ] https://example.com/jobs/skipped-dup | HiddenCo | Hidden Role\n\n## Procesadas\n`);
+writeFileSync(appsPath, `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-03 | AMD | AI Creative Technologist | 4.4/5 | Applied | ❌ | [0007](reports/0007-old.md) | |\n`);
+const cleanup = enforcePipelineConsistency(tmpRoot);
+assert(cleanup.removed === 3, 'enforcePipelineConsistency removes pending rows already tracked or duplicated');
+assert(cleanup.removedBecauseTracked === 3, 'enforcePipelineConsistency removes pending rows blocked by tracked application or skipped states');
+assert(cleanup.removedBecauseDuplicatePending === 0, 'tracked-state cleanup wins before duplicate-pending cleanup when a stronger status already exists');
+const cleanedPipeline = readFileSync(join(tmpRoot, 'data', 'pipeline.md'), 'utf8');
+assert(!cleanedPipeline.includes('https://example.com/jobs/duplicate-1'), 'cleanup removes pending rows that already exist as tracked applications');
+assert(!cleanedPipeline.includes('https://example.com/jobs/duplicate-2'), 'cleanup removes same-role pending duplicates once a stronger tracked state exists');
+assert(cleanedPipeline.includes('https://example.com/jobs/unique | OtherCo | Design Engineer'), 'cleanup keeps unrelated pending rows');
+assert(!cleanedPipeline.includes('https://example.com/jobs/skipped-dup'), 'cleanup removes pending rows when the same role is already skipped');
+assert(canonicalCompanyRoleKey('AMD, Inc.', 'AI Creative Technologist') === canonicalCompanyRoleKey('AMD', 'AI Creative Technologist'), 'canonicalCompanyRoleKey normalizes punctuation and suffix noise');
+
+writeFileSync(join(tmpRoot, 'data', 'pipeline.md'), `# Pipeline\n\n## Pendientes\n- [ ] https://example.com/jobs/dupe-a | FreshCo | Product Designer\n- [ ] https://example.com/jobs/dupe-b | FreshCo | Product Designer\n- [ ] https://example.com/jobs/dupe-c | FreshCo | Product Designer\n\n## Procesadas\n`);
+writeFileSync(appsPath, `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n`);
+const duplicateOnlyCleanup = enforcePipelineConsistency(tmpRoot);
+assert(duplicateOnlyCleanup.removed === 2, 'enforcePipelineConsistency removes extra duplicate pending rows even without tracked applications');
+assert(duplicateOnlyCleanup.removedBecauseTracked === 0, 'duplicate-only cleanup does not mislabel rows as tracked');
+assert(duplicateOnlyCleanup.removedBecauseDuplicatePending === 2, 'duplicate-only cleanup keeps the first pending row and removes the rest');
 
 rmSync(tmpRoot, { recursive: true, force: true });
 
