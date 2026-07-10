@@ -237,6 +237,27 @@ function showUndoToast(action) {
   });
 }
 
+async function confirmDeletePending(container, urls = []) {
+  if (!urls.length) return false;
+  const ok = await confirmModal({
+    title: `Delete ${urls.length} pending job${urls.length !== 1 ? 's' : ''}?`,
+    body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:8px">This permanently removes the selected entr${urls.length !== 1 ? 'ies' : 'y'} from your pending pipeline.</p><p style="font-size:13px;color:var(--subtext0)">This cannot be undone. Use <strong>Skip</strong> instead if you might want to revisit later.</p>`,
+    confirmText: 'Delete',
+    danger: true,
+  });
+  if (!ok) return false;
+  try {
+    const result = await api.deletePending(urls);
+    for (const url of urls) selected.delete(url);
+    toast(`Deleted ${result.removed} pending job${result.removed !== 1 ? 's' : ''}`);
+    render(container);
+    return true;
+  } catch (err) {
+    toast(`Failed to delete: ${err.message}`, 'error');
+    return false;
+  }
+}
+
 function scoreClass(score) {
   if (score >= 4.5) return 'excellent';
   if (score >= 4.0) return 'good';
@@ -1007,6 +1028,7 @@ function renderPending(pageItems = null) {
               { label: 'Edit role', onClick: () => openPendingEditModal(p) },
               { label: 'Deep Research', onClick: () => runModePrompt('deep', { company: p.company, role: p.role, url: p.url }) },
               { label: 'Outreach',      onClick: () => runModePrompt('outreach', { company: p.company, role: p.role, url: p.url }) },
+              { label: 'Delete', class: 'btn-danger', onClick: () => confirmDeletePending(activeContainer, [p.url]) },
           ])}
         </span>
       </td>
@@ -1855,21 +1877,7 @@ function update(container) {
   container.querySelector('#batch-delete-btn')?.addEventListener('click', async () => {
     const urls = [...selected];
     if (!urls.length) return;
-    const ok = await confirmModal({
-      title: `Delete ${urls.length} pending job${urls.length !== 1 ? 's' : ''}?`,
-      body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:8px">This permanently removes the selected entr${urls.length !== 1 ? 'ies' : 'y'} from your pending pipeline.</p><p style="font-size:13px;color:var(--subtext0)">This cannot be undone. Use <strong>Skip</strong> instead if you might want to revisit later.</p>`,
-      confirmText: 'Delete',
-      danger: true,
-    });
-    if (!ok) return;
-    try {
-      const result = await api.deletePending(urls);
-      selected.clear();
-      toast(`Deleted ${result.removed} pending job${result.removed !== 1 ? 's' : ''}`);
-      render(container);
-    } catch (err) {
-      toast(`Failed to delete: ${err.message}`, 'error');
-    }
+    await confirmDeletePending(container, urls);
   });
 
   container.querySelector('#batch-clear-btn')?.addEventListener('click', () => {

@@ -12,7 +12,7 @@
 
 import { runAgentPrint } from '../lib/agents.mjs';
 import { appendTailorReportSection, runTailor, writeTailorReport } from '../../lib/tailor.mjs';
-import { readProfile, markPipelineTailored } from '../lib/writers.mjs';
+import { readProfile, markPipelineTailored, enforcePipelineConsistency } from '../lib/writers.mjs';
 import { parseApplications } from '../lib/parsers.mjs';
 import { asWorkspace } from '../../lib/workspace.mjs';
 import { basename, extname } from 'path';
@@ -118,6 +118,7 @@ export default async function (app) {
         reportNumber: report.number || existingReport?.reportNumber || '',
         hasPdf: Boolean(result.paths?.cvPdf),
       });
+      enforcePipelineConsistency(root);
       return {
         success: true,
         slug: result.slug,
