@@ -47,7 +47,7 @@ globalThis.localStorage = { getItem: () => null, setItem: noop, removeItem: noop
 
 console.log('\nPipeline action mappings');
 
-const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, pendingPassesScoreFilters, pendingTailorStatusLabel, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision, areAllPendingItemsSelected, setPendingSelectionForItems } = await import(
+const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, pendingPassesScoreFilters, pendingTailorStatusLabel, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision, areAllPendingItemsSelected, setPendingSelectionForItems, countApplicationsForTab } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'pipeline.mjs')).href
 );
 const { shouldAutoExpireLivenessResult } = await import(
@@ -66,6 +66,30 @@ const skipBatchActions = batchActionsForFilter('skip');
 assert(skipBatchActions.length === 1, 'skip filter exposes one batch restore action');
 assert(skipBatchActions[0].status === 'Tailored', 'skip batch action restores selected rows to Tailored');
 assert(skipBatchActions[0].label === 'Restore', 'skip batch action is labeled Restore');
+
+const appliedRowActions = rowActionsForStatus('applied');
+assert(appliedRowActions.some((action) => action.status === 'Rejected'), 'applied rows can still be marked Rejected');
+
+const rejectedRowActions = rowActionsForStatus('rejected');
+assert(rejectedRowActions.length === 0, 'rejected rows do not expose follow-up stage actions');
+
+const rejectedBatchActions = batchActionsForFilter('rejected');
+assert(rejectedBatchActions.length === 0, 'rejected filter has no batch stage actions');
+
+const tabCountFixtures = [
+  { score: 4.5, statusNormalized: 'applied' },
+  { score: 3.2, statusNormalized: 'rejected' },
+  { score: 2.8, statusNormalized: 'skip' },
+  { score: 4.1, statusNormalized: 'tailored' },
+];
+assert(
+  countApplicationsForTab(tabCountFixtures, 'rejected') === 1,
+  'rejected tab counts rejected application rows directly'
+);
+assert(
+  countApplicationsForTab(tabCountFixtures, 'skip', { skippedCount: 2, expiredCount: 1 }) === 4,
+  'skip tab counts only skip applications plus skipped and expired pipeline rows'
+);
 
 console.log('\nPipeline AI suggestions');
 

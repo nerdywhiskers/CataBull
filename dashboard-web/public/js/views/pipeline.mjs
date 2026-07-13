@@ -545,12 +545,20 @@ function renderInsightCards() {
   `;
 }
 
+export function countApplicationsForTab(applications, key, { pendingCount = 0, skippedCount = 0, expiredCount = 0 } = {}) {
+  if (key === 'pending') return pendingCount;
+  if (key === 'all') return applications.length;
+  if (key === 'top') return applications.filter(a => a.score >= 4.0 && a.statusNormalized !== 'skip').length;
+  if (key === 'skip') return applications.filter(a => a.statusNormalized === 'skip').length + skippedCount + expiredCount;
+  return applications.filter(a => a.statusNormalized === key).length;
+}
+
 function tabCount(key) {
-  if (key === 'pending') return pending.length;
-  if (key === 'all') return apps.length;
-  if (key === 'top') return apps.filter(a => a.score >= 4.0 && a.statusNormalized !== 'skip').length;
-  if (key === 'skip') return apps.filter(a => a.statusNormalized === 'skip' || a.statusNormalized === 'rejected').length + skipped.length + expired.length;
-  return apps.filter(a => a.statusNormalized === key).length;
+  return countApplicationsForTab(apps, key, {
+    pendingCount: pending.length,
+    skippedCount: skipped.length,
+    expiredCount: expired.length,
+  });
 }
 
 const FILTERS = [
@@ -558,6 +566,7 @@ const FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'tailored', label: 'Tailored' },
   { key: 'applied', label: 'Applied' },
+  { key: 'rejected', label: 'Rejected' },
   { key: 'interview', label: 'Interview' },
   { key: 'top', label: 'Top \u22654' },
   { key: 'skip', label: 'Skip' },
@@ -1093,12 +1102,11 @@ function renderCollapsibleGroup(label, items, style = '') {
 }
 
 function renderSkipped() {
-  const rejected = rejectedApps();
   const allItems = [
     ...skipped.map(s => ({ ...s, type: 'skipped' })),
     ...expired.map(e => ({ ...e, type: 'expired', status: 'EXPIRED' })),
   ];
-  if (!allItems.length && !rejected.length) return '';
+  if (!allItems.length) return '';
 
   const dated = groupByDate(allItems);
 
@@ -1115,45 +1123,13 @@ function renderSkipped() {
     html += renderCollapsibleGroup(label, items, i === 0 ? 'open' : '');
   });
 
-  if (rejected.length) {
-    html += `
-      <details class="skip-group skip-group-rejected" style="margin-top:16px">
-        <summary class="skip-group-summary is-danger">
-          <span>Rejected</span>
-          <span class="skip-group-count">${rejected.length}</span>
-        </summary>
-        ${wrapTable(`<table class="data-table data-table-compact pipeline-table skip-table">
-          <tbody>${rejected.map(r => `
-            <tr class="is-muted">
-              <td><span class="cell-date">${r.date}</span></td>
-              <td class="col-company">
-                <span class="cell-company">
-                  <span class="cell-company-logo">${esc(companyInitials(r.company))}</span>
-                  <span>${esc(r.company)}</span>
-                </span>
-              </td>
-              <td><span class="cell-role">${esc(r.role)}</span></td>
-              <td class="col-score">${r.score > 0
-                ? `<button type="button" class="score-trigger" data-score-kind="tailored" data-score-num="${r.num}" title="${esc(scoreBlocksTooltip(r.scoreBlocks) || 'Score at rejection')}">${renderScoreRing(r.score, scoreClass(r.score), '')}</button>`
-                : ''}</td>
-              <td class="col-actions">
-                <span class="cell-actions">
-                  ${r.jobUrl ? `<a href="${esc(r.jobUrl)}" target="_blank" class="btn btn-ghost btn-sm">&#x2197;</a>` : ''}
-                </span>
-              </td>
-            </tr>`).join('')}
-          </tbody>
-        </table>`, 'table-scroll table-scroll-compact')}
-      </details>`;
-  }
-
   html += '</div>';
   return html;
 }
 
 function renderTable(items) {
   if (!items.length && currentFilter === 'skip') {
-    if (skipped.length || expired.length || rejectedApps().length) return renderSkipped();
+    if (skipped.length || expired.length) return renderSkipped();
     return `<div class="empty-state"><h3>No skipped jobs</h3></div>`;
   }
   if (!items.length) return `<div class="empty-state"><h3>No applications yet</h3><p>Tailor a job to get started.</p></div>`;
@@ -1314,10 +1290,6 @@ export function batchActionsForFilter(filter) {
     ];
   }
   return [];
-}
-
-function rejectedApps() {
-  return apps.filter(a => a.statusNormalized === 'rejected');
 }
 
 function isAlreadyEvaluated(company, role) {
