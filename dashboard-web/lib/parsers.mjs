@@ -194,6 +194,7 @@ export function parseApplications(cataBullRoot) {
 
     const app = {
       num,
+      trackerRowId: parseInt(fields[0], 10),
       date: fields[1],
       company: fields[2],
       role: fields[3],
@@ -209,6 +210,8 @@ export function parseApplications(cataBullRoot) {
       jobUrl: '',
       enrichment: null,
     };
+
+    if (!Number.isFinite(app.trackerRowId)) app.trackerRowId = num;
 
     const sm = fields[4].match(RE_SCORE_VALUE);
     if (sm) app.score = parseFloat(sm[1]);

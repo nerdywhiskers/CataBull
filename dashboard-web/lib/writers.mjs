@@ -189,7 +189,7 @@ export function writeCV(root, content) {
 }
 
 /** Update application status in applications.md */
-export function updateApplicationStatus(root, reportNumber, rowNum, newStatus) {
+export function updateApplicationStatus(root, reportNumber, rowNum, newStatus, trackerRowId = null) {
   const ws = asWorkspace(root);
   const relPath = ws.exists('data/applications.md') ? 'data/applications.md' : 'applications.md';
   const content = ws.read(relPath);
@@ -206,8 +206,13 @@ export function updateApplicationStatus(root, reportNumber, rowNum, newStatus) {
     if (reportNumber && line.includes(`[${reportNumber}]`)) {
       found = true;
     }
-    // Fallback: match by row number (first field)
-    if (!found && rowNum) {
+    // Prefer stable tracker row id from the first column when available.
+    if (!found && trackerRowId) {
+      const firstField = line.split('|')[1]?.trim();
+      if (firstField === String(trackerRowId)) found = true;
+    }
+    // Legacy fallback: match by parse-order row number only when no stable tracker id exists.
+    if (!found && !trackerRowId && rowNum) {
       const firstField = line.split('|')[1]?.trim();
       if (firstField === String(rowNum)) found = true;
     }
