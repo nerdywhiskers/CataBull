@@ -25,7 +25,7 @@ function assert(condition, msg) {
 
 console.log('\nPipeline writer helpers');
 
-const { markPipelineTailored, updatePendingContextualScores, updatePendingItem, enforcePipelineConsistency, canonicalCompanyRoleKey } = await import(
+const { markPipelineTailored, updatePendingContextualScores, updatePendingItem, enforcePipelineConsistency, canonicalCompanyRoleKey, updateApplicationStatus } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'lib', 'writers.mjs')).href
 );
 const { parsePipeline } = await import(
@@ -35,6 +35,15 @@ const { parsePipeline } = await import(
 const tmpRoot = join(ROOT, '.tmp-test-pipeline-writers');
 mkdirSync(join(tmpRoot, 'data'), { recursive: true });
 writeFileSync(join(tmpRoot, 'data', 'pipeline.md'), `# Pipeline\n\n## Pendientes\n- [ ] https://example.com/jobs/1 | OldCo | Old Role | posted:2026-06-01 | loc:Remote | match:high\n- [x] https://example.com/jobs/2 | SkippedCo | Skip Role | SKIP | 2026-06-02\n\n## Procesadas\n`);
+
+writeFileSync(join(tmpRoot, 'data', 'applications.md'), `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 25 | 2026-06-01 | Wrong Row | Wrong Role | 2.0/5 | Applied | ❌ |  | |\n| 7 | 2026-06-08 | Adobe | Creative Technologist, Media & Entertainment |  | Applied | ❌ |  | |\n`);
+
+const statusUpdatedByTrackerId = updateApplicationStatus(tmpRoot, '', 25, 'Rejected', 7);
+assert(statusUpdatedByTrackerId === true, 'status update accepts a stable tracker row id when report link is missing');
+const appsAfterTrackerIdUpdate = readFileSync(join(tmpRoot, 'data', 'applications.md'), 'utf8');
+assert(appsAfterTrackerIdUpdate.includes('| 7 | 2026-06-08 | Adobe | Creative Technologist, Media & Entertainment |  | Rejected | ❌ |  | |'), 'status update changes the intended tracker row without report link');
+assert(appsAfterTrackerIdUpdate.includes('| 25 | 2026-06-01 | Wrong Row | Wrong Role | 2.0/5 | Applied | ❌ |  | |'), 'status update leaves unrelated row numbers untouched when parse-order num differs from tracker id');
+rmSync(join(tmpRoot, 'data', 'applications.md'), { force: true });
 
 const result = updatePendingItem(tmpRoot, {
   url: 'https://example.com/jobs/1',

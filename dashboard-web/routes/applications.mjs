@@ -131,7 +131,7 @@ export default async function (app) {
     const app_ = apps.find(a => a.num === parseInt(num));
     if (!app_) return reply.code(404).send({ error: 'Application not found' });
 
-    const ok = updateApplicationStatus(root, app_.reportNumber, app_.num, status);
+    const ok = updateApplicationStatus(root, app_.reportNumber, app_.num, status, app_.trackerRowId);
     if (!ok) return reply.code(500).send({ error: 'Failed to update status' });
     const cleanup = enforcePipelineConsistency(root);
     return { success: true, cleanup };
