@@ -44,6 +44,69 @@ export function applicationsPath(root) {
   return ws.resolve('applications.md');
 }
 
+export function applicationEventsPath(root) {
+  const ws = asWorkspace(root);
+  return ws.resolve('data/application-events.tsv');
+}
+
+function sanitizeEventField(value) {
+  return String(value || '')
+    .replace(/[\t\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function ensureApplicationEventsFile(ws) {
+  const relPath = 'data/application-events.tsv';
+  const existing = ws.read(relPath);
+  if (existing != null) return existing;
+  const header = 'tracker_row_id\tdate\tcompany\trole\tevent\tnotes\n';
+  ws.write(relPath, header);
+  return header;
+}
+
+function statusToApplicationEvent(status) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if (normalized === 'applied') return 'applied';
+  if (normalized === 'responded') return 'responded';
+  if (normalized === 'interview' || normalized === 'interviewed') return 'interview';
+  if (normalized === 'offer') return 'offer';
+  if (normalized === 'rejected') return 'rejected';
+  if (normalized === 'discarded') return 'discarded';
+  if (normalized === 'skip' || normalized === 'skipped') return 'skipped';
+  if (normalized.includes('tailor') || normalized.includes('evaluat')) return 'tailored';
+  return normalized.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+export function appendApplicationEvent(root, {
+  trackerRowId,
+  date = new Date().toISOString().slice(0, 10),
+  company,
+  role,
+  event,
+  notes = '',
+} = {}) {
+  const ws = asWorkspace(root);
+  const rowId = sanitizeEventField(trackerRowId);
+  const eventName = sanitizeEventField(event);
+  const companyName = sanitizeEventField(company);
+  const roleName = sanitizeEventField(role);
+  if (!rowId || !eventName || !companyName || !roleName) return false;
+
+  const existing = ensureApplicationEventsFile(ws);
+  const line = [
+    rowId,
+    sanitizeEventField(date) || new Date().toISOString().slice(0, 10),
+    companyName,
+    roleName,
+    eventName,
+    sanitizeEventField(notes),
+  ].join('\t');
+  ws.write('data/application-events.tsv', `${existing.replace(/\s*$/, '')}\n${line}\n`);
+  return true;
+}
+
 /** Read and parse profile.yml */
 export function readProfile(root) {
   return asWorkspace(root).readYaml('config/profile.yml');
@@ -197,6 +260,7 @@ export function updateApplicationStatus(root, reportNumber, rowNum, newStatus, t
 
   const lines = content.split('\n');
   let found = false;
+  let eventPayload = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -219,9 +283,19 @@ export function updateApplicationStatus(root, reportNumber, rowNum, newStatus, t
 
     if (found) {
       const parts = lines[i].split('|');
-      if (parts.length >= 7) {
+      if (parts.length >= 10) {
+        const priorStatus = String(parts[6] || '').trim();
         parts[6] = ` ${newStatus} `;
         lines[i] = parts.join('|');
+        const eventName = statusToApplicationEvent(newStatus);
+        if (eventName && statusToApplicationEvent(priorStatus) !== eventName) {
+          eventPayload = {
+            trackerRowId: String(parts[1] || '').trim() || trackerRowId || rowNum,
+            company: String(parts[3] || '').trim(),
+            role: String(parts[4] || '').trim(),
+            event: eventName,
+          };
+        }
       }
       break;
     }
@@ -230,6 +304,7 @@ export function updateApplicationStatus(root, reportNumber, rowNum, newStatus, t
 
   if (!found) return false;
   ws.write(relPath, lines.join('\n'));
+  if (eventPayload) appendApplicationEvent(root, eventPayload);
   return true;
 }
 
@@ -367,13 +442,28 @@ export function markPipelineTailored(root, {
     parts[6] = hasPdf ? '✅' : (parts[6] || '❌');
     parts[7] = reportCell || parts[7] || '';
     parts[8] = parts[8] || '';
-    lines[i] = `| ${parts[0] || rowNum || nextNum} | ${parts[1]} | ${parts[2]} | ${parts[3]} | ${parts[4]} | ${parts[5]} | ${parts[6]} | ${parts[7]} | ${parts[8]} |`;
+    const finalRowId = parts[0] || rowNum || nextNum;
+    lines[i] = `| ${finalRowId} | ${parts[1]} | ${parts[2]} | ${parts[3]} | ${parts[4]} | ${parts[5]} | ${parts[6]} | ${parts[7]} | ${parts[8]} |`;
     ws.write(appsRelPath, lines.join('\n'));
+    if (!existingStatus || /tailor|evaluat|hold|monitor|verificar|condicional/i.test(existingStatus)) {
+      appendApplicationEvent(root, {
+        trackerRowId: finalRowId,
+        company: parts[2],
+        role: parts[3],
+        event: 'tailored',
+      });
+    }
     return { success: true, updated: true, num: rowNum || nextNum };
   }
 
   const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | ${scoreRaw} | Tailored | ${hasPdf ? '✅' : '❌'} | ${reportCell} | |`;
   ws.write(appsRelPath, appsContent.trimEnd() + '\n' + newRow + '\n');
+  appendApplicationEvent(root, {
+    trackerRowId: nextNum,
+    company,
+    role,
+    event: 'tailored',
+  });
   return { success: true, updated: false, num: nextNum };
 }
 
@@ -642,19 +732,25 @@ export function markPipelineApplied(root, url, company, role) {
     canonicalCompanyRoleKey(app.company, app.role) === existingKey
   );
   if (existing) {
-    updateApplicationStatus(root, existing.reportNumber, existing.num, 'Applied');
+    updateApplicationStatus(root, existing.reportNumber, existing.num, 'Applied', existing.trackerRowId);
     return;
   }
 
   // Add to applications.md
   const today = new Date().toISOString().slice(0, 10);
   const appsRelPath = ws.exists('data/applications.md') ? 'data/applications.md' : 'applications.md';
-  const appsContent = ws.read(appsRelPath) || '';
+  const appsContent = ensureApplicationsFile(ws, appsRelPath);
   const rows = appsContent.split('\n').filter(l => l.startsWith('|') && !l.startsWith('| #') && !l.startsWith('|---'));
   const nextNum = rows.length + 1;
 
   const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | | Applied | ❌ | | |`;
   ws.write(appsRelPath, appsContent.trimEnd() + '\n' + newRow + '\n');
+  appendApplicationEvent(root, {
+    trackerRowId: nextNum,
+    company,
+    role,
+    event: 'applied',
+  });
 }
 
 /**

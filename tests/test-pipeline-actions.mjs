@@ -47,7 +47,7 @@ globalThis.localStorage = { getItem: () => null, setItem: noop, removeItem: noop
 
 console.log('\nPipeline action mappings');
 
-const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, pendingPassesScoreFilters, pendingTailorStatusLabel, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision, areAllPendingItemsSelected, setPendingSelectionForItems, countApplicationsForTab } = await import(
+const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, pendingPassesScoreFilters, pendingTailorStatusLabel, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision, areAllPendingItemsSelected, setPendingSelectionForItems, countApplicationsForTab, applicationDateColumnLabel, applicationDateValue } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'pipeline.mjs')).href
 );
 const { shouldAutoExpireLivenessResult } = await import(
@@ -89,6 +89,16 @@ assert(
 assert(
   countApplicationsForTab(tabCountFixtures, 'skip', { skippedCount: 2, expiredCount: 1 }) === 4,
   'skip tab counts only skip applications plus skipped and expired pipeline rows'
+);
+assert(applicationDateColumnLabel('applied') === 'Applied On', 'applied tab relabels the date column to Applied On');
+assert(applicationDateColumnLabel('tailored') === 'Date', 'non-applied tabs keep the generic date label');
+assert(
+  applicationDateValue({ date: '2026-06-01', appliedAt: '2026-06-12' }, 'applied') === '2026-06-12',
+  'applied tab prefers the first applied event date when present'
+);
+assert(
+  applicationDateValue({ date: '2026-06-01' }, 'applied') === '2026-06-01',
+  'applied tab falls back to tracker date when no applied event exists yet'
 );
 
 console.log('\nPipeline AI suggestions');

@@ -25,10 +25,10 @@ function assert(condition, msg) {
 
 console.log('\nPipeline writer helpers');
 
-const { markPipelineTailored, updatePendingContextualScores, updatePendingItem, enforcePipelineConsistency, canonicalCompanyRoleKey, updateApplicationStatus } = await import(
+const { markPipelineTailored, updatePendingContextualScores, updatePendingItem, enforcePipelineConsistency, canonicalCompanyRoleKey, updateApplicationStatus, markPipelineApplied } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'lib', 'writers.mjs')).href
 );
-const { parsePipeline } = await import(
+const { parsePipeline, parseApplications, parseApplicationEvents } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'lib', 'parsers.mjs')).href
 );
 
@@ -43,7 +43,10 @@ assert(statusUpdatedByTrackerId === true, 'status update accepts a stable tracke
 const appsAfterTrackerIdUpdate = readFileSync(join(tmpRoot, 'data', 'applications.md'), 'utf8');
 assert(appsAfterTrackerIdUpdate.includes('| 7 | 2026-06-08 | Adobe | Creative Technologist, Media & Entertainment |  | Rejected | ❌ |  | |'), 'status update changes the intended tracker row without report link');
 assert(appsAfterTrackerIdUpdate.includes('| 25 | 2026-06-01 | Wrong Row | Wrong Role | 2.0/5 | Applied | ❌ |  | |'), 'status update leaves unrelated row numbers untouched when parse-order num differs from tracker id');
+const statusEvents = parseApplicationEvents(tmpRoot);
+assert(statusEvents.some((event) => event.trackerRowId === 7 && event.event === 'rejected'), 'status update appends an event log row for the new status');
 rmSync(join(tmpRoot, 'data', 'applications.md'), { force: true });
+rmSync(join(tmpRoot, 'data', 'application-events.tsv'), { force: true });
 
 const result = updatePendingItem(tmpRoot, {
   url: 'https://example.com/jobs/1',
@@ -97,6 +100,8 @@ const appsPath = join(tmpRoot, 'applications.md');
 const tailoredApps = readFileSync(appsPath, 'utf8');
 assert(tailoredApps.includes('| 1 | '), 'markPipelineTailored bootstraps applications tracker rows');
 assert(tailoredApps.includes('| NewCo | Senior Product Designer | 4.4/5 | Tailored | ✅ | [0007](reports/0007-newco-senior-product-designer.md) |'), 'markPipelineTailored writes Tailored status, PDF state, and report link');
+let applicationEvents = parseApplicationEvents(tmpRoot);
+assert(applicationEvents.some((event) => event.trackerRowId === 1 && event.event === 'tailored'), 'markPipelineTailored appends a tailored event for new tracked rows');
 
 writeFileSync(appsPath, `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-03 | NewCo | Senior Product Designer | 4.4/5 | Applied | ❌ | [0007](reports/0007-newco-senior-product-designer.md) | |\n`);
 const preserved = markPipelineTailored(tmpRoot, {
@@ -114,6 +119,16 @@ assert(
   preservedApps.includes('| NewCo | Senior Product Designer | 4.7/5 | Applied | ✅ | [0007](reports/0007-newco-senior-product-designer-v2.md) |'),
   'markPipelineTailored preserves Applied instead of regressing back to Tailored while still refreshing score/pdf/report fields'
 );
+applicationEvents = parseApplicationEvents(tmpRoot);
+assert(applicationEvents.filter((event) => event.trackerRowId === 1 && event.event === 'tailored').length === 1, 'markPipelineTailored does not append a fresh tailored event when a stronger status is preserved');
+
+writeFileSync(appsPath, `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-03 | NewCo | Senior Product Designer | 4.7/5 | Tailored | ✅ | [0007](reports/0007-newco-senior-product-designer-v2.md) | |\n`);
+markPipelineApplied(tmpRoot, 'https://example.com/jobs/1', 'NewCo', 'Senior Product Designer');
+applicationEvents = parseApplicationEvents(tmpRoot);
+assert(applicationEvents.some((event) => event.trackerRowId === 1 && event.event === 'applied'), 'markPipelineApplied appends an applied event when an existing tracked row advances to Applied');
+const parsedAppsWithEvents = parseApplications(tmpRoot);
+assert(parsedAppsWithEvents[0].appliedAt === applicationEvents.find((event) => event.event === 'applied')?.date, 'parseApplications derives appliedAt from the first applied event');
+assert(parsedAppsWithEvents[0].lastEventType === 'applied', 'parseApplications exposes the last recorded application event');
 
 mkdirSync(join(tmpRoot, 'data'), { recursive: true });
 writeFileSync(join(tmpRoot, 'data', 'pipeline.md'), `# Pipeline\n\n## Pendientes\n- [ ] https://example.com/jobs/duplicate-1 | AMD, Inc. | AI Creative Technologist\n- [ ] https://example.com/jobs/duplicate-2 | AMD | AI Creative Technologist\n- [ ] https://example.com/jobs/unique | OtherCo | Design Engineer\n- [x] https://example.com/jobs/skipped | HiddenCo | Hidden Role | SKIP | 2026-06-06\n- [ ] https://example.com/jobs/skipped-dup | HiddenCo | Hidden Role\n\n## Procesadas\n`);

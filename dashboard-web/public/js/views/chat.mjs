@@ -793,14 +793,14 @@ export async function runPrompt(text, {
 
   if (currentView === 'chat') {
     showWorkingMessage(`${currentAgent} is working`, currentAgent);
-    // claude and openclaw are the CLIs whose explicit session ids create the
-    // session on first use, so we can drive them with a sticky uuid (Reset
-    // rotates it). codex, hermes, and opencode resume the most recent session
-    // globally. For those agents we just track "have we seen one turn yet?"
-    // and Reset drops the flag so the next turn creates a new session by
-    // omitting continuation.
+    // claude and openclaw can create or resume a concrete session id that the
+    // dashboard owns. opencode can resume a concrete prior session id too, but
+    // only after the first run returns the real id. codex and hermes still
+    // resume the most recent session globally, so for those agents we only
+    // track "have we seen one turn yet?".
     const supportsContinuation = agentSupportsContinuation(currentAgent);
-    const usesStickySession = currentAgent === 'claude' || currentAgent === 'openclaw';
+    const usesConcreteSessionId = currentAgent === 'claude' || currentAgent === 'openclaw' || currentAgent === 'opencode';
+    const createsSessionFromProvidedId = currentAgent === 'claude' || currentAgent === 'openclaw';
     const hadSession = Boolean(agentSessions[currentAgent]);
     const continueSession = shouldContinueAgentSession({
       supportsContinuation,
@@ -827,10 +827,12 @@ export async function runPrompt(text, {
     };
 
     try {
-      let sessionId = supportsContinuation && usesStickySession ? ensureSessionId(currentAgent) : null;
+      let sessionId = null;
+      if (supportsContinuation && createsSessionFromProvidedId) sessionId = ensureSessionId(currentAgent);
+      else if (supportsContinuation && currentAgent === 'opencode' && hadSession) sessionId = agentSessions[currentAgent];
       let result = await attempt(sessionId);
 
-      if (!result?.ok && usesStickySession && isSessionConflict(result?.error)) {
+      if (!result?.ok && createsSessionFromProvidedId && isSessionConflict(result?.error)) {
         // Session conflict — rotate the uuid and retry once. The user
         // loses cross-message continuity for this single turn but the
         // chat keeps working instead of dead-ending.
@@ -843,6 +845,15 @@ export async function runPrompt(text, {
 
       if (result?.ok) {
         addAssistantMessage(result.output || 'No output returned.', currentAgent);
+        if (result.sessionId && supportsContinuation && usesConcreteSessionId) {
+          agentSessions[currentAgent] = result.sessionId;
+          const record = ensureCurrentChatRecord();
+          record.agent = currentAgent;
+          record.sessionId = result.sessionId;
+          record.updatedAt = Date.now();
+          saveAgentSessions();
+          saveChatRecords();
+        }
         if (textContainsPermissionPrompt(result.output)) {
           addPermissionMessage('Approval prompt detected in agent output. Open Raw terminal to answer interactive prompts.');
         }
@@ -851,10 +862,10 @@ export async function runPrompt(text, {
             detail: { source: 'chat', agent: currentAgent },
           }));
         } catch {}
-        // For agents on the resume-last path (codex), mark the agent as
-        // "seen" so the next turn requests continuation. Sticky-session
-        // agents already had their uuid stamped via ensureSessionId.
-        if (supportsContinuation && !usesStickySession && !agentSessions[currentAgent]) {
+        // For agents on the resume-last path (codex/hermes), mark the agent as
+        // "seen" so the next turn requests continuation. Concrete-session-id
+        // agents already persisted their real session id above.
+        if (supportsContinuation && !usesConcreteSessionId && !agentSessions[currentAgent]) {
           agentSessions[currentAgent] = newSessionId();
           const record = ensureCurrentChatRecord();
           record.agent = currentAgent;

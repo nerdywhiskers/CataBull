@@ -553,6 +553,15 @@ export function countApplicationsForTab(applications, key, { pendingCount = 0, s
   return applications.filter(a => a.statusNormalized === key).length;
 }
 
+export function applicationDateColumnLabel(filter) {
+  return filter === 'applied' ? 'Applied On' : 'Date';
+}
+
+export function applicationDateValue(app = {}, filter) {
+  if (filter === 'applied') return app.appliedAt || app.date || '—';
+  return app.date || '—';
+}
+
 function tabCount(key) {
   return countApplicationsForTab(apps, key, {
     pendingCount: pending.length,
@@ -1138,8 +1147,9 @@ function renderTable(items) {
   const showCheckboxes = batchActions.length > 0;
   const anyAppSelected = selectedApps.size > 0;
   const allAppsSelected = showCheckboxes && items.length > 0 && items.every(a => selectedApps.has(a.num));
+  const dateColumnLabel = applicationDateColumnLabel(currentFilter);
 
-  const arrow = (col) => sortCol === col ? `<span class="sort-arrow">${sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>` : '';
+  const arrow = (col) => sortCol === col ? `<span class="sort-arrow">${sortDir === 'asc' ? '▲' : '▼'}</span>` : '';
   const thClass = (col) => sortCol === col ? 'sorted' : '';
 
   // Batch action bar for tailored/applied tabs
@@ -1161,7 +1171,7 @@ function renderTable(items) {
     rows += `<tr data-num="${a.num}" data-url="${esc(a.jobUrl || '')}" data-company="${esc(a.company)}" data-role="${esc(a.role)}" class="${expandedRow === a.num ? 'expanded' : ''}">
       ${showCheckboxes ? `<td class="col-check"><input type="checkbox" class="app-check" data-num="${a.num}" ${selectedApps.has(a.num) ? 'checked' : ''}></td>` : ''}
       <td class="col-num">${a.num}</td>
-      <td><span class="cell-date">${a.date}</span></td>
+      <td><span class="cell-date">${esc(applicationDateValue(a, currentFilter))}</span></td>
       <td class="col-company">
         <span class="cell-company">
           <span class="cell-company-logo">${esc(companyInitials(a.company))}</span>
@@ -1209,11 +1219,13 @@ function renderTable(items) {
       const e = a.enrichment;
       const colSpan = showCheckboxes ? 8 : 7;
       rows += `<tr class="expanded"><td colspan="${colSpan}"><div class="row-detail">
-        <div><dt>Archetype</dt><dd>${esc(e.archetype || '\u2014')}</dd></div>
-        <div><dt>TL;DR</dt><dd>${esc(e.tldr || '\u2014')}</dd></div>
-        <div><dt>Remote</dt><dd>${esc(e.remote || '\u2014')}</dd></div>
-        <div><dt>Comp</dt><dd>${esc(e.comp || '\u2014')}</dd></div>
-        <div><dt>Notes</dt><dd>${esc(a.notes || '\u2014')}</dd></div>
+        <div><dt>Archetype</dt><dd>${esc(e.archetype || '—')}</dd></div>
+        <div><dt>TL;DR</dt><dd>${esc(e.tldr || '—')}</dd></div>
+        <div><dt>Remote</dt><dd>${esc(e.remote || '—')}</dd></div>
+        <div><dt>Comp</dt><dd>${esc(e.comp || '—')}</dd></div>
+        <div><dt>${esc(dateColumnLabel)}</dt><dd>${esc(applicationDateValue(a, currentFilter))}</dd></div>
+        <div><dt>Last event</dt><dd>${esc(a.lastEventType ? `${a.lastEventType} · ${a.lastEventAt || '—'}` : '—')}</dd></div>
+        <div><dt>Notes</dt><dd>${esc(a.notes || '—')}</dd></div>
         ${renderScoreBreakdown(a)}
       </div></td></tr>`;
     }
@@ -1223,7 +1235,7 @@ function renderTable(items) {
     <thead><tr>
       ${showCheckboxes ? `<th class="col-check"><input type="checkbox" id="select-all-apps" ${allAppsSelected ? 'checked' : ''}></th>` : ''}
       <th class="col-num">#</th>
-      <th class="${thClass('date')}" data-sort="date">Date${arrow('date')}</th>
+      <th class="${thClass('date')}" data-sort="date">${dateColumnLabel}${arrow('date')}</th>
       <th class="${thClass('company')}" data-sort="company">Company${arrow('company')}</th>
       <th>Role</th>
       <th class="col-score ${thClass('score')}" data-sort="score">Match${arrow('score')}</th>

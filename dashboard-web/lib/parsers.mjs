@@ -1,6 +1,6 @@
 import { asWorkspace } from '../../lib/workspace.mjs';
 import { tailorSlug } from '../../lib/tailor.mjs';
-import { applicationsPath } from './writers.mjs';
+import { applicationEventsPath, applicationsPath } from './writers.mjs';
 
 // --- Regex patterns (ported from dashboard/internal/data/career.go) ---
 const RE_REPORT_LINK = /\[(\d+)\]\(([^)]+)\)/;
@@ -167,6 +167,65 @@ export function statusPriority(status) {
   return priorities[normalizeStatus(status)] ?? 8;
 }
 
+export function parseApplicationEvents(cataBullRoot) {
+  const content = asWorkspace(cataBullRoot).read('data/application-events.tsv');
+  if (content == null) return [];
+
+  const events = [];
+  for (const rawLine of content.split('\n')) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('tracker_row_id\t')) continue;
+    const fields = rawLine.split('\t');
+    if (fields.length < 5) continue;
+    const trackerRowId = parseInt(fields[0], 10);
+    events.push({
+      trackerRowId: Number.isFinite(trackerRowId) ? trackerRowId : null,
+      date: String(fields[1] || '').trim(),
+      company: String(fields[2] || '').trim(),
+      role: String(fields[3] || '').trim(),
+      event: String(fields[4] || '').trim().toLowerCase(),
+      notes: String(fields[5] || '').trim(),
+    });
+  }
+  return events;
+}
+
+function enrichFromApplicationEvents(root, apps) {
+  const events = parseApplicationEvents(root);
+  if (!events.length) return;
+
+  const byRowId = new Map();
+  const byKey = new Map();
+  for (const event of events) {
+    if (Number.isFinite(event.trackerRowId)) {
+      if (!byRowId.has(event.trackerRowId)) byRowId.set(event.trackerRowId, []);
+      byRowId.get(event.trackerRowId).push(event);
+    }
+    const key = `${String(event.company || '').trim().toLowerCase()}||${String(event.role || '').trim().toLowerCase()}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(event);
+  }
+
+  for (const app of apps) {
+    const key = `${String(app.company || '').trim().toLowerCase()}||${String(app.role || '').trim().toLowerCase()}`;
+    const timeline = (byRowId.get(app.trackerRowId) || byKey.get(key) || [])
+      .slice()
+      .sort((a, b) => {
+        const dateCmp = String(a.date || '').localeCompare(String(b.date || ''));
+        if (dateCmp !== 0) return dateCmp;
+        return events.indexOf(a) - events.indexOf(b);
+      });
+    if (!timeline.length) continue;
+
+    app.eventTimeline = timeline;
+    const applied = timeline.find((event) => event.event === 'applied');
+    app.appliedAt = applied?.date || '';
+    const last = timeline[timeline.length - 1];
+    app.lastEventAt = last?.date || '';
+    app.lastEventType = last?.event || '';
+  }
+}
+
 /** Parse applications.md and return array of application objects. */
 export function parseApplications(cataBullRoot) {
   const ws = asWorkspace(cataBullRoot);
@@ -229,6 +288,7 @@ export function parseApplications(cataBullRoot) {
   enrichFromReports(cataBullRoot, apps);
   enrichFromScanHistory(cataBullRoot, apps);
   enrichTailorBundles(cataBullRoot, apps);
+  enrichFromApplicationEvents(cataBullRoot, apps);
 
   return apps;
 }
