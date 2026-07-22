@@ -51,6 +51,7 @@ export function computeProgressMetrics(apps) {
     { label: 'Responded', count: responded, pct: safePct(responded, applied) },
     { label: 'Interview', count: interview, pct: safePct(interview, applied) },
     { label: 'Offer', count: offer, pct: safePct(offer, applied) },
+    { label: 'Rejected', count: rejected, pct: safePct(rejected, applied) },
   ];
 
   // Score distribution
@@ -97,6 +98,7 @@ export function computeProgressMetrics(apps) {
     responseRate: applied > 0 ? (responded / applied) * 100 : 0,
     interviewRate: applied > 0 ? (interview / applied) * 100 : 0,
     offerRate: applied > 0 ? (offer / applied) * 100 : 0,
+    rejectionRate: applied > 0 ? (rejected / applied) * 100 : 0,
     rejectedCount: rejected,
     avgScore: scored > 0 ? totalScore / scored : 0,
     topScore,

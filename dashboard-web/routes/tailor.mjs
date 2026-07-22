@@ -152,6 +152,7 @@ export default async function (app) {
     const ext = extname(rel).slice(1).toLowerCase();
     const mime = ext === 'pdf' ? 'application/pdf'
       : ext === 'html' ? 'text/html; charset=utf-8'
+      : ext === 'doc' ? 'application/msword'
       : 'text/markdown; charset=utf-8';
     reply
       .header('Content-Type', mime)

@@ -308,7 +308,7 @@ async function renderOverview(container) {
       </div>
     </div>
 
-    <div class="grid-3" style="margin-bottom:24px">
+    <div class="grid-3" style="margin-bottom:24px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px">
       <div class="stat-card">
         <div class="stat-label">Response Rate</div>
         <div class="stat-value" style="color:${rateColor(progress.responseRate)}">${progress.responseRate.toFixed(1)}%</div>
@@ -323,6 +323,11 @@ async function renderOverview(container) {
         <div class="stat-label">Offer Rate</div>
         <div class="stat-value" style="color:${rateColor(progress.offerRate)}">${progress.offerRate.toFixed(1)}%</div>
         <div class="stat-sub">Offer / Applied</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Rejection Rate</div>
+        <div class="stat-value" style="color:${rateColor(progress.rejectionRate || 0)}">${(progress.rejectionRate || 0).toFixed(1)}%</div>
+        <div class="stat-sub">Rejected / Applied</div>
       </div>
     </div>
 

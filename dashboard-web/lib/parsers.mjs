@@ -306,6 +306,8 @@ function enrichTailorBundles(root, apps) {
       qa: `${dir}/answers.md`,
       cvHtml: `${dir}/cv.html`,
       coverLetterHtml: `${dir}/cover-letter.html`,
+      cvDoc: `${dir}/cv.doc`,
+      coverLetterDoc: `${dir}/cover-letter.doc`,
       cvPdf: `${dir}/cv.pdf`,
       coverLetterPdf: `${dir}/cover-letter.pdf`,
     };

@@ -129,11 +129,13 @@ function renderTailorBundle(tailorBundle) {
   const previews = tailorBundle.previews || {};
   const cvOptions = [
     tailorBundle.paths.cv ? { label: 'Markdown', href: api.tailorFileUrl(tailorBundle.paths.cv) } : null,
+    tailorBundle.paths.cvDoc ? { label: 'DOC', href: api.tailorFileUrl(tailorBundle.paths.cvDoc) } : null,
     tailorBundle.paths.cvPdf ? { label: 'PDF', href: api.tailorFileUrl(tailorBundle.paths.cvPdf) } : null,
     tailorBundle.paths.cvHtml ? { label: 'HTML', href: api.tailorFileUrl(tailorBundle.paths.cvHtml) } : null,
   ].filter(Boolean);
   const coverOptions = [
     tailorBundle.paths.coverLetter ? { label: 'Markdown', href: api.tailorFileUrl(tailorBundle.paths.coverLetter) } : null,
+    tailorBundle.paths.coverLetterDoc ? { label: 'DOC', href: api.tailorFileUrl(tailorBundle.paths.coverLetterDoc) } : null,
     tailorBundle.paths.coverLetterPdf ? { label: 'PDF', href: api.tailorFileUrl(tailorBundle.paths.coverLetterPdf) } : null,
     tailorBundle.paths.coverLetterHtml ? { label: 'HTML', href: api.tailorFileUrl(tailorBundle.paths.coverLetterHtml) } : null,
   ].filter(Boolean);

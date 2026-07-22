@@ -3,7 +3,7 @@ import { deepProgressFromEvent, pendingRefreshProgressFromState, quickProgressFr
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 import { openScoreModal } from '../components/score-modal.mjs';
-import { promptTailorAction } from '../components/tailor-choice.mjs';
+import { promptLowTailorScoreAction, promptTailorAction } from '../components/tailor-choice.mjs';
 import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
 import { INDUSTRIES } from '../lib/industries.mjs';
@@ -606,7 +606,9 @@ export function shouldEnableTailorArtifacts(item) {
 export function shouldShowTailorArtifactLinks(item) {
   return shouldEnableTailorArtifacts(item) && Boolean(
     item?.tailorBundle?.paths?.cv
+    || item?.tailorBundle?.paths?.cvDoc
     || item?.tailorBundle?.paths?.coverLetter
+    || item?.tailorBundle?.paths?.coverLetterDoc
     || item?.tailorBundle?.paths?.qa
     || item?.tailorBundle?.paths?.cvPdf
     || item?.tailorBundle?.paths?.coverLetterPdf
@@ -622,6 +624,7 @@ export function pendingTailorDecision(item) {
     score,
     scoreSource: hasLlm ? 'llm' : 'heuristic',
     shouldWarn: shouldWarnLowTailorScore(score),
+    shouldAutoSkip: shouldWarnLowTailorScore(score),
   };
 }
 
@@ -667,6 +670,7 @@ function showTailorResultModal(result = {}, { company = '', role = '' } = {}) {
             <h4>Tailored CV</h4>
             <span class="cell-actions">
               ${paths.cv ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.cv)}" target="_blank" rel="noreferrer">MD</a>` : ''}
+              ${paths.cvDoc ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.cvDoc)}" target="_blank" rel="noreferrer">DOC</a>` : ''}
               ${paths.cvPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.cvPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
             </span>
           </header>
@@ -678,6 +682,7 @@ function showTailorResultModal(result = {}, { company = '', role = '' } = {}) {
             <h4>Cover letter</h4>
             <span class="cell-actions">
               ${paths.coverLetter ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetter)}" target="_blank" rel="noreferrer">MD</a>` : ''}
+              ${paths.coverLetterDoc ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetterDoc)}" target="_blank" rel="noreferrer">DOC</a>` : ''}
               ${paths.coverLetterPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.coverLetterPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
             </span>
           </header>
@@ -1194,8 +1199,10 @@ function renderTable(items) {
           ` : ''}
           ${shouldShowTailorArtifactLinks(a) ? `
             ${a.tailorBundle?.paths?.cv ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.cv))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored CV markdown">CV</a>` : ''}
+            ${a.tailorBundle?.paths?.cvDoc ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.cvDoc))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored CV Word doc">CV DOC</a>` : ''}
             ${a.tailorBundle?.paths?.cvPdf ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.cvPdf))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored CV PDF">CV PDF</a>` : ''}
             ${a.tailorBundle?.paths?.coverLetter ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.coverLetter))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored cover letter markdown">Cover</a>` : ''}
+            ${a.tailorBundle?.paths?.coverLetterDoc ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.coverLetterDoc))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored cover letter Word doc">Cover DOC</a>` : ''}
             ${a.tailorBundle?.paths?.coverLetterPdf ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.coverLetterPdf))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored cover letter PDF">Cover PDF</a>` : ''}
           ` : ''}
           ${a.reportPath ? `<button class="btn btn-ghost btn-sm view-report-btn" data-report="${esc(a.reportPath)}" title="View report">&#x1F4C4;</button>` : ''}
@@ -1932,12 +1939,18 @@ function update(container) {
           if (decision.shouldWarn) {
             tailoringByUrl.delete(pendingItem.url);
             update(container);
-            const okLowScore = await confirmModal({
-              title: 'Low-fit tailor?',
-              confirmText: 'Tailor anyway',
-              body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:10px"><strong style="color:var(--text)">${esc(scoredItem.company)} - ${esc(scoredItem.role)}</strong> is only scoring <strong style="color:var(--yellow)">${Number.isFinite(decision.score) ? decision.score.toFixed(1) : 'n/a'}/5</strong>.</p><p style="font-size:13px;color:var(--subtext0)">This usually means weak fit. Tailoring now may burn time and credits before the role is worth pursuing.</p>`,
+            const lowScoreAction = await promptLowTailorScoreAction({
+              company: scoredItem.company,
+              role: scoredItem.role,
+              score: decision.score,
             });
-            if (!okLowScore) return null;
+            if (lowScoreAction === 'skip') {
+              await api.skipPending(scoredItem.url);
+              await loadData();
+              toast(`Skipped ${scoredItem.company} for low fit`);
+              return null;
+            }
+            if (lowScoreAction !== 'tailor') return null;
           }
           tailoringByUrl.set(pendingItem.url, 'tailoring');
           update(container);
@@ -1967,14 +1980,49 @@ function update(container) {
       const doEvaluate = async () => {
         try {
           const scoredItem = await scorePendingItem();
+          const decision = pendingTailorDecision(scoredItem);
+          if (decision.shouldWarn) {
+            tailoringByUrl.delete(pendingItem.url);
+            update(container);
+            const lowScoreAction = await promptLowTailorScoreAction({
+              company: scoredItem.company,
+              role: scoredItem.role,
+              score: decision.score,
+            });
+            if (lowScoreAction === 'skip') {
+              await api.skipPending(scoredItem.url);
+              await loadData();
+              toast(`Skipped ${scoredItem.company} for low fit`);
+              return null;
+            }
+            if (lowScoreAction !== 'tailor') return null;
+          }
           tailoringByUrl.set(pendingItem.url, 'evaluating');
           update(container);
           await runModePrompt('evaluate', scoredItem);
+          tailoringByUrl.set(pendingItem.url, 'tailoring');
+          update(container);
+          const tailorResult = await api.tailor(scoredItem);
           await loadData();
           currentFilter = 'tailored';
+          const matched = apps.find((app) => (
+            app.jobUrl === scoredItem.url
+            || (
+              String(app.company || '').trim().toLowerCase() === String(scoredItem.company || '').trim().toLowerCase()
+              && String(app.role || '').trim().toLowerCase() === String(scoredItem.role || '').trim().toLowerCase()
+            )
+          ));
+          if (matched?.num) expandedRow = matched.num;
           update(container);
+          toast(`Evaluation + tailor bundle ready for ${scoredItem.company}`);
+          showTailorResultModal(tailorResult, scoredItem);
+          return scoredItem;
         } catch (err) {
           toast(`Evaluation failed: ${err.message}`, 'error');
+          return null;
+        } finally {
+          tailoringByUrl.delete(pendingItem.url);
+          update(container);
         }
       };
 
