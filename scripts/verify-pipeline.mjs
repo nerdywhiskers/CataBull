@@ -17,6 +17,7 @@
 import { readFileSync, readdirSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
+import yaml from 'js-yaml';
 import { defaultWorkspace } from '../lib/workspace.mjs';
 
 // Data root = the user's workspace. CATABULL_WORKSPACE_ROOT (set by the CLI and
@@ -37,21 +38,64 @@ const STATES_FILE = existsSync(join(CATA_BULL_ROOT, 'templates/states.yml'))
 mkdirSync(join(CATA_BULL_ROOT, 'data'), { recursive: true });
 mkdirSync(REPORTS_DIR, { recursive: true });
 
-const CANONICAL_STATUSES = [
-  'evaluated', 'applied', 'responded', 'interview',
-  'offer', 'rejected', 'discarded', 'skip',
-];
+function loadCanonicalStates() {
+  const fallbackStatuses = ['tailored', 'evaluated', 'applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'skip'];
+  const fallbackAliases = {
+    tailored: 'tailored',
+    tailor: 'tailored',
+    evaluada: 'tailored',
+    aplicado: 'applied',
+    enviada: 'applied',
+    aplicada: 'applied',
+    applied: 'applied',
+    sent: 'applied',
+    respondido: 'responded',
+    entrevista: 'interview',
+    oferta: 'offer',
+    rechazado: 'rejected',
+    rechazada: 'rejected',
+    descartado: 'discarded',
+    descartada: 'discarded',
+    cerrada: 'discarded',
+    cancelada: 'discarded',
+    no_aplicar: 'skip',
+    'no aplicar': 'skip',
+    monitor: 'skip',
+    skip: 'skip',
+  };
 
-const ALIASES = {
-  'evaluada': 'evaluated', 'condicional': 'evaluated', 'hold': 'evaluated', 'evaluar': 'evaluated', 'verificar': 'evaluated',
-  'aplicado': 'applied', 'enviada': 'applied', 'aplicada': 'applied', 'applied': 'applied', 'sent': 'applied',
-  'respondido': 'responded',
-  'entrevista': 'interview',
-  'oferta': 'offer',
-  'rechazado': 'rejected', 'rechazada': 'rejected',
-  'descartado': 'discarded', 'descartada': 'discarded', 'cerrada': 'discarded', 'cancelada': 'discarded',
-  'no aplicar': 'skip', 'no_aplicar': 'skip', 'monitor': 'skip', 'geo blocker': 'skip',
-};
+  try {
+    if (!existsSync(STATES_FILE)) {
+      return { statuses: new Set(fallbackStatuses), aliases: fallbackAliases };
+    }
+    const parsed = yaml.load(readFileSync(STATES_FILE, 'utf8'));
+    const states = Array.isArray(parsed?.states) ? parsed.states : [];
+    const statuses = new Set();
+    const aliases = { ...fallbackAliases };
+    for (const state of states) {
+      const id = String(state?.id || '').trim().toLowerCase();
+      const label = String(state?.label || '').trim().toLowerCase();
+      if (id) statuses.add(id);
+      if (label) {
+        statuses.add(label);
+        aliases[label] = id || label;
+      }
+      for (const alias of Array.isArray(state?.aliases) ? state.aliases : []) {
+        const cleanAlias = String(alias || '').trim().toLowerCase();
+        if (cleanAlias) aliases[cleanAlias] = id || label || cleanAlias;
+      }
+    }
+    if (!statuses.size) {
+      return { statuses: new Set(fallbackStatuses), aliases: fallbackAliases };
+    }
+    return { statuses, aliases };
+  } catch (error) {
+    console.warn(`⚠️  Failed to parse ${STATES_FILE}: ${error.message}`);
+    return { statuses: new Set(fallbackStatuses), aliases: fallbackAliases };
+  }
+}
+
+const { statuses: CANONICAL_STATUSES, aliases: ALIASES } = loadCanonicalStates();
 
 let errors = 0;
 let warnings = 0;
@@ -92,7 +136,7 @@ for (const e of entries) {
   // Strip trailing dates
   const statusOnly = clean.replace(/\s+\d{4}-\d{2}-\d{2}.*$/, '').trim();
 
-  if (!CANONICAL_STATUSES.includes(statusOnly) && !ALIASES[statusOnly]) {
+  if (!CANONICAL_STATUSES.has(statusOnly) && !ALIASES[statusOnly]) {
     error(`#${e.num}: Non-canonical status "${e.status}"`);
     badStatuses++;
   }
