@@ -27,6 +27,9 @@ console.log('\nAgent integration helpers');
 const { agentPrintArgs, agentPtyConfig, opencodeEnv } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'lib', 'agents.mjs')).href
 );
+const { buildDashboardAgentPrompt, inspectGitContext } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web', 'routes', 'terminal.mjs')).href
+);
 
 const opencodeResumeArgs = agentPrintArgs('opencode', ROOT, {
   prompt: 'say only ok',
@@ -49,6 +52,33 @@ assert(Array.isArray(opencodePty?.args) && opencodePty.args.length === 1 && open
 const opencodeRuntimeEnv = opencodeEnv(ROOT);
 assert(opencodeRuntimeEnv.HOME === '/home/jonathan', 'opencode integration uses the host user home instead of the Hermes profile-scoped home');
 assert(opencodeRuntimeEnv.XDG_CONFIG_HOME === '/home/jonathan/.config', 'opencode integration keeps the user config directory so providers stay available');
+
+const packageGit = inspectGitContext(ROOT);
+assert(packageGit.isRepo === true, 'terminal route can inspect the package repo git state');
+assert(typeof packageGit.branch === 'string' && packageGit.branch.length > 0, 'terminal route reports the live package repo branch name');
+assert(packageGit.noCommits === false, 'package repo git state includes a real commit');
+
+const workspaceGit = inspectGitContext('/home/jonathan/.catabull');
+assert(workspaceGit.isRepo === true, 'terminal route inspects the workspace git state when present');
+assert(workspaceGit.branch === 'master', 'workspace git state reflects the uninitialized workspace branch');
+assert(workspaceGit.noCommits === true, 'workspace git state marks zero-commit repos explicitly');
+
+const wrappedPrompt = buildDashboardAgentPrompt('What is the current branch in this repo?', {
+  workspaceRoot: '/home/jonathan/.catabull',
+  packageRoot: ROOT,
+  workspaceGit: { label: 'branch master with zero commits' },
+  packageGit: { label: 'branch dev at 2953e69' },
+});
+assert(wrappedPrompt.includes('Workspace root (user data, reports, tracker files): /home/jonathan/.catabull'), 'dashboard prompt wrapper includes the user workspace root');
+assert(wrappedPrompt.includes(`Package repo root (dashboard source code): ${ROOT}`), 'dashboard prompt wrapper includes the package repo root');
+assert(wrappedPrompt.includes('treat the package repo root as the repo'), 'dashboard prompt wrapper disambiguates branch/repo questions toward the source repo');
+assert(wrappedPrompt.endsWith('What is the current branch in this repo?'), 'dashboard prompt wrapper preserves the user prompt verbatim at the end');
+
+const plainPrompt = buildDashboardAgentPrompt('plain prompt', {
+  workspaceRoot: ROOT,
+  packageRoot: ROOT,
+});
+assert(plainPrompt === 'plain prompt', 'dashboard prompt wrapper stays out of the way when workspace and package roots match');
 
 console.log(`\nPassed: ${passed} / ${total}`);
 if (failed > 0) process.exitCode = 1;
