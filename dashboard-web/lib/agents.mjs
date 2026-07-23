@@ -54,7 +54,6 @@ function preferredUserHome() {
   if (user && !isWin) return `/home/${user}`;
   return process.env.HOME || '';
 }
-
 function fallbackAgentCandidates(name) {
   const home = process.env.HOME || '';
   return [
