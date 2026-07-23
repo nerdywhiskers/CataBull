@@ -86,6 +86,7 @@ const scripts = [
   { cmd: 'node', args: ['dedup-tracker.mjs'], label: 'dedup-tracker.mjs' },
   { cmd: 'node', args: ['merge-tracker.mjs'], label: 'merge-tracker.mjs' },
   { cmd: 'node', args: ['tests/test-agent-integrations.mjs'], label: 'node tests/test-agent-integrations.mjs' },
+  { cmd: 'node', args: ['tests/test-metrics.mjs'], label: 'node tests/test-metrics.mjs' },
   { cmd: 'python3', args: ['tests/test_linkedin_import.py'], label: 'python3 tests/test_linkedin_import.py' },
   { cmd: 'node', args: ['tests/test-job-url-metadata.mjs'], label: 'node tests/test-job-url-metadata.mjs' },
 ];

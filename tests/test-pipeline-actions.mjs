@@ -185,6 +185,10 @@ assert(
   shouldShowTailorArtifactLinks({ statusNormalized: 'tailored', score: 2.8, tailorBundle: { paths: { cv: 'output/tailor-bundles/x/cv.md' } } }) === false,
   'tailored artifact links stay hidden below the >3 threshold even if files exist'
 );
+assert(
+  shouldShowTailorArtifactLinks({ statusNormalized: 'tailored', score: 3.8, tailorBundle: { paths: { cvDoc: 'output/tailor-bundles/x/cv.doc' } } }) === true,
+  'tailored artifact links show when only DOC exports are present above the score threshold'
+);
 const llmTailorDecision = pendingTailorDecision({
   url: 'https://jobs.example/llm',
   relevance: 2.7,
@@ -194,6 +198,7 @@ const llmTailorDecision = pendingTailorDecision({
 assert(llmTailorDecision.score === 3.8, 'pending tailor prefers the LLM score when present');
 assert(llmTailorDecision.scoreSource === 'llm', 'pending tailor decision marks LLM-backed scores');
 assert(llmTailorDecision.shouldWarn === false, 'pending tailor does not warn when the LLM score clears the threshold');
+assert(llmTailorDecision.shouldAutoSkip === false, 'pending tailor does not flag auto-skip when the LLM score clears the threshold');
 
 const heuristicTailorDecision = pendingTailorDecision({
   url: 'https://jobs.example/heuristic',
@@ -202,6 +207,7 @@ const heuristicTailorDecision = pendingTailorDecision({
 assert(heuristicTailorDecision.score === 2.6, 'pending tailor falls back to heuristic relevance when no LLM score exists');
 assert(heuristicTailorDecision.scoreSource === 'heuristic', 'pending tailor decision labels heuristic fallback');
 assert(heuristicTailorDecision.shouldWarn === true, 'pending tailor warns on low heuristic fallback scores');
+assert(heuristicTailorDecision.shouldAutoSkip === true, 'pending tailor flags low heuristic scores for skip confirmation');
 
 assert(
   pendingNeedsContextualScore({ url: 'https://jobs.example/a', contextualScoreSource: undefined }) === true,

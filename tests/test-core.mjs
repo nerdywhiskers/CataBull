@@ -220,6 +220,25 @@ assert(parsedApps[0]?.tailorBundle?.paths?.cvPdf === 'output/tailor-bundles/left
 assert(parsedApps[0]?.tailorBundle?.paths?.coverLetterPdf === 'output/tailor-bundles/left-field-labs-creative-director-experiences-2026-06-04/cover-letter.pdf', 'parseApplications exposes tailored cover letter PDF path when bundle exists');
 rmSync(testRoot4, { recursive: true, force: true });
 
+// Regression: exact report-linked bundle must beat company/role/date guesswork.
+// Otherwise rows can surface another tailored packet with stale profile content
+// when the tracker date and the actual tailor bundle date diverge.
+const testRoot5 = join(ROOT, '.tmp-test-app-tailor-report-binding');
+mkdirSync(join(testRoot5, 'data'), { recursive: true });
+mkdirSync(join(testRoot5, 'reports'), { recursive: true });
+mkdirSync(join(testRoot5, 'output', 'tailor-bundles', 'acme-staff-designer-2026-07-20'), { recursive: true });
+mkdirSync(join(testRoot5, 'output', 'tailor-bundles', 'acme-staff-designer-2026-07-22'), { recursive: true });
+writeFileSync(join(testRoot5, 'data', 'applications.md'), '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-07-20 | Acme | Staff Designer | 4.1/5 | Tailored | ✅ | [007](reports/007-acme-2026-07-22.md) | |\n');
+writeFileSync(join(testRoot5, 'reports', '007-acme-2026-07-22.md'), '# Acme\n\nBundle directory: `output/tailor-bundles/acme-staff-designer-2026-07-22`\n\n## Tailored Packet\n');
+writeFileSync(join(testRoot5, 'output', 'tailor-bundles', 'acme-staff-designer-2026-07-20', 'cv.md'), '# WRONG PROFILE CV\n');
+writeFileSync(join(testRoot5, 'output', 'tailor-bundles', 'acme-staff-designer-2026-07-22', 'cv.md'), '# CORRECT PROFILE CV\n');
+writeFileSync(join(testRoot5, 'output', 'tailor-bundles', 'acme-staff-designer-2026-07-22', 'cover-letter.doc'), 'doc');
+const parsedAppsReportBound = parseApplications(testRoot5);
+assert(parsedAppsReportBound[0]?.tailorBundle?.dir === 'output/tailor-bundles/acme-staff-designer-2026-07-22', 'parseApplications prefers the exact bundle directory embedded in the report');
+assert(parsedAppsReportBound[0]?.tailorBundle?.paths?.cv === 'output/tailor-bundles/acme-staff-designer-2026-07-22/cv.md', 'parseApplications binds the tailored CV to the report-linked bundle instead of the tracker-date guess');
+assert(parsedAppsReportBound[0]?.tailorBundle?.paths?.coverLetterDoc === 'output/tailor-bundles/acme-staff-designer-2026-07-22/cover-letter.doc', 'parseApplications keeps DOC exports when binding from the report-linked bundle');
+rmSync(testRoot5, { recursive: true, force: true });
+
 // ── 5. SPAWN WITH TIMEOUT ───────────────────────────────────────
 
 console.log('\n5. spawnWithTimeout');
