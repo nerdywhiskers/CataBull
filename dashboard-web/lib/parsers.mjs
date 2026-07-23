@@ -2,6 +2,57 @@ import { asWorkspace } from '../../lib/workspace.mjs';
 import { tailorSlug } from '../../lib/tailor.mjs';
 import { applicationEventsPath, applicationsPath } from './writers.mjs';
 
+function inferTailorBundleFromReport(raw = '') {
+  const paths = {};
+  const relPaths = new Set();
+  for (const match of String(raw).matchAll(/output\/tailor-bundles\/[a-z0-9._/-]+/gi)) {
+    const rel = match[0].replace(/\/(?:cv|cover-letter|answers)\.(?:md|html|doc|pdf)$/i, '');
+    relPaths.add(`${rel}/cv.md`);
+    relPaths.add(`${rel}/cv.doc`);
+    relPaths.add(`${rel}/cv.pdf`);
+    relPaths.add(`${rel}/cover-letter.md`);
+    relPaths.add(`${rel}/cover-letter.doc`);
+    relPaths.add(`${rel}/cover-letter.pdf`);
+    relPaths.add(`${rel}/answers.md`);
+  }
+  for (const match of String(raw).matchAll(/path=([^)\s`&]+)/g)) {
+    try {
+      relPaths.add(decodeURIComponent(match[1]));
+    } catch {
+      relPaths.add(match[1]);
+    }
+  }
+  for (const match of String(raw).matchAll(/output\/tailor-bundles\/[^)\s`]+\/(?:cv|cover-letter|answers)\.(?:md|html|doc|pdf)/g)) {
+    relPaths.add(match[0]);
+  }
+
+  for (const relPath of relPaths) {
+    if (!relPath.startsWith('output/tailor-bundles/')) continue;
+    if (relPath.endsWith('/cv.md')) paths.cv = relPath;
+    else if (relPath.endsWith('/cv.html')) paths.cvHtml = relPath;
+    else if (relPath.endsWith('/cv.doc')) paths.cvDoc = relPath;
+    else if (relPath.endsWith('/cv.pdf')) paths.cvPdf = relPath;
+    else if (relPath.endsWith('/cover-letter.md')) paths.coverLetter = relPath;
+    else if (relPath.endsWith('/cover-letter.html')) paths.coverLetterHtml = relPath;
+    else if (relPath.endsWith('/cover-letter.doc')) paths.coverLetterDoc = relPath;
+    else if (relPath.endsWith('/cover-letter.pdf')) paths.coverLetterPdf = relPath;
+    else if (relPath.endsWith('/answers.md')) paths.qa = relPath;
+  }
+  const firstPath = Object.values(paths)[0];
+  if (!firstPath) return null;
+  return {
+    dir: firstPath.replace(/\/[^/]+$/, ''),
+    paths,
+  };
+}
+
+function existingTailorBundlePaths(ws, paths = {}) {
+  const existingPaths = Object.fromEntries(
+    Object.entries(paths).filter(([, relPath]) => ws.exists(relPath))
+  );
+  return Object.keys(existingPaths).length ? existingPaths : null;
+}
+
 // --- Regex patterns (ported from dashboard/internal/data/career.go) ---
 const RE_REPORT_LINK = /\[(\d+)\]\(([^)]+)\)/;
 const RE_SCORE_VALUE = /(\d+\.?\d*)\/5/;
@@ -296,6 +347,19 @@ export function parseApplications(cataBullRoot) {
 function enrichTailorBundles(root, apps) {
   const ws = asWorkspace(root);
   for (const app of apps) {
+    if (app.reportPath) {
+      const reportRaw = ws.read(app.reportPath);
+      const inferred = inferTailorBundleFromReport(reportRaw || '');
+      const inferredPaths = existingTailorBundlePaths(ws, inferred?.paths || {});
+      if (inferred && inferredPaths) {
+        app.tailorBundle = {
+          slug: inferred.dir.replace(/^output\/tailor-bundles\//, ''),
+          dir: inferred.dir,
+          paths: inferredPaths,
+        };
+        continue;
+      }
+    }
     const date = String(app.date || '').trim();
     if (!date) continue;
     const slug = tailorSlug(app.company, app.role, { date });
@@ -311,10 +375,8 @@ function enrichTailorBundles(root, apps) {
       cvPdf: `${dir}/cv.pdf`,
       coverLetterPdf: `${dir}/cover-letter.pdf`,
     };
-    const existingPaths = Object.fromEntries(
-      Object.entries(paths).filter(([, relPath]) => ws.exists(relPath))
-    );
-    if (Object.keys(existingPaths).length === 0) continue;
+    const existingPaths = existingTailorBundlePaths(ws, paths);
+    if (!existingPaths) continue;
     app.tailorBundle = { slug, dir, paths: existingPaths };
   }
 }
