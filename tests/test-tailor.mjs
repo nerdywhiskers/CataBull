@@ -188,6 +188,8 @@ await withTempWorkspace((ws) => {
   assert(ws.exists(result.paths.qa), 'answers.md written');
   assert(ws.exists(result.paths.cvHtml), 'cv.html written for PDF generation');
   assert(ws.exists(result.paths.coverLetterHtml), 'cover-letter.html written for PDF generation');
+  assert(ws.exists(result.paths.cvDoc), 'cv.doc written for Word download');
+  assert(ws.exists(result.paths.coverLetterDoc), 'cover-letter.doc written for Word download');
   assert(result.paths.cvPdf.endsWith('/cv.pdf'), 'cv PDF path returned');
   assert(result.paths.coverLetterPdf.endsWith('/cover-letter.pdf'), 'cover letter PDF path returned');
   assert(ws.read(result.paths.cv).includes('# CV'), 'cv content preserved');

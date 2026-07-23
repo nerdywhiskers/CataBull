@@ -19,7 +19,7 @@ import { deepProgressFromEvent, pendingRefreshProgressFromState, quickProgressFr
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 import { openScoreModal } from '../components/score-modal.mjs';
-import { promptTailorAction } from '../components/tailor-choice.mjs';
+import { promptLowTailorScoreAction, promptTailorAction } from '../components/tailor-choice.mjs';
 import { notifyScanComplete, requestPermission } from '../components/notifications.mjs';
 import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
@@ -842,26 +842,40 @@ function tailorScoreForWarning(item) {
 
 async function confirmLowTailorScore(item) {
   const score = tailorScoreForWarning(item);
-  if (!Number.isFinite(score) || score >= 3) return true;
-  return confirmModal({
-    title: 'Low-fit tailor?',
-    confirmText: 'Tailor anyway',
-    body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:10px"><strong style="color:var(--text)">${esc(item.company)} - ${esc(item.role)}</strong> is only scoring <strong style="color:var(--yellow)">${score.toFixed(1)}/5</strong>.</p><p style="font-size:13px;color:var(--subtext0)">This usually means weak fit. Tailoring now may burn time and credits before the role is worth pursuing.</p>`,
+  if (!Number.isFinite(score) || score >= 3) return 'tailor';
+  return promptLowTailorScoreAction({
+    company: item.company,
+    role: item.role,
+    score,
   });
 }
 
 async function openTailorModal(item, container) {
   const { company, role, url } = item;
-  const ok = await confirmLowTailorScore(item);
-  if (!ok) return;
+  const lowScoreChoice = await confirmLowTailorScore(item);
+  if (lowScoreChoice === 'skip') {
+    try {
+      await api.skipPending(url);
+      await loadData();
+      rerender(container);
+      toast(`Skipped ${company} for low fit`);
+    } catch (err) {
+      toast(`Skip failed: ${err.message || String(err)}`, 'error');
+    }
+    return;
+  }
+  if (lowScoreChoice !== 'tailor') return;
   const action = await promptTailorAction({ company, role });
   if (!action) return;
   if (action === 'evaluate') {
     toast(`Running full evaluation for ${company}`);
     try {
       await runModePrompt('evaluate', { url, company, role });
+      const tailorResult = await api.tailor({ company, role, url });
       await loadData();
       rerender(container);
+      toast(`Evaluation + tailor bundle ready for ${company}`);
+      renderResult(tailorResult);
     } catch (err) {
       toast(`Evaluation failed: ${err.message || String(err)}`, 'error');
     }
@@ -925,6 +939,7 @@ async function openTailorModal(item, container) {
               <h4>Tailored CV</h4>
               <span class="cell-actions">
                 <a class="btn btn-sm" href="${api.tailorFileUrl(paths.cv)}" target="_blank" rel="noreferrer">MD</a>
+                ${paths.cvDoc ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.cvDoc)}" target="_blank" rel="noreferrer">DOC</a>` : ''}
                 ${paths.cvPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.cvPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
               </span>
             </header>
@@ -936,6 +951,7 @@ async function openTailorModal(item, container) {
               <h4>Cover letter</h4>
               <span class="cell-actions">
                 <a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetter)}" target="_blank" rel="noreferrer">MD</a>
+                ${paths.coverLetterDoc ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetterDoc)}" target="_blank" rel="noreferrer">DOC</a>` : ''}
                 ${paths.coverLetterPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.coverLetterPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
               </span>
             </header>

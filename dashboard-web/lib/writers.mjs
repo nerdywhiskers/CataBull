@@ -16,6 +16,25 @@ import { asWorkspace } from '../../lib/workspace.mjs';
 // either function runs.
 import { parseApplications } from './parsers.mjs';
 
+const COMPANY_SUFFIX_RE = /\b(?:inc|llc|ltd|corp|corporation|company|co|group|holdings?)\b/g;
+
+export function canonicalCompanyRoleKey(company, role) {
+  const companyKey = String(company || '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(COMPANY_SUFFIX_RE, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const roleKey = String(role || '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return `${companyKey}||${roleKey}`;
+}
+
 /** Resolve the canonical applications.md path.
  * Checks data/applications.md first (newer convention), falls back to root.
  */
@@ -23,6 +42,69 @@ export function applicationsPath(root) {
   const ws = asWorkspace(root);
   if (ws.exists('data/applications.md')) return ws.resolve('data/applications.md');
   return ws.resolve('applications.md');
+}
+
+export function applicationEventsPath(root) {
+  const ws = asWorkspace(root);
+  return ws.resolve('data/application-events.tsv');
+}
+
+function sanitizeEventField(value) {
+  return String(value || '')
+    .replace(/[\t\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function ensureApplicationEventsFile(ws) {
+  const relPath = 'data/application-events.tsv';
+  const existing = ws.read(relPath);
+  if (existing != null) return existing;
+  const header = 'tracker_row_id\tdate\tcompany\trole\tevent\tnotes\n';
+  ws.write(relPath, header);
+  return header;
+}
+
+function statusToApplicationEvent(status) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if (normalized === 'applied') return 'applied';
+  if (normalized === 'responded') return 'responded';
+  if (normalized === 'interview' || normalized === 'interviewed') return 'interview';
+  if (normalized === 'offer') return 'offer';
+  if (normalized === 'rejected') return 'rejected';
+  if (normalized === 'discarded') return 'discarded';
+  if (normalized === 'skip' || normalized === 'skipped') return 'skipped';
+  if (normalized.includes('tailor') || normalized.includes('evaluat')) return 'tailored';
+  return normalized.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+export function appendApplicationEvent(root, {
+  trackerRowId,
+  date = new Date().toISOString().slice(0, 10),
+  company,
+  role,
+  event,
+  notes = '',
+} = {}) {
+  const ws = asWorkspace(root);
+  const rowId = sanitizeEventField(trackerRowId);
+  const eventName = sanitizeEventField(event);
+  const companyName = sanitizeEventField(company);
+  const roleName = sanitizeEventField(role);
+  if (!rowId || !eventName || !companyName || !roleName) return false;
+
+  const existing = ensureApplicationEventsFile(ws);
+  const line = [
+    rowId,
+    sanitizeEventField(date) || new Date().toISOString().slice(0, 10),
+    companyName,
+    roleName,
+    eventName,
+    sanitizeEventField(notes),
+  ].join('\t');
+  ws.write('data/application-events.tsv', `${existing.replace(/\s*$/, '')}\n${line}\n`);
+  return true;
 }
 
 /** Read and parse profile.yml */
@@ -170,7 +252,7 @@ export function writeCV(root, content) {
 }
 
 /** Update application status in applications.md */
-export function updateApplicationStatus(root, reportNumber, rowNum, newStatus) {
+export function updateApplicationStatus(root, reportNumber, rowNum, newStatus, trackerRowId = null) {
   const ws = asWorkspace(root);
   const relPath = ws.exists('data/applications.md') ? 'data/applications.md' : 'applications.md';
   const content = ws.read(relPath);
@@ -178,6 +260,7 @@ export function updateApplicationStatus(root, reportNumber, rowNum, newStatus) {
 
   const lines = content.split('\n');
   let found = false;
+  let eventPayload = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -187,17 +270,32 @@ export function updateApplicationStatus(root, reportNumber, rowNum, newStatus) {
     if (reportNumber && line.includes(`[${reportNumber}]`)) {
       found = true;
     }
-    // Fallback: match by row number (first field)
-    if (!found && rowNum) {
+    // Prefer stable tracker row id from the first column when available.
+    if (!found && trackerRowId) {
+      const firstField = line.split('|')[1]?.trim();
+      if (firstField === String(trackerRowId)) found = true;
+    }
+    // Legacy fallback: match by parse-order row number only when no stable tracker id exists.
+    if (!found && !trackerRowId && rowNum) {
       const firstField = line.split('|')[1]?.trim();
       if (firstField === String(rowNum)) found = true;
     }
 
     if (found) {
       const parts = lines[i].split('|');
-      if (parts.length >= 7) {
+      if (parts.length >= 10) {
+        const priorStatus = String(parts[6] || '').trim();
         parts[6] = ` ${newStatus} `;
         lines[i] = parts.join('|');
+        const eventName = statusToApplicationEvent(newStatus);
+        if (eventName && statusToApplicationEvent(priorStatus) !== eventName) {
+          eventPayload = {
+            trackerRowId: String(parts[1] || '').trim() || trackerRowId || rowNum,
+            company: String(parts[3] || '').trim(),
+            role: String(parts[4] || '').trim(),
+            event: eventName,
+          };
+        }
       }
       break;
     }
@@ -206,7 +304,76 @@ export function updateApplicationStatus(root, reportNumber, rowNum, newStatus) {
 
   if (!found) return false;
   ws.write(relPath, lines.join('\n'));
+  if (eventPayload) appendApplicationEvent(root, eventPayload);
   return true;
+}
+
+function parsePipelineIdentity(line) {
+  const match = line.match(/^-\s+\[([ x])\]\s+(https?:\/\/\S+)\s*\|\s*([^|]+)\s*\|\s*(.+)$/);
+  if (!match) return null;
+  const fields = match[4].split('|').map((field) => field.trim()).filter(Boolean);
+  const role = fields[0] || '';
+  return {
+    done: match[1] === 'x',
+    url: match[2].trim(),
+    company: match[3].trim(),
+    role,
+    key: canonicalCompanyRoleKey(match[3], role),
+  };
+}
+
+export function enforcePipelineConsistency(root) {
+  const ws = asWorkspace(root);
+  const content = ws.read('data/pipeline.md');
+  if (content == null) return { removed: 0, removedBecauseTracked: 0, removedBecauseDuplicatePending: 0 };
+
+  const blockedKeys = new Set(
+    parseApplications(root)
+      .map((app) => canonicalCompanyRoleKey(app.company, app.role))
+      .filter((key) => key && key !== '||')
+  );
+
+  const lines = content.split('\n');
+  let inProcessed = false;
+  for (const line of lines) {
+    if (/^##\s+Procesad/i.test(line)) {
+      inProcessed = true;
+      continue;
+    }
+    if (inProcessed) continue;
+    const item = parsePipelineIdentity(line);
+    if (!item || !item.done || !item.key || item.key === '||') continue;
+    blockedKeys.add(item.key);
+  }
+
+  const seenPendingKeys = new Set();
+  let removedBecauseTracked = 0;
+  let removedBecauseDuplicatePending = 0;
+  inProcessed = false;
+  const kept = lines.filter((line) => {
+    if (/^##\s+Procesad/i.test(line)) {
+      inProcessed = true;
+      return true;
+    }
+    if (inProcessed) return true;
+
+    const item = parsePipelineIdentity(line);
+    if (!item || item.done || !item.key || item.key === '||') return true;
+    if (blockedKeys.has(item.key)) {
+      removedBecauseTracked += 1;
+      return false;
+    }
+    if (seenPendingKeys.has(item.key)) {
+      removedBecauseDuplicatePending += 1;
+      return false;
+    }
+    seenPendingKeys.add(item.key);
+    return true;
+  });
+
+  const removed = removedBecauseTracked + removedBecauseDuplicatePending;
+  if (removed > 0) ws.write('data/pipeline.md', kept.join('\n'));
+  return { removed, removedBecauseTracked, removedBecauseDuplicatePending };
 }
 
 function buildReportLink(reportNumber, reportPath) {
@@ -253,8 +420,7 @@ export function markPipelineTailored(root, {
   const appsContent = ensureApplicationsFile(ws, appsRelPath);
   const lines = appsContent.split('\n');
   const today = new Date().toISOString().slice(0, 10);
-  const normalizedCompany = company.trim().toLowerCase();
-  const normalizedRole = role.trim().toLowerCase();
+  const normalizedKey = canonicalCompanyRoleKey(company, role);
   const reportCell = buildReportLink(reportNumber, reportPath);
   let nextNum = 1;
 
@@ -265,8 +431,7 @@ export function markPipelineTailored(root, {
     if (parts.length < 8) continue;
     const rowNum = parseInt(parts[0], 10);
     if (Number.isFinite(rowNum)) nextNum = Math.max(nextNum, rowNum + 1);
-    if (String(parts[2] || '').trim().toLowerCase() !== normalizedCompany) continue;
-    if (String(parts[3] || '').trim().toLowerCase() !== normalizedRole) continue;
+    if (canonicalCompanyRoleKey(parts[2], parts[3]) !== normalizedKey) continue;
 
     parts[1] = parts[1] || today;
     parts[2] = company;
@@ -277,13 +442,28 @@ export function markPipelineTailored(root, {
     parts[6] = hasPdf ? '✅' : (parts[6] || '❌');
     parts[7] = reportCell || parts[7] || '';
     parts[8] = parts[8] || '';
-    lines[i] = `| ${parts[0] || rowNum || nextNum} | ${parts[1]} | ${parts[2]} | ${parts[3]} | ${parts[4]} | ${parts[5]} | ${parts[6]} | ${parts[7]} | ${parts[8]} |`;
+    const finalRowId = parts[0] || rowNum || nextNum;
+    lines[i] = `| ${finalRowId} | ${parts[1]} | ${parts[2]} | ${parts[3]} | ${parts[4]} | ${parts[5]} | ${parts[6]} | ${parts[7]} | ${parts[8]} |`;
     ws.write(appsRelPath, lines.join('\n'));
+    if (!existingStatus || /tailor|evaluat|hold|monitor|verificar|condicional/i.test(existingStatus)) {
+      appendApplicationEvent(root, {
+        trackerRowId: finalRowId,
+        company: parts[2],
+        role: parts[3],
+        event: 'tailored',
+      });
+    }
     return { success: true, updated: true, num: rowNum || nextNum };
   }
 
   const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | ${scoreRaw} | Tailored | ${hasPdf ? '✅' : '❌'} | ${reportCell} | |`;
   ws.write(appsRelPath, appsContent.trimEnd() + '\n' + newRow + '\n');
+  appendApplicationEvent(root, {
+    trackerRowId: nextNum,
+    company,
+    role,
+    event: 'tailored',
+  });
   return { success: true, updated: false, num: nextNum };
 }
 
@@ -547,24 +727,30 @@ export function markPipelineApplied(root, url, company, role) {
 
   markPipelineDone(ws, url);
 
+  const existingKey = canonicalCompanyRoleKey(company, role);
   const existing = parseApplications(root).find(app =>
-    app.company.trim().toLowerCase() === company.trim().toLowerCase()
-    && app.role.trim().toLowerCase() === role.trim().toLowerCase()
+    canonicalCompanyRoleKey(app.company, app.role) === existingKey
   );
   if (existing) {
-    updateApplicationStatus(root, existing.reportNumber, existing.num, 'Applied');
+    updateApplicationStatus(root, existing.reportNumber, existing.num, 'Applied', existing.trackerRowId);
     return;
   }
 
   // Add to applications.md
   const today = new Date().toISOString().slice(0, 10);
   const appsRelPath = ws.exists('data/applications.md') ? 'data/applications.md' : 'applications.md';
-  const appsContent = ws.read(appsRelPath) || '';
+  const appsContent = ensureApplicationsFile(ws, appsRelPath);
   const rows = appsContent.split('\n').filter(l => l.startsWith('|') && !l.startsWith('| #') && !l.startsWith('|---'));
   const nextNum = rows.length + 1;
 
   const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | | Applied | ❌ | | |`;
   ws.write(appsRelPath, appsContent.trimEnd() + '\n' + newRow + '\n');
+  appendApplicationEvent(root, {
+    trackerRowId: nextNum,
+    company,
+    role,
+    event: 'applied',
+  });
 }
 
 /**

@@ -3,7 +3,7 @@ import { deepProgressFromEvent, pendingRefreshProgressFromState, quickProgressFr
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 import { openScoreModal } from '../components/score-modal.mjs';
-import { promptTailorAction } from '../components/tailor-choice.mjs';
+import { promptLowTailorScoreAction, promptTailorAction } from '../components/tailor-choice.mjs';
 import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
 import { INDUSTRIES } from '../lib/industries.mjs';
@@ -235,6 +235,27 @@ function showUndoToast(action) {
       },
     },
   });
+}
+
+async function confirmDeletePending(container, urls = []) {
+  if (!urls.length) return false;
+  const ok = await confirmModal({
+    title: `Delete ${urls.length} pending job${urls.length !== 1 ? 's' : ''}?`,
+    body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:8px">This permanently removes the selected entr${urls.length !== 1 ? 'ies' : 'y'} from your pending pipeline.</p><p style="font-size:13px;color:var(--subtext0)">This cannot be undone. Use <strong>Skip</strong> instead if you might want to revisit later.</p>`,
+    confirmText: 'Delete',
+    danger: true,
+  });
+  if (!ok) return false;
+  try {
+    const result = await api.deletePending(urls);
+    for (const url of urls) selected.delete(url);
+    toast(`Deleted ${result.removed} pending job${result.removed !== 1 ? 's' : ''}`);
+    render(container);
+    return true;
+  } catch (err) {
+    toast(`Failed to delete: ${err.message}`, 'error');
+    return false;
+  }
 }
 
 function scoreClass(score) {
@@ -524,12 +545,29 @@ function renderInsightCards() {
   `;
 }
 
+export function countApplicationsForTab(applications, key, { pendingCount = 0, skippedCount = 0, expiredCount = 0 } = {}) {
+  if (key === 'pending') return pendingCount;
+  if (key === 'all') return applications.length;
+  if (key === 'top') return applications.filter(a => a.score >= 4.0 && a.statusNormalized !== 'skip').length;
+  if (key === 'skip') return applications.filter(a => a.statusNormalized === 'skip').length + skippedCount + expiredCount;
+  return applications.filter(a => a.statusNormalized === key).length;
+}
+
+export function applicationDateColumnLabel(filter) {
+  return filter === 'applied' ? 'Applied On' : 'Date';
+}
+
+export function applicationDateValue(app = {}, filter) {
+  if (filter === 'applied') return app.appliedAt || app.date || '—';
+  return app.date || '—';
+}
+
 function tabCount(key) {
-  if (key === 'pending') return pending.length;
-  if (key === 'all') return apps.length;
-  if (key === 'top') return apps.filter(a => a.score >= 4.0 && a.statusNormalized !== 'skip').length;
-  if (key === 'skip') return apps.filter(a => a.statusNormalized === 'skip' || a.statusNormalized === 'rejected').length + skipped.length + expired.length;
-  return apps.filter(a => a.statusNormalized === key).length;
+  return countApplicationsForTab(apps, key, {
+    pendingCount: pending.length,
+    skippedCount: skipped.length,
+    expiredCount: expired.length,
+  });
 }
 
 const FILTERS = [
@@ -537,6 +575,7 @@ const FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'tailored', label: 'Tailored' },
   { key: 'applied', label: 'Applied' },
+  { key: 'rejected', label: 'Rejected' },
   { key: 'interview', label: 'Interview' },
   { key: 'top', label: 'Top \u22654' },
   { key: 'skip', label: 'Skip' },
@@ -567,7 +606,9 @@ export function shouldEnableTailorArtifacts(item) {
 export function shouldShowTailorArtifactLinks(item) {
   return shouldEnableTailorArtifacts(item) && Boolean(
     item?.tailorBundle?.paths?.cv
+    || item?.tailorBundle?.paths?.cvDoc
     || item?.tailorBundle?.paths?.coverLetter
+    || item?.tailorBundle?.paths?.coverLetterDoc
     || item?.tailorBundle?.paths?.qa
     || item?.tailorBundle?.paths?.cvPdf
     || item?.tailorBundle?.paths?.coverLetterPdf
@@ -583,6 +624,7 @@ export function pendingTailorDecision(item) {
     score,
     scoreSource: hasLlm ? 'llm' : 'heuristic',
     shouldWarn: shouldWarnLowTailorScore(score),
+    shouldAutoSkip: shouldWarnLowTailorScore(score),
   };
 }
 
@@ -628,6 +670,7 @@ function showTailorResultModal(result = {}, { company = '', role = '' } = {}) {
             <h4>Tailored CV</h4>
             <span class="cell-actions">
               ${paths.cv ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.cv)}" target="_blank" rel="noreferrer">MD</a>` : ''}
+              ${paths.cvDoc ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.cvDoc)}" target="_blank" rel="noreferrer">DOC</a>` : ''}
               ${paths.cvPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.cvPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
             </span>
           </header>
@@ -639,6 +682,7 @@ function showTailorResultModal(result = {}, { company = '', role = '' } = {}) {
             <h4>Cover letter</h4>
             <span class="cell-actions">
               ${paths.coverLetter ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetter)}" target="_blank" rel="noreferrer">MD</a>` : ''}
+              ${paths.coverLetterDoc ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetterDoc)}" target="_blank" rel="noreferrer">DOC</a>` : ''}
               ${paths.coverLetterPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.coverLetterPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
             </span>
           </header>
@@ -1007,6 +1051,7 @@ function renderPending(pageItems = null) {
               { label: 'Edit role', onClick: () => openPendingEditModal(p) },
               { label: 'Deep Research', onClick: () => runModePrompt('deep', { company: p.company, role: p.role, url: p.url }) },
               { label: 'Outreach',      onClick: () => runModePrompt('outreach', { company: p.company, role: p.role, url: p.url }) },
+              { label: 'Delete', class: 'btn-danger', onClick: () => confirmDeletePending(activeContainer, [p.url]) },
           ])}
         </span>
       </td>
@@ -1071,12 +1116,11 @@ function renderCollapsibleGroup(label, items, style = '') {
 }
 
 function renderSkipped() {
-  const rejected = rejectedApps();
   const allItems = [
     ...skipped.map(s => ({ ...s, type: 'skipped' })),
     ...expired.map(e => ({ ...e, type: 'expired', status: 'EXPIRED' })),
   ];
-  if (!allItems.length && !rejected.length) return '';
+  if (!allItems.length) return '';
 
   const dated = groupByDate(allItems);
 
@@ -1093,45 +1137,13 @@ function renderSkipped() {
     html += renderCollapsibleGroup(label, items, i === 0 ? 'open' : '');
   });
 
-  if (rejected.length) {
-    html += `
-      <details class="skip-group skip-group-rejected" style="margin-top:16px">
-        <summary class="skip-group-summary is-danger">
-          <span>Rejected</span>
-          <span class="skip-group-count">${rejected.length}</span>
-        </summary>
-        ${wrapTable(`<table class="data-table data-table-compact pipeline-table skip-table">
-          <tbody>${rejected.map(r => `
-            <tr class="is-muted">
-              <td><span class="cell-date">${r.date}</span></td>
-              <td class="col-company">
-                <span class="cell-company">
-                  <span class="cell-company-logo">${esc(companyInitials(r.company))}</span>
-                  <span>${esc(r.company)}</span>
-                </span>
-              </td>
-              <td><span class="cell-role">${esc(r.role)}</span></td>
-              <td class="col-score">${r.score > 0
-                ? `<button type="button" class="score-trigger" data-score-kind="tailored" data-score-num="${r.num}" title="${esc(scoreBlocksTooltip(r.scoreBlocks) || 'Score at rejection')}">${renderScoreRing(r.score, scoreClass(r.score), '')}</button>`
-                : ''}</td>
-              <td class="col-actions">
-                <span class="cell-actions">
-                  ${r.jobUrl ? `<a href="${esc(r.jobUrl)}" target="_blank" class="btn btn-ghost btn-sm">&#x2197;</a>` : ''}
-                </span>
-              </td>
-            </tr>`).join('')}
-          </tbody>
-        </table>`, 'table-scroll table-scroll-compact')}
-      </details>`;
-  }
-
   html += '</div>';
   return html;
 }
 
 function renderTable(items) {
   if (!items.length && currentFilter === 'skip') {
-    if (skipped.length || expired.length || rejectedApps().length) return renderSkipped();
+    if (skipped.length || expired.length) return renderSkipped();
     return `<div class="empty-state"><h3>No skipped jobs</h3></div>`;
   }
   if (!items.length) return `<div class="empty-state"><h3>No applications yet</h3><p>Tailor a job to get started.</p></div>`;
@@ -1140,8 +1152,9 @@ function renderTable(items) {
   const showCheckboxes = batchActions.length > 0;
   const anyAppSelected = selectedApps.size > 0;
   const allAppsSelected = showCheckboxes && items.length > 0 && items.every(a => selectedApps.has(a.num));
+  const dateColumnLabel = applicationDateColumnLabel(currentFilter);
 
-  const arrow = (col) => sortCol === col ? `<span class="sort-arrow">${sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>` : '';
+  const arrow = (col) => sortCol === col ? `<span class="sort-arrow">${sortDir === 'asc' ? '▲' : '▼'}</span>` : '';
   const thClass = (col) => sortCol === col ? 'sorted' : '';
 
   // Batch action bar for tailored/applied tabs
@@ -1163,7 +1176,7 @@ function renderTable(items) {
     rows += `<tr data-num="${a.num}" data-url="${esc(a.jobUrl || '')}" data-company="${esc(a.company)}" data-role="${esc(a.role)}" class="${expandedRow === a.num ? 'expanded' : ''}">
       ${showCheckboxes ? `<td class="col-check"><input type="checkbox" class="app-check" data-num="${a.num}" ${selectedApps.has(a.num) ? 'checked' : ''}></td>` : ''}
       <td class="col-num">${a.num}</td>
-      <td><span class="cell-date">${a.date}</span></td>
+      <td><span class="cell-date">${esc(applicationDateValue(a, currentFilter))}</span></td>
       <td class="col-company">
         <span class="cell-company">
           <span class="cell-company-logo">${esc(companyInitials(a.company))}</span>
@@ -1186,8 +1199,10 @@ function renderTable(items) {
           ` : ''}
           ${shouldShowTailorArtifactLinks(a) ? `
             ${a.tailorBundle?.paths?.cv ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.cv))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored CV markdown">CV</a>` : ''}
+            ${a.tailorBundle?.paths?.cvDoc ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.cvDoc))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored CV Word doc">CV DOC</a>` : ''}
             ${a.tailorBundle?.paths?.cvPdf ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.cvPdf))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored CV PDF">CV PDF</a>` : ''}
             ${a.tailorBundle?.paths?.coverLetter ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.coverLetter))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored cover letter markdown">Cover</a>` : ''}
+            ${a.tailorBundle?.paths?.coverLetterDoc ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.coverLetterDoc))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored cover letter Word doc">Cover DOC</a>` : ''}
             ${a.tailorBundle?.paths?.coverLetterPdf ? `<a href="${esc(api.tailorFileUrl(a.tailorBundle.paths.coverLetterPdf))}" target="_blank" class="btn btn-sm btn-outline" title="Download tailored cover letter PDF">Cover PDF</a>` : ''}
           ` : ''}
           ${a.reportPath ? `<button class="btn btn-ghost btn-sm view-report-btn" data-report="${esc(a.reportPath)}" title="View report">&#x1F4C4;</button>` : ''}
@@ -1211,11 +1226,13 @@ function renderTable(items) {
       const e = a.enrichment;
       const colSpan = showCheckboxes ? 8 : 7;
       rows += `<tr class="expanded"><td colspan="${colSpan}"><div class="row-detail">
-        <div><dt>Archetype</dt><dd>${esc(e.archetype || '\u2014')}</dd></div>
-        <div><dt>TL;DR</dt><dd>${esc(e.tldr || '\u2014')}</dd></div>
-        <div><dt>Remote</dt><dd>${esc(e.remote || '\u2014')}</dd></div>
-        <div><dt>Comp</dt><dd>${esc(e.comp || '\u2014')}</dd></div>
-        <div><dt>Notes</dt><dd>${esc(a.notes || '\u2014')}</dd></div>
+        <div><dt>Archetype</dt><dd>${esc(e.archetype || '—')}</dd></div>
+        <div><dt>TL;DR</dt><dd>${esc(e.tldr || '—')}</dd></div>
+        <div><dt>Remote</dt><dd>${esc(e.remote || '—')}</dd></div>
+        <div><dt>Comp</dt><dd>${esc(e.comp || '—')}</dd></div>
+        <div><dt>${esc(dateColumnLabel)}</dt><dd>${esc(applicationDateValue(a, currentFilter))}</dd></div>
+        <div><dt>Last event</dt><dd>${esc(a.lastEventType ? `${a.lastEventType} · ${a.lastEventAt || '—'}` : '—')}</dd></div>
+        <div><dt>Notes</dt><dd>${esc(a.notes || '—')}</dd></div>
         ${renderScoreBreakdown(a)}
       </div></td></tr>`;
     }
@@ -1225,7 +1242,7 @@ function renderTable(items) {
     <thead><tr>
       ${showCheckboxes ? `<th class="col-check"><input type="checkbox" id="select-all-apps" ${allAppsSelected ? 'checked' : ''}></th>` : ''}
       <th class="col-num">#</th>
-      <th class="${thClass('date')}" data-sort="date">Date${arrow('date')}</th>
+      <th class="${thClass('date')}" data-sort="date">${dateColumnLabel}${arrow('date')}</th>
       <th class="${thClass('company')}" data-sort="company">Company${arrow('company')}</th>
       <th>Role</th>
       <th class="col-score ${thClass('score')}" data-sort="score">Match${arrow('score')}</th>
@@ -1292,10 +1309,6 @@ export function batchActionsForFilter(filter) {
     ];
   }
   return [];
-}
-
-function rejectedApps() {
-  return apps.filter(a => a.statusNormalized === 'rejected');
 }
 
 function isAlreadyEvaluated(company, role) {
@@ -1855,21 +1868,7 @@ function update(container) {
   container.querySelector('#batch-delete-btn')?.addEventListener('click', async () => {
     const urls = [...selected];
     if (!urls.length) return;
-    const ok = await confirmModal({
-      title: `Delete ${urls.length} pending job${urls.length !== 1 ? 's' : ''}?`,
-      body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:8px">This permanently removes the selected entr${urls.length !== 1 ? 'ies' : 'y'} from your pending pipeline.</p><p style="font-size:13px;color:var(--subtext0)">This cannot be undone. Use <strong>Skip</strong> instead if you might want to revisit later.</p>`,
-      confirmText: 'Delete',
-      danger: true,
-    });
-    if (!ok) return;
-    try {
-      const result = await api.deletePending(urls);
-      selected.clear();
-      toast(`Deleted ${result.removed} pending job${result.removed !== 1 ? 's' : ''}`);
-      render(container);
-    } catch (err) {
-      toast(`Failed to delete: ${err.message}`, 'error');
-    }
+    await confirmDeletePending(container, urls);
   });
 
   container.querySelector('#batch-clear-btn')?.addEventListener('click', () => {
@@ -1940,12 +1939,18 @@ function update(container) {
           if (decision.shouldWarn) {
             tailoringByUrl.delete(pendingItem.url);
             update(container);
-            const okLowScore = await confirmModal({
-              title: 'Low-fit tailor?',
-              confirmText: 'Tailor anyway',
-              body: `<p style="font-size:14px;color:var(--subtext);margin-bottom:10px"><strong style="color:var(--text)">${esc(scoredItem.company)} - ${esc(scoredItem.role)}</strong> is only scoring <strong style="color:var(--yellow)">${Number.isFinite(decision.score) ? decision.score.toFixed(1) : 'n/a'}/5</strong>.</p><p style="font-size:13px;color:var(--subtext0)">This usually means weak fit. Tailoring now may burn time and credits before the role is worth pursuing.</p>`,
+            const lowScoreAction = await promptLowTailorScoreAction({
+              company: scoredItem.company,
+              role: scoredItem.role,
+              score: decision.score,
             });
-            if (!okLowScore) return null;
+            if (lowScoreAction === 'skip') {
+              await api.skipPending(scoredItem.url);
+              await loadData();
+              toast(`Skipped ${scoredItem.company} for low fit`);
+              return null;
+            }
+            if (lowScoreAction !== 'tailor') return null;
           }
           tailoringByUrl.set(pendingItem.url, 'tailoring');
           update(container);
@@ -1975,14 +1980,49 @@ function update(container) {
       const doEvaluate = async () => {
         try {
           const scoredItem = await scorePendingItem();
+          const decision = pendingTailorDecision(scoredItem);
+          if (decision.shouldWarn) {
+            tailoringByUrl.delete(pendingItem.url);
+            update(container);
+            const lowScoreAction = await promptLowTailorScoreAction({
+              company: scoredItem.company,
+              role: scoredItem.role,
+              score: decision.score,
+            });
+            if (lowScoreAction === 'skip') {
+              await api.skipPending(scoredItem.url);
+              await loadData();
+              toast(`Skipped ${scoredItem.company} for low fit`);
+              return null;
+            }
+            if (lowScoreAction !== 'tailor') return null;
+          }
           tailoringByUrl.set(pendingItem.url, 'evaluating');
           update(container);
           await runModePrompt('evaluate', scoredItem);
+          tailoringByUrl.set(pendingItem.url, 'tailoring');
+          update(container);
+          const tailorResult = await api.tailor(scoredItem);
           await loadData();
           currentFilter = 'tailored';
+          const matched = apps.find((app) => (
+            app.jobUrl === scoredItem.url
+            || (
+              String(app.company || '').trim().toLowerCase() === String(scoredItem.company || '').trim().toLowerCase()
+              && String(app.role || '').trim().toLowerCase() === String(scoredItem.role || '').trim().toLowerCase()
+            )
+          ));
+          if (matched?.num) expandedRow = matched.num;
           update(container);
+          toast(`Evaluation + tailor bundle ready for ${scoredItem.company}`);
+          showTailorResultModal(tailorResult, scoredItem);
+          return scoredItem;
         } catch (err) {
           toast(`Evaluation failed: ${err.message}`, 'error');
+          return null;
+        } finally {
+          tailoringByUrl.delete(pendingItem.url);
+          update(container);
         }
       };
 

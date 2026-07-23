@@ -69,18 +69,18 @@ assert(normalizeStatus('Discarded') === 'discarded', 'Discarded → discarded');
 assert(normalizeStatus('Descartado') === 'discarded', 'Descartado → discarded');
 assert(normalizeStatus('Duplicado') === 'discarded', 'Duplicado → discarded');
 assert(normalizeStatus('Dup') === 'discarded', 'Dup → discarded');
-assert(normalizeStatus('Evaluated') === 'evaluated', 'Evaluated → evaluated');
-assert(normalizeStatus('Hold') === 'evaluated', 'Hold → evaluated');
-assert(normalizeStatus('Monitor') === 'evaluated', 'Monitor → evaluated');
+assert(normalizeStatus('Evaluated') === 'tailored', 'Evaluated → tailored');
+assert(normalizeStatus('Hold') === 'tailored', 'Hold → tailored');
+assert(normalizeStatus('Monitor') === 'tailored', 'Monitor → tailored');
 assert(normalizeStatus('Responded') === 'responded', 'Responded → responded');
 assert(normalizeStatus('Respondido') === 'responded', 'Respondido → responded');
 assert(normalizeStatus('Cerrada') === 'discarded', 'Cerrada → discarded');
 assert(normalizeStatus('Cancelada') === 'discarded', 'Cancelada → discarded');
 assert(normalizeStatus('Enviada') === 'applied', 'Enviada → applied (non-accented)');
 assert(normalizeStatus('Aplicada') === 'applied', 'Aplicada → applied');
-assert(normalizeStatus('Condicional') === 'evaluated', 'Condicional → evaluated');
-assert(normalizeStatus('Evaluar') === 'evaluated', 'Evaluar → evaluated');
-assert(normalizeStatus('Verificar') === 'evaluated', 'Verificar → evaluated');
+assert(normalizeStatus('Condicional') === 'tailored', 'Condicional → tailored');
+assert(normalizeStatus('Evaluar') === 'tailored', 'Evaluar → tailored');
+assert(normalizeStatus('Verificar') === 'tailored', 'Verificar → tailored');
 
 // Strip trailing dates
 assert(normalizeStatus('Applied  2026-04-01') === 'applied', 'Strips trailing date: "Applied  2026-04-01" → applied');
@@ -96,7 +96,7 @@ assert(statusPriority('interview') === 0, 'interview has highest priority (0)');
 assert(statusPriority('offer') === 1, 'offer has priority (1)');
 assert(statusPriority('responded') === 2, 'responded has priority (2)');
 assert(statusPriority('applied') === 3, 'applied has priority (3)');
-assert(statusPriority('evaluated') === 4, 'evaluated has priority (4)');
+assert(statusPriority('tailored') === 4, 'tailored has priority (4)');
 assert(statusPriority('skip') === 5, 'skip has priority (5)');
 assert(statusPriority('rejected') === 6, 'rejected has priority (6)');
 assert(statusPriority('discarded') === 7, 'discarded has lowest priority (7)');
@@ -219,6 +219,25 @@ assert(parsedApps[0]?.tailorBundle?.paths?.qa === 'output/tailor-bundles/left-fi
 assert(parsedApps[0]?.tailorBundle?.paths?.cvPdf === 'output/tailor-bundles/left-field-labs-creative-director-experiences-2026-06-04/cv.pdf', 'parseApplications exposes tailored CV PDF path when bundle exists');
 assert(parsedApps[0]?.tailorBundle?.paths?.coverLetterPdf === 'output/tailor-bundles/left-field-labs-creative-director-experiences-2026-06-04/cover-letter.pdf', 'parseApplications exposes tailored cover letter PDF path when bundle exists');
 rmSync(testRoot4, { recursive: true, force: true });
+
+// Regression: exact report-linked bundle must beat company/role/date guesswork.
+// Otherwise rows can surface another tailored packet with stale profile content
+// when the tracker date and the actual tailor bundle date diverge.
+const testRoot5 = join(ROOT, '.tmp-test-app-tailor-report-binding');
+mkdirSync(join(testRoot5, 'data'), { recursive: true });
+mkdirSync(join(testRoot5, 'reports'), { recursive: true });
+mkdirSync(join(testRoot5, 'output', 'tailor-bundles', 'acme-staff-designer-2026-07-20'), { recursive: true });
+mkdirSync(join(testRoot5, 'output', 'tailor-bundles', 'acme-staff-designer-2026-07-22'), { recursive: true });
+writeFileSync(join(testRoot5, 'data', 'applications.md'), '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-07-20 | Acme | Staff Designer | 4.1/5 | Tailored | ✅ | [007](reports/007-acme-2026-07-22.md) | |\n');
+writeFileSync(join(testRoot5, 'reports', '007-acme-2026-07-22.md'), '# Acme\n\nBundle directory: `output/tailor-bundles/acme-staff-designer-2026-07-22`\n\n## Tailored Packet\n');
+writeFileSync(join(testRoot5, 'output', 'tailor-bundles', 'acme-staff-designer-2026-07-20', 'cv.md'), '# WRONG PROFILE CV\n');
+writeFileSync(join(testRoot5, 'output', 'tailor-bundles', 'acme-staff-designer-2026-07-22', 'cv.md'), '# CORRECT PROFILE CV\n');
+writeFileSync(join(testRoot5, 'output', 'tailor-bundles', 'acme-staff-designer-2026-07-22', 'cover-letter.doc'), 'doc');
+const parsedAppsReportBound = parseApplications(testRoot5);
+assert(parsedAppsReportBound[0]?.tailorBundle?.dir === 'output/tailor-bundles/acme-staff-designer-2026-07-22', 'parseApplications prefers the exact bundle directory embedded in the report');
+assert(parsedAppsReportBound[0]?.tailorBundle?.paths?.cv === 'output/tailor-bundles/acme-staff-designer-2026-07-22/cv.md', 'parseApplications binds the tailored CV to the report-linked bundle instead of the tracker-date guess');
+assert(parsedAppsReportBound[0]?.tailorBundle?.paths?.coverLetterDoc === 'output/tailor-bundles/acme-staff-designer-2026-07-22/cover-letter.doc', 'parseApplications keeps DOC exports when binding from the report-linked bundle');
+rmSync(testRoot5, { recursive: true, force: true });
 
 // ── 5. SPAWN WITH TIMEOUT ───────────────────────────────────────
 
