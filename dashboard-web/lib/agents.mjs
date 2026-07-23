@@ -45,6 +45,15 @@ function ensureDir(path) {
   return path;
 }
 
+function preferredUserHome() {
+  const explicit = process.env.CATABULL_USER_HOME || process.env.CATABULL_HOST_HOME;
+  if (explicit) return explicit;
+  const terminalCwd = process.env.TERMINAL_CWD || '';
+  if (/^\/home\/[^/]+$/.test(terminalCwd)) return terminalCwd;
+  const user = process.env.USER || process.env.LOGNAME || '';
+  if (user && !isWin) return `/home/${user}`;
+  return process.env.HOME || '';
+}
 function fallbackAgentCandidates(name) {
   const home = process.env.HOME || '';
   return [
@@ -57,12 +66,13 @@ function fallbackAgentCandidates(name) {
 }
 
 export function opencodeEnv(root) {
-  const outputRoot = ensureDir(join(root, 'output'));
+  const userHome = preferredUserHome();
   return {
     ...process.env,
-    XDG_CONFIG_HOME: ensureDir(join(outputRoot, 'opencode-xdg-config')),
-    XDG_DATA_HOME: ensureDir(join(outputRoot, 'opencode-xdg-data')),
-    XDG_STATE_HOME: ensureDir(join(outputRoot, 'opencode-xdg-state')),
+    HOME: userHome || process.env.HOME,
+    XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME || (userHome ? join(userHome, '.config') : process.env.XDG_CONFIG_HOME),
+    XDG_DATA_HOME: process.env.XDG_DATA_HOME || (userHome ? join(userHome, '.local', 'share') : process.env.XDG_DATA_HOME),
+    XDG_STATE_HOME: process.env.XDG_STATE_HOME || (userHome ? join(userHome, '.local', 'state') : process.env.XDG_STATE_HOME),
   };
 }
 
@@ -206,12 +216,12 @@ export function agentPrintArgs(agentName, root, { allowEdits = false, sessionId 
 
   if (agentName === 'opencode') {
     const args = ['run', '--format', 'json', '--dir', root];
-    // opencode's --session expects an EXISTING session id (silently no-ops
-    // on an unknown uuid), so we can't use the sticky-uuid pattern claude
-    // supports. Fall back to --continue, which resumes "the last session"
-    // — fine for a single-user dashboard. Reset = drop the seen flag so
-    // the next call omits --continue and a new session is created.
-    if (continueSession) args.push('--continue');
+    // opencode supports resuming a specific prior session via --session once
+    // we know the real session id from a previous run. Fall back to
+    // --continue only when the dashboard merely knows "there was a prior
+    // conversation" but not the concrete session id yet.
+    if (sessionId) args.push('--session', sessionId);
+    else if (continueSession) args.push('--continue');
     if (allowEdits) args.push('--dangerously-skip-permissions');
     args.push(prompt);
     return { args, env: opencodeEnv(root), promptVia: 'argv' };
@@ -281,12 +291,11 @@ export function agentPtyConfig(agentName, root) {
   clearMacQuarantine(command);
 
   if (agentName === 'opencode') {
-    // Bare `opencode --dangerously-skip-permissions` exits with top-level help
-    // and code 1 because that flag belongs to `opencode run`, not the root
-    // command. Use interactive run mode so the chat rail keeps a live PTY
-    // session *and* auto-approves tool permissions instead of deadlocking on
-    // invisible prompts.
-    const args = ['run', '-i', '--dangerously-skip-permissions'];
+    // Use opencode's real fullscreen TUI in the raw rail. `run -i` renders a
+    // split-footer demo layout that looks broken inside xterm.js and mirrors
+    // poorly into the chat transcript. The root `opencode <project>` entrypoint
+    // is the documented TUI path.
+    const args = [root];
     const shell = isWin ? winShell(command, args) : { command, args };
     return {
       command: shell.command,
@@ -426,6 +435,21 @@ print((row[0] if row and row[0] else ''), end='')`;
   }
 }
 
+function extractOpencodeSessionID(raw) {
+  if (!raw) return '';
+  const lines = raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    try {
+      const parsed = JSON.parse(line);
+      const sessionID = parsed.sessionID || parsed.session_id || parsed.part?.sessionID || parsed.part?.session_id || '';
+      if (sessionID) return String(sessionID).trim();
+    } catch {
+      // ignore non-JSON lines
+    }
+  }
+  return '';
+}
+
 // Opencode 1.16 can emit only a decorative header in `default` format, and
 // only `step_start` events in `json` format, even though the assistant text
 // lands in its SQLite store. Recover the latest assistant text from that
@@ -503,9 +527,10 @@ export function runAgentPrint(agentName, prompt, root, {
     proc.on('close', code => {
       let output = (stdout || '').trim();
       const error = (stderr || '').trim();
+      const opencodeSessionId = agentName === 'opencode' ? extractOpencodeSessionID(stdout) : '';
       if (agentName === 'openclaw') output = unwrapOpenclawReply(output);
       if (agentName === 'opencode') output = unwrapOpencodeReply(output, root);
-      if (code === 0) return finish({ ok: true, output: output || error || 'No output returned.' });
+      if (code === 0) return finish({ ok: true, output: output || error || 'No output returned.', sessionId: opencodeSessionId || null });
       return finish({ ok: false, error: error || output || `${agentName} exited with code ${code}` });
     });
 

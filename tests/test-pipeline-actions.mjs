@@ -47,7 +47,7 @@ globalThis.localStorage = { getItem: () => null, setItem: noop, removeItem: noop
 
 console.log('\nPipeline action mappings');
 
-const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, pendingPassesScoreFilters, pendingTailorStatusLabel, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision, areAllPendingItemsSelected, setPendingSelectionForItems } = await import(
+const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, pendingPassesScoreFilters, pendingTailorStatusLabel, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision, areAllPendingItemsSelected, setPendingSelectionForItems, countApplicationsForTab, applicationDateColumnLabel, applicationDateValue } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'pipeline.mjs')).href
 );
 const { shouldAutoExpireLivenessResult } = await import(
@@ -66,6 +66,40 @@ const skipBatchActions = batchActionsForFilter('skip');
 assert(skipBatchActions.length === 1, 'skip filter exposes one batch restore action');
 assert(skipBatchActions[0].status === 'Tailored', 'skip batch action restores selected rows to Tailored');
 assert(skipBatchActions[0].label === 'Restore', 'skip batch action is labeled Restore');
+
+const appliedRowActions = rowActionsForStatus('applied');
+assert(appliedRowActions.some((action) => action.status === 'Rejected'), 'applied rows can still be marked Rejected');
+
+const rejectedRowActions = rowActionsForStatus('rejected');
+assert(rejectedRowActions.length === 0, 'rejected rows do not expose follow-up stage actions');
+
+const rejectedBatchActions = batchActionsForFilter('rejected');
+assert(rejectedBatchActions.length === 0, 'rejected filter has no batch stage actions');
+
+const tabCountFixtures = [
+  { score: 4.5, statusNormalized: 'applied' },
+  { score: 3.2, statusNormalized: 'rejected' },
+  { score: 2.8, statusNormalized: 'skip' },
+  { score: 4.1, statusNormalized: 'tailored' },
+];
+assert(
+  countApplicationsForTab(tabCountFixtures, 'rejected') === 1,
+  'rejected tab counts rejected application rows directly'
+);
+assert(
+  countApplicationsForTab(tabCountFixtures, 'skip', { skippedCount: 2, expiredCount: 1 }) === 4,
+  'skip tab counts only skip applications plus skipped and expired pipeline rows'
+);
+assert(applicationDateColumnLabel('applied') === 'Applied On', 'applied tab relabels the date column to Applied On');
+assert(applicationDateColumnLabel('tailored') === 'Date', 'non-applied tabs keep the generic date label');
+assert(
+  applicationDateValue({ date: '2026-06-01', appliedAt: '2026-06-12' }, 'applied') === '2026-06-12',
+  'applied tab prefers the first applied event date when present'
+);
+assert(
+  applicationDateValue({ date: '2026-06-01' }, 'applied') === '2026-06-01',
+  'applied tab falls back to tracker date when no applied event exists yet'
+);
 
 console.log('\nPipeline AI suggestions');
 
@@ -151,6 +185,10 @@ assert(
   shouldShowTailorArtifactLinks({ statusNormalized: 'tailored', score: 2.8, tailorBundle: { paths: { cv: 'output/tailor-bundles/x/cv.md' } } }) === false,
   'tailored artifact links stay hidden below the >3 threshold even if files exist'
 );
+assert(
+  shouldShowTailorArtifactLinks({ statusNormalized: 'tailored', score: 3.8, tailorBundle: { paths: { cvDoc: 'output/tailor-bundles/x/cv.doc' } } }) === true,
+  'tailored artifact links show when only DOC exports are present above the score threshold'
+);
 const llmTailorDecision = pendingTailorDecision({
   url: 'https://jobs.example/llm',
   relevance: 2.7,
@@ -160,6 +198,7 @@ const llmTailorDecision = pendingTailorDecision({
 assert(llmTailorDecision.score === 3.8, 'pending tailor prefers the LLM score when present');
 assert(llmTailorDecision.scoreSource === 'llm', 'pending tailor decision marks LLM-backed scores');
 assert(llmTailorDecision.shouldWarn === false, 'pending tailor does not warn when the LLM score clears the threshold');
+assert(llmTailorDecision.shouldAutoSkip === false, 'pending tailor does not flag auto-skip when the LLM score clears the threshold');
 
 const heuristicTailorDecision = pendingTailorDecision({
   url: 'https://jobs.example/heuristic',
@@ -168,6 +207,7 @@ const heuristicTailorDecision = pendingTailorDecision({
 assert(heuristicTailorDecision.score === 2.6, 'pending tailor falls back to heuristic relevance when no LLM score exists');
 assert(heuristicTailorDecision.scoreSource === 'heuristic', 'pending tailor decision labels heuristic fallback');
 assert(heuristicTailorDecision.shouldWarn === true, 'pending tailor warns on low heuristic fallback scores');
+assert(heuristicTailorDecision.shouldAutoSkip === true, 'pending tailor flags low heuristic scores for skip confirmation');
 
 assert(
   pendingNeedsContextualScore({ url: 'https://jobs.example/a', contextualScoreSource: undefined }) === true,

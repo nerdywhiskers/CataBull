@@ -1,6 +1,57 @@
 import { asWorkspace } from '../../lib/workspace.mjs';
 import { tailorSlug } from '../../lib/tailor.mjs';
-import { applicationsPath } from './writers.mjs';
+import { applicationEventsPath, applicationsPath } from './writers.mjs';
+
+function inferTailorBundleFromReport(raw = '') {
+  const paths = {};
+  const relPaths = new Set();
+  for (const match of String(raw).matchAll(/output\/tailor-bundles\/[a-z0-9._/-]+/gi)) {
+    const rel = match[0].replace(/\/(?:cv|cover-letter|answers)\.(?:md|html|doc|pdf)$/i, '');
+    relPaths.add(`${rel}/cv.md`);
+    relPaths.add(`${rel}/cv.doc`);
+    relPaths.add(`${rel}/cv.pdf`);
+    relPaths.add(`${rel}/cover-letter.md`);
+    relPaths.add(`${rel}/cover-letter.doc`);
+    relPaths.add(`${rel}/cover-letter.pdf`);
+    relPaths.add(`${rel}/answers.md`);
+  }
+  for (const match of String(raw).matchAll(/path=([^)\s`&]+)/g)) {
+    try {
+      relPaths.add(decodeURIComponent(match[1]));
+    } catch {
+      relPaths.add(match[1]);
+    }
+  }
+  for (const match of String(raw).matchAll(/output\/tailor-bundles\/[^)\s`]+\/(?:cv|cover-letter|answers)\.(?:md|html|doc|pdf)/g)) {
+    relPaths.add(match[0]);
+  }
+
+  for (const relPath of relPaths) {
+    if (!relPath.startsWith('output/tailor-bundles/')) continue;
+    if (relPath.endsWith('/cv.md')) paths.cv = relPath;
+    else if (relPath.endsWith('/cv.html')) paths.cvHtml = relPath;
+    else if (relPath.endsWith('/cv.doc')) paths.cvDoc = relPath;
+    else if (relPath.endsWith('/cv.pdf')) paths.cvPdf = relPath;
+    else if (relPath.endsWith('/cover-letter.md')) paths.coverLetter = relPath;
+    else if (relPath.endsWith('/cover-letter.html')) paths.coverLetterHtml = relPath;
+    else if (relPath.endsWith('/cover-letter.doc')) paths.coverLetterDoc = relPath;
+    else if (relPath.endsWith('/cover-letter.pdf')) paths.coverLetterPdf = relPath;
+    else if (relPath.endsWith('/answers.md')) paths.qa = relPath;
+  }
+  const firstPath = Object.values(paths)[0];
+  if (!firstPath) return null;
+  return {
+    dir: firstPath.replace(/\/[^/]+$/, ''),
+    paths,
+  };
+}
+
+function existingTailorBundlePaths(ws, paths = {}) {
+  const existingPaths = Object.fromEntries(
+    Object.entries(paths).filter(([, relPath]) => ws.exists(relPath))
+  );
+  return Object.keys(existingPaths).length ? existingPaths : null;
+}
 
 // --- Regex patterns (ported from dashboard/internal/data/career.go) ---
 const RE_REPORT_LINK = /\[(\d+)\]\(([^)]+)\)/;
@@ -167,6 +218,65 @@ export function statusPriority(status) {
   return priorities[normalizeStatus(status)] ?? 8;
 }
 
+export function parseApplicationEvents(cataBullRoot) {
+  const content = asWorkspace(cataBullRoot).read('data/application-events.tsv');
+  if (content == null) return [];
+
+  const events = [];
+  for (const rawLine of content.split('\n')) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('tracker_row_id\t')) continue;
+    const fields = rawLine.split('\t');
+    if (fields.length < 5) continue;
+    const trackerRowId = parseInt(fields[0], 10);
+    events.push({
+      trackerRowId: Number.isFinite(trackerRowId) ? trackerRowId : null,
+      date: String(fields[1] || '').trim(),
+      company: String(fields[2] || '').trim(),
+      role: String(fields[3] || '').trim(),
+      event: String(fields[4] || '').trim().toLowerCase(),
+      notes: String(fields[5] || '').trim(),
+    });
+  }
+  return events;
+}
+
+function enrichFromApplicationEvents(root, apps) {
+  const events = parseApplicationEvents(root);
+  if (!events.length) return;
+
+  const byRowId = new Map();
+  const byKey = new Map();
+  for (const event of events) {
+    if (Number.isFinite(event.trackerRowId)) {
+      if (!byRowId.has(event.trackerRowId)) byRowId.set(event.trackerRowId, []);
+      byRowId.get(event.trackerRowId).push(event);
+    }
+    const key = `${String(event.company || '').trim().toLowerCase()}||${String(event.role || '').trim().toLowerCase()}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(event);
+  }
+
+  for (const app of apps) {
+    const key = `${String(app.company || '').trim().toLowerCase()}||${String(app.role || '').trim().toLowerCase()}`;
+    const timeline = (byRowId.get(app.trackerRowId) || byKey.get(key) || [])
+      .slice()
+      .sort((a, b) => {
+        const dateCmp = String(a.date || '').localeCompare(String(b.date || ''));
+        if (dateCmp !== 0) return dateCmp;
+        return events.indexOf(a) - events.indexOf(b);
+      });
+    if (!timeline.length) continue;
+
+    app.eventTimeline = timeline;
+    const applied = timeline.find((event) => event.event === 'applied');
+    app.appliedAt = applied?.date || '';
+    const last = timeline[timeline.length - 1];
+    app.lastEventAt = last?.date || '';
+    app.lastEventType = last?.event || '';
+  }
+}
+
 /** Parse applications.md and return array of application objects. */
 export function parseApplications(cataBullRoot) {
   const ws = asWorkspace(cataBullRoot);
@@ -194,6 +304,7 @@ export function parseApplications(cataBullRoot) {
 
     const app = {
       num,
+      trackerRowId: parseInt(fields[0], 10),
       date: fields[1],
       company: fields[2],
       role: fields[3],
@@ -209,6 +320,8 @@ export function parseApplications(cataBullRoot) {
       jobUrl: '',
       enrichment: null,
     };
+
+    if (!Number.isFinite(app.trackerRowId)) app.trackerRowId = num;
 
     const sm = fields[4].match(RE_SCORE_VALUE);
     if (sm) app.score = parseFloat(sm[1]);
@@ -226,6 +339,7 @@ export function parseApplications(cataBullRoot) {
   enrichFromReports(cataBullRoot, apps);
   enrichFromScanHistory(cataBullRoot, apps);
   enrichTailorBundles(cataBullRoot, apps);
+  enrichFromApplicationEvents(cataBullRoot, apps);
 
   return apps;
 }
@@ -233,6 +347,19 @@ export function parseApplications(cataBullRoot) {
 function enrichTailorBundles(root, apps) {
   const ws = asWorkspace(root);
   for (const app of apps) {
+    if (app.reportPath) {
+      const reportRaw = ws.read(app.reportPath);
+      const inferred = inferTailorBundleFromReport(reportRaw || '');
+      const inferredPaths = existingTailorBundlePaths(ws, inferred?.paths || {});
+      if (inferred && inferredPaths) {
+        app.tailorBundle = {
+          slug: inferred.dir.replace(/^output\/tailor-bundles\//, ''),
+          dir: inferred.dir,
+          paths: inferredPaths,
+        };
+        continue;
+      }
+    }
     const date = String(app.date || '').trim();
     if (!date) continue;
     const slug = tailorSlug(app.company, app.role, { date });
@@ -243,13 +370,13 @@ function enrichTailorBundles(root, apps) {
       qa: `${dir}/answers.md`,
       cvHtml: `${dir}/cv.html`,
       coverLetterHtml: `${dir}/cover-letter.html`,
+      cvDoc: `${dir}/cv.doc`,
+      coverLetterDoc: `${dir}/cover-letter.doc`,
       cvPdf: `${dir}/cv.pdf`,
       coverLetterPdf: `${dir}/cover-letter.pdf`,
     };
-    const existingPaths = Object.fromEntries(
-      Object.entries(paths).filter(([, relPath]) => ws.exists(relPath))
-    );
-    if (Object.keys(existingPaths).length === 0) continue;
+    const existingPaths = existingTailorBundlePaths(ws, paths);
+    if (!existingPaths) continue;
     app.tailorBundle = { slug, dir, paths: existingPaths };
   }
 }

@@ -8,6 +8,7 @@ import {
   runAgentPrint,
   testAgentCommand,
 } from '../lib/agents.mjs';
+import { execFileSync } from 'child_process';
 
 /** Lazily load node-pty so the dashboard works without it. */
 let nodePty = null;
@@ -26,8 +27,89 @@ export const DEFAULT_RUN_TIMEOUT_MS = 600_000;
 // Hard cap for client-supplied timeoutMs overrides on POST /terminal/run.
 export const MAX_RUN_TIMEOUT_MS = 1_800_000;
 
+export function inspectGitContext(root) {
+  if (!root) return { root: '', isRepo: false, label: 'not a git repo' };
+  try {
+    const isRepo = execFileSync('git', ['-C', root, 'rev-parse', '--is-inside-work-tree'], {
+      encoding: 'utf-8',
+      timeout: 3000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim() === 'true';
+    if (!isRepo) return { root, isRepo: false, label: 'not a git repo' };
+
+    let branch = '';
+    try {
+      branch = execFileSync('git', ['-C', root, 'branch', '--show-current'], {
+        encoding: 'utf-8',
+        timeout: 3000,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+    } catch {}
+
+    let commit = '';
+    let noCommits = false;
+    try {
+      commit = execFileSync('git', ['-C', root, 'rev-parse', '--short', 'HEAD'], {
+        encoding: 'utf-8',
+        timeout: 3000,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+    } catch {
+      noCommits = true;
+    }
+
+    if (!branch) {
+      try {
+        branch = execFileSync('git', ['-C', root, 'symbolic-ref', '--short', 'HEAD'], {
+          encoding: 'utf-8',
+          timeout: 3000,
+          stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+      } catch {}
+    }
+
+    return {
+      root,
+      isRepo: true,
+      branch,
+      commit,
+      noCommits,
+      label: noCommits
+        ? `branch ${branch || '(detached)'} with zero commits`
+        : `branch ${branch || '(detached)'} at ${commit || 'unknown commit'}`,
+    };
+  } catch {
+    return { root, isRepo: false, label: 'not a git repo' };
+  }
+}
+
+export function buildDashboardAgentPrompt(prompt, {
+  workspaceRoot = '',
+  packageRoot = '',
+  workspaceGit = inspectGitContext(workspaceRoot),
+  packageGit = inspectGitContext(packageRoot),
+} = {}) {
+  const cleanPrompt = String(prompt || '').trim();
+  if (!cleanPrompt) return '';
+  if (!workspaceRoot || !packageRoot || workspaceRoot === packageRoot) return cleanPrompt;
+
+  return [
+    'CataBull dashboard context:',
+    `- Workspace root (user data, reports, tracker files): ${workspaceRoot}`,
+    `- Package repo root (dashboard source code): ${packageRoot}`,
+    `- Workspace git: ${workspaceGit.label}`,
+    `- Package repo git: ${packageGit.label}`,
+    '- When the user asks about the current branch, this repo, source code, or dashboard implementation, treat the package repo root as the repo unless they explicitly ask about workspace data.',
+    '- Use the workspace root for generated artifacts, applications data, reports, and profile files.',
+    '',
+    'User prompt:',
+    cleanPrompt,
+  ].join('\n');
+}
+
 export default async function (app) {
   const root = app.cataBullRoot;
+  const packageRoot = app.packageRoot || root;
   // Re-detect on every request rather than caching at server start, so users
   // who install an agent mid-session can click "Re-check" and see it.
   app.get('/terminal/agents', async () => {
@@ -79,7 +161,12 @@ export default async function (app) {
       return reply.code(404).send({ ok: false, error: `Agent "${agentName}" not found on PATH.` });
     }
 
-    return runAgentPrint(agentName, prompt, root, { timeoutMs, continueSession, sessionId, allowEdits: true });
+    const dashboardPrompt = buildDashboardAgentPrompt(prompt, {
+      workspaceRoot: root,
+      packageRoot,
+    });
+
+    return runAgentPrint(agentName, dashboardPrompt, root, { timeoutMs, continueSession, sessionId, allowEdits: true });
   });
 
   app.get('/terminal/ws', { websocket: true }, async (socket, req) => {
