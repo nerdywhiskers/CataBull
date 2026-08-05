@@ -63,6 +63,14 @@ assert(inferredBundle?.paths?.qa === 'output/tailor-bundles/acme-role-2026-06-08
 const inferredFromDir = inferTailorBundleFromReport('Bundle directory: `output/tailor-bundles/acme-role-2026-06-08`');
 assert(inferredFromDir?.paths?.coverLetterPdf === 'output/tailor-bundles/acme-role-2026-06-08/cover-letter.pdf', 'inferTailorBundleFromReport expands bundle directory into PDF paths');
 
+const inferredLegacyCv = inferTailorBundleFromReport(
+  '**Tailored CV:** output/tailor-bundles/legacy-role-2026-06-08/tailored-cv.md'
+);
+assert(
+  inferredLegacyCv?.paths?.cv === 'output/tailor-bundles/legacy-role-2026-06-08/tailored-cv.md',
+  'inferTailorBundleFromReport exposes legacy tailored-cv.md as the CV artifact'
+);
+
 const exportRoot = join(ROOT, '.tmp-test-report-export');
 mkdirSync(join(exportRoot, 'reports'), { recursive: true });
 mkdirSync(join(exportRoot, 'output', 'tailor-bundles', 'acme-role-2026-06-08'), { recursive: true });

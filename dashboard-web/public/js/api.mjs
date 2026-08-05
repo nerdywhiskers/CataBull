@@ -76,8 +76,8 @@ export const api = {
   updateApplication: (num, status) => request(`/applications/${num}`, { method: 'PATCH', body: { status } }),
 
   // Tailor bundle (PR 1.5)
-  tailor: ({ company, role, url, jd, agent } = {}) =>
-    request('/tailor', { method: 'POST', body: { company, role, url, jd, agent } }),
+  tailor: ({ company, role, url, jd, agent, force } = {}) =>
+    request('/tailor', { method: 'POST', body: { company, role, url, jd, agent, force: force === true } }),
   tailorFileUrl: (relPath) => `/api/v1/tailor/file?path=${encodeURIComponent(relPath)}`,
 
   // Deep Scan via Level 3 Node helper. Returns an EventSource the caller
