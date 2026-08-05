@@ -87,11 +87,6 @@ function roleFuzzyMatch(a, b) {
   return overlap.length >= 2;
 }
 
-function extractReportNum(reportStr) {
-  const m = reportStr.match(/\[(\d+)\]/);
-  return m ? parseInt(m[1]) : null;
-}
-
 function parseScore(s) {
   const m = s.replace(/\*\*/g, '').match(/([\d.]+)/);
   return m ? parseFloat(m[1]) : 0;
@@ -247,31 +242,14 @@ for (const file of tsvFiles) {
   const addition = parseTsvContent(content, file);
   if (!addition) { skipped++; continue; }
 
-  // Check for duplicate by:
-  // 1. Exact report number match
-  // 2. Company + role fuzzy match
-  const reportNum = extractReportNum(addition.report);
+  // Role identity is company + role. Report numbers and requested row numbers
+  // are metadata and may legitimately collide with a different role.
   let duplicate = null;
 
-  if (reportNum) {
-    // Check if this report number already exists
-    duplicate = existingApps.find(app => {
-      const existingReportNum = extractReportNum(app.report);
-      return existingReportNum === reportNum;
-    });
-  }
-
-  if (!duplicate) {
-    // Exact entry number match
-    duplicate = existingApps.find(app => app.num === addition.num);
-  }
-
-  if (!duplicate) {
-    // Canonical company + role identity handles punctuation, suffixes, and
-    // exact single-word titles before the legacy fuzzy fallback.
-    const additionKey = canonicalCompanyRoleKey(addition.company, addition.role);
-    duplicate = existingApps.find(app => canonicalCompanyRoleKey(app.company, app.role) === additionKey);
-  }
+  // Canonical company + role identity handles punctuation, suffixes, and
+  // exact single-word titles before the legacy fuzzy fallback.
+  const additionKey = canonicalCompanyRoleKey(addition.company, addition.role);
+  duplicate = existingApps.find(app => canonicalCompanyRoleKey(app.company, app.role) === additionKey);
 
   if (!duplicate) {
     // Legacy fuzzy fallback for small title variations.

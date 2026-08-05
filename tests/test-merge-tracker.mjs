@@ -207,6 +207,40 @@ console.log('\nmerge-tracker');
   }
 }
 
+{
+  const workspace = makeWorkspace();
+  try {
+    writeFileSync(join(workspace, 'data', 'applications.md'), `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 10 | 2026-06-01 | WrongCo | Wrong Role | 2.0/5 | Tailored | ❌ | [007](reports/007-wrong.md) | |\n`);
+    writeFileSync(join(workspace, 'batch', 'tracker-additions', '020.tsv'), '20\t2026-06-02\tRightCo\tRight Role\tTailored\t4.0/5\t❌\t[007](reports/007-right.md)\tColliding report number\n');
+
+    const result = runMergeTracker(workspace);
+    const content = readFileSync(join(workspace, 'data', 'applications.md'), 'utf8');
+
+    assert(result.status === 0, 'merge-tracker handles report-number collisions');
+    assert(content.includes('| 10 | 2026-06-01 | WrongCo | Wrong Role | 2.0/5 |'), 'merge-tracker does not mutate a different role sharing the report number');
+    assert(content.includes('| 20 | 2026-06-02 | RightCo | Right Role | 4.0/5 |'), 'merge-tracker adds a distinct role despite a colliding report number');
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
+{
+  const workspace = makeWorkspace();
+  try {
+    writeFileSync(join(workspace, 'data', 'applications.md'), `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-01 | FirstCo | First Role | 2.0/5 | Tailored | ❌ | [001](reports/001-first.md) | |\n`);
+    writeFileSync(join(workspace, 'batch', 'tracker-additions', '001.tsv'), '1\t2026-06-02\tSecondCo\tSecond Role\tTailored\t4.0/5\t❌\t[002](reports/002-second.md)\tColliding requested row ID\n');
+
+    const result = runMergeTracker(workspace);
+    const content = readFileSync(join(workspace, 'data', 'applications.md'), 'utf8');
+
+    assert(result.status === 0, 'merge-tracker handles requested row-ID collisions');
+    assert(content.includes('| 1 | 2026-06-01 | FirstCo | First Role | 2.0/5 |'), 'merge-tracker preserves the existing role on a requested row-ID collision');
+    assert(content.includes('| 2 | 2026-06-02 | SecondCo | Second Role | 4.0/5 |'), 'merge-tracker allocates max plus one for a distinct role with a colliding requested row ID');
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
 console.log(`\nPassed: ${passed} / ${total}`);
 if (failed > 0) process.exitCode = 1;
 else console.log('All passed ✓');
