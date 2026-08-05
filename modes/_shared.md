@@ -64,6 +64,9 @@ the numeric score. It exists for narrative context in the report only.
 **Required in every report header — exact format:**
 
 ```
+**Company:** {company}
+**Role:** {role}
+**URL:** {job-url-or-none}
 Score: 4.0/5 — A:4.5 · B:5.0 · C:3.5 · D:4.0 · E:4.5
 ```
 

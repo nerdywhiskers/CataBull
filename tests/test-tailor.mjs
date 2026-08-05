@@ -210,6 +210,8 @@ await withTempWorkspace((ws) => {
   assert(report.filename === '002-acme-eng-2026-05-07.md', 'tailor report uses next report number');
   assert(ws.exists(report.path), 'tailor report written');
   const rawReport = ws.read(report.path);
+  assert(rawReport.includes('**Company:** Acme'), 'tailor report includes canonical company metadata');
+  assert(rawReport.includes('**Role:** Eng'), 'tailor report includes canonical role metadata');
   assert(rawReport.includes('**URL:** https://example.com/job'), 'tailor report includes posting URL');
   assert(rawReport.includes('Bundle directory: `output/tailor-bundles/acme-eng-2026-05-07`'), 'tailor report includes bundle directory');
   assert(rawReport.includes('## Application Q&A'), 'tailor report embeds application Q&A section');

@@ -78,6 +78,8 @@ assert(evaluateMode?.label === 'Evaluate', 'evaluate mode is not mislabeled as t
 assert(!/generate a tailored CV bundle/i.test(evaluatePrompt), 'evaluate inline prompt does not generate a second tailor bundle');
 assert(/dedicated \/tailor operation/i.test(evaluatePrompt), 'evaluate inline prompt names the dedicated tailor owner');
 assert(!/ALWAYS generate a tailored CV/i.test(sharedModeRules), 'shared evaluation rules do not assign artifact ownership to the evaluator');
+assert(sharedModeRules.includes('**Company:** {company}'), 'evaluation reports require machine-readable company identity');
+assert(sharedModeRules.includes('**Role:** {role}'), 'evaluation reports require machine-readable role identity');
 
 const skipRowActions = rowActionsForStatus('skip');
 assert(skipRowActions.length === 1, 'skip rows expose one primary restore action');

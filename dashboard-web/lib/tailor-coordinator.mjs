@@ -31,6 +31,40 @@ function findRoleApp(apps, input, ws) {
     })[0] || null;
 }
 
+function findUnboundReport(ws, input) {
+  const inputUrl = String(input?.url || '').trim();
+  const inputKey = canonicalCompanyRoleKey(input?.company, input?.role);
+  const matches = [];
+  for (const entry of ws.list('reports', { filter: (candidate) => candidate.isFile && /^\d+-.*\.md$/i.test(candidate.name) })) {
+    const path = `reports/${entry.name}`;
+    const raw = ws.read(path) || '';
+    const reportUrl = raw.match(/^\*\*URL:\*\*\s*(\S+)/mi)?.[1] || '';
+    const company = raw.match(/^\*\*Company:\*\*\s*(.+)$/mi)?.[1]?.trim() || '';
+    const role = raw.match(/^\*\*Role:\*\*\s*(.+)$/mi)?.[1]?.trim() || '';
+    const metadataMatch = company && role && canonicalCompanyRoleKey(company, role) === inputKey;
+    const urlMatch = inputUrl && reportUrl === inputUrl;
+    if (!urlMatch && !metadataMatch) continue;
+    const number = entry.name.match(/^(\d+)-/)?.[1] || '';
+    matches.push({
+      company: company || input.company,
+      role: role || input.role,
+      reportPath: path,
+      reportNumber: number,
+      matchRank: urlMatch ? 2 : 1,
+    });
+  }
+  matches.sort((left, right) => right.matchRank - left.matchRank
+    || Number(right.reportNumber || 0) - Number(left.reportNumber || 0));
+  return matches[0] || null;
+}
+
+function findRoleContext(apps, input, ws) {
+  const app = findRoleApp(apps, input, ws);
+  if (app?.reportPath && ws.exists(app.reportPath)) return app;
+  const report = findUnboundReport(ws, input);
+  return report ? { ...app, ...report } : app;
+}
+
 function parseQaPairs(raw = '') {
   const pairs = [];
   const pattern = /^##\s+\d+\.\s+(.+)\n+([\s\S]*?)(?=^##\s+\d+\.|\s*$)/gm;
@@ -126,7 +160,7 @@ export function createTailorCoordinator({
   };
 
   const ensureReport = (input, result, preferredApp = null) => serializeReportWrite(() => {
-    const latestApp = findRoleApp(parseApplicationsFn(workspaceRoot), input, ws) || preferredApp;
+    const latestApp = findRoleContext(parseApplicationsFn(workspaceRoot), input, ws) || preferredApp;
     const existing = reportFromApp(latestApp);
     if (existing && ws.exists(existing.path)) {
       const appended = appendTailorReportSectionFn(ws, existing.path, result);
@@ -136,7 +170,7 @@ export function createTailorCoordinator({
   });
 
   const execute = async (input, runAgent) => {
-    const currentApp = findRoleApp(parseApplicationsFn(workspaceRoot), input, ws);
+    const currentApp = findRoleContext(parseApplicationsFn(workspaceRoot), input, ws);
     const completeBundle = existingBundle(ws, currentApp);
 
     if (!input.force && completeBundle) {

@@ -116,6 +116,37 @@ console.log('\ntailor idempotency coordinator');
   }
 }
 
+// Evaluation can save its report before tracker merge succeeds. Tailoring must
+// discover and append that report instead of allocating a second one.
+{
+  const { root, ws } = makeRoot();
+  try {
+    const existingPath = 'reports/004-acme-2026-08-05.md';
+    ws.write(existingPath, '# Evaluation\n\n**Company:** Acme, Inc.\n**Role:** Staff Designer\n**URL:** https://jobs.test/acme-designer\n\nScore: 4.2/5\n');
+    let runs = 0;
+    const coordinator = createTailorCoordinator({
+      root,
+      runTailorFn: resultFactory(ws, { onRun: () => { runs++; } }),
+      generatePdfs: async () => {},
+    });
+    const result = await coordinator.tailor({
+      company: 'acme',
+      role: 'staff designer',
+      url: 'https://jobs.test/acme-designer',
+    });
+    const app = parseApplications(root)[0];
+
+    assert(runs === 1, 'unbound evaluation report still generates the missing bundle once');
+    assert(result.report.path === existingPath, 'unbound evaluation report is reused by canonical metadata');
+    assert(ws.list('reports', { filter: (entry) => entry.isFile }).length === 1, 'unbound evaluation report does not cause duplicate report allocation');
+    assert(ws.read(existingPath).includes('# Evaluation'), 'tailoring preserves the evaluator report body');
+    assert(ws.read(existingPath).includes('catabull-tailor-bundle:start'), 'tailoring appends its packet to the evaluator report');
+    assert(app?.reportPath === existingPath, 'tailoring repairs the missing tracker-to-report binding');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
 // Failed work must leave no poisoned in-flight key; a retry can succeed.
 {
   const { root, ws } = makeRoot();
