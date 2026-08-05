@@ -308,6 +308,10 @@ class LinkedInImportTests(unittest.TestCase):
             linkedin_import.canonical_company_role_key("Acme", "C++ Developer"),
             linkedin_import.canonical_company_role_key("Acme", "C# Developer"),
         )
+        self.assertNotEqual(
+            linkedin_import.canonical_company_role_key("C# Labs, Inc.", "Designer"),
+            linkedin_import.canonical_company_role_key("C Labs", "Designer"),
+        )
 
 
 if __name__ == "__main__":

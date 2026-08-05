@@ -733,15 +733,19 @@ COMPANY_SUFFIX_RE = re.compile(
 )
 
 
+def preserve_technical_tokens(value):
+    value = clean_cell(value).lower().replace("&", " and ")
+    value = re.sub(r"(?<![a-z0-9])c\+\+(?![a-z0-9])", "cplusplus", value)
+    value = re.sub(r"(?<![a-z0-9])c#(?![a-z0-9])", "csharp", value)
+    return re.sub(r"(?<![a-z0-9])\.net(?![a-z0-9])", "dotnet", value)
+
+
 def canonical_company_role_key(company, role):
-    company_key = clean_cell(company).lower().replace("&", " and ")
+    company_key = preserve_technical_tokens(company)
     company_key = re.sub(r"[^a-z0-9]+", " ", company_key).strip()
     company_key = COMPANY_SUFFIX_RE.sub(" ", company_key)
     company_key = " ".join(company_key.split())
-    role_key = clean_cell(role).lower().replace("&", " and ")
-    role_key = re.sub(r"(?<![a-z0-9])c\+\+(?![a-z0-9])", "cplusplus", role_key)
-    role_key = re.sub(r"(?<![a-z0-9])c#(?![a-z0-9])", "csharp", role_key)
-    role_key = re.sub(r"(?<![a-z0-9])\.net(?![a-z0-9])", "dotnet", role_key)
+    role_key = preserve_technical_tokens(role)
     role_key = re.sub(r"[^a-z0-9]+", " ", role_key)
     role_key = " ".join(role_key.split())
     return f"{company_key}||{role_key}"
