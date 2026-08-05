@@ -10,6 +10,15 @@ function existingTailorBundlePaths(ws, paths = {}) {
   return Object.keys(existingPaths).length ? existingPaths : null;
 }
 
+function legacyTailorSlug(company, role, date) {
+  const norm = (value) => String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+  return `${norm(company) || 'unknown-company'}-${norm(role) || 'unknown-role'}-${date}`;
+}
+
 // --- Regex patterns (ported from dashboard/internal/data/career.go) ---
 const RE_REPORT_LINK = /\[(\d+)\]\(([^)]+)\)/;
 const RE_SCORE_VALUE = /(\d+\.?\d*)\/5/;
@@ -319,22 +328,28 @@ function enrichTailorBundles(root, apps) {
     }
     const date = String(app.date || '').trim();
     if (!date) continue;
-    const slug = tailorSlug(app.company, app.role, { date });
-    const dir = `output/tailor-bundles/${slug}`;
-    const paths = {
-      cv: `${dir}/cv.md`,
-      coverLetter: `${dir}/cover-letter.md`,
-      qa: `${dir}/answers.md`,
-      cvHtml: `${dir}/cv.html`,
-      coverLetterHtml: `${dir}/cover-letter.html`,
-      cvDoc: `${dir}/cv.doc`,
-      coverLetterDoc: `${dir}/cover-letter.doc`,
-      cvPdf: `${dir}/cv.pdf`,
-      coverLetterPdf: `${dir}/cover-letter.pdf`,
-    };
-    const existingPaths = existingTailorBundlePaths(ws, paths);
-    if (!existingPaths) continue;
-    app.tailorBundle = { slug, dir, paths: existingPaths };
+    const slugs = [
+      tailorSlug(app.company, app.role, { date }),
+      legacyTailorSlug(app.company, app.role, date),
+    ].filter((slug, index, all) => all.indexOf(slug) === index);
+    for (const slug of slugs) {
+      const dir = `output/tailor-bundles/${slug}`;
+      const paths = {
+        cv: ws.exists(`${dir}/cv.md`) ? `${dir}/cv.md` : `${dir}/tailored-cv.md`,
+        coverLetter: `${dir}/cover-letter.md`,
+        qa: `${dir}/answers.md`,
+        cvHtml: `${dir}/cv.html`,
+        coverLetterHtml: `${dir}/cover-letter.html`,
+        cvDoc: `${dir}/cv.doc`,
+        coverLetterDoc: `${dir}/cover-letter.doc`,
+        cvPdf: `${dir}/cv.pdf`,
+        coverLetterPdf: `${dir}/cover-letter.pdf`,
+      };
+      const existingPaths = existingTailorBundlePaths(ws, paths);
+      if (!existingPaths) continue;
+      app.tailorBundle = { slug, dir, paths: existingPaths };
+      break;
+    }
   }
 }
 

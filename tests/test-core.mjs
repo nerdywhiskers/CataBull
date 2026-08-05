@@ -253,6 +253,20 @@ const parsedLegacyCv = parseApplications(testRoot6);
 assert(parsedLegacyCv[0]?.tailorBundle?.paths?.cv === `${legacyDir}/tailored-cv.md`, 'parseApplications maps legacy tailored-cv.md to paths.cv');
 rmSync(testRoot6, { recursive: true, force: true });
 
+// Regression: canonical slugging strips aliases and preserves technical
+// tokens, but unbound bundles created by older releases still use the raw
+// punctuation-stripping slug. Keep those discoverable for idempotent repair.
+const testRoot7 = join(ROOT, '.tmp-test-app-tailor-legacy-slug');
+const legacySlugDir = 'output/tailor-bundles/acme-inc-c-engineer-2026-07-22';
+mkdirSync(join(testRoot7, 'data'), { recursive: true });
+mkdirSync(join(testRoot7, ...legacySlugDir.split('/')), { recursive: true });
+writeFileSync(join(testRoot7, 'data', 'applications.md'), '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-07-22 | Acme, Inc. | C++ Engineer | 4.0/5 | Tailored | ❌ | | |\n');
+writeFileSync(join(testRoot7, ...legacySlugDir.split('/'), 'cv.md'), '# LEGACY SLUG CV\n');
+writeFileSync(join(testRoot7, ...legacySlugDir.split('/'), 'cover-letter.md'), '# LEGACY SLUG COVER\n');
+const parsedLegacySlug = parseApplications(testRoot7);
+assert(parsedLegacySlug[0]?.tailorBundle?.dir === legacySlugDir, 'parseApplications falls back to pre-canonical bundle slugs');
+rmSync(testRoot7, { recursive: true, force: true });
+
 // ── 5. SPAWN WITH TIMEOUT ───────────────────────────────────────
 
 console.log('\n5. spawnWithTimeout');
