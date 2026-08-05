@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import importlib.util
 import pathlib
+import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -245,6 +246,54 @@ class LinkedInImportTests(unittest.TestCase):
 
         self.assertEqual("Rocket Money", company)
         self.assertEqual("Senior Art Director", role)
+
+    def test_apply_to_pipeline_rejects_same_role_under_different_url(self):
+        with tempfile.TemporaryDirectory(prefix="catabull-linkedin-import-") as root:
+            data_dir = pathlib.Path(root) / "data"
+            data_dir.mkdir(parents=True)
+            (data_dir / "pipeline.md").write_text(
+                "# Pipeline\n\n## Pendientes\n"
+                "- [ ] https://linkedin.com/jobs/view/1 | BMW Group | Visualizer\n\n"
+                "## Procesadas\n",
+                encoding="utf-8",
+            )
+
+            result = linkedin_import.apply_to_pipeline(root, [{
+                "url": "https://linkedin.com/jobs/view/2",
+                "company": "BMW Group",
+                "role": "Visualizer",
+                "received": "2026-06-06",
+                "location": None,
+            }])
+
+            self.assertEqual({"added": 0, "duplicates": 1}, result)
+            content = (data_dir / "pipeline.md").read_text(encoding="utf-8")
+            self.assertNotIn("jobs/view/2", content)
+
+    def test_apply_to_pipeline_dedupes_incoming_company_suffix_variants(self):
+        with tempfile.TemporaryDirectory(prefix="catabull-linkedin-import-") as root:
+            rows = [
+                {
+                    "url": "https://linkedin.com/jobs/view/1",
+                    "company": "Acme",
+                    "role": "Designer",
+                    "received": "2026-06-06",
+                    "location": None,
+                },
+                {
+                    "url": "https://linkedin.com/jobs/view/2",
+                    "company": "Acme, Inc.",
+                    "role": "Designer",
+                    "received": "2026-06-06",
+                    "location": None,
+                },
+            ]
+
+            result = linkedin_import.apply_to_pipeline(root, rows)
+
+            self.assertEqual({"added": 1, "duplicates": 1}, result)
+            content = (pathlib.Path(root) / "data" / "pipeline.md").read_text(encoding="utf-8")
+            self.assertEqual(1, content.count("| Designer |"))
 
 
 if __name__ == "__main__":

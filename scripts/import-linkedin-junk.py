@@ -727,13 +727,52 @@ def pipeline_line(row):
     return " | ".join(clean_cell(p) for p in parts)
 
 
+COMPANY_SUFFIX_RE = re.compile(
+    r"\b(?:inc|llc|ltd|corp|corporation|company|co|group|holdings?)\b",
+    re.I,
+)
+
+
+def canonical_company_role_key(company, role):
+    company_key = clean_cell(company).lower().replace("&", " and ")
+    company_key = re.sub(r"[^a-z0-9]+", " ", company_key)
+    company_key = COMPANY_SUFFIX_RE.sub(" ", company_key)
+    company_key = " ".join(company_key.split())
+    role_key = clean_cell(role).lower().replace("&", " and ")
+    role_key = re.sub(r"[^a-z0-9]+", " ", role_key)
+    role_key = " ".join(role_key.split())
+    return f"{company_key}||{role_key}"
+
+
+def pipeline_role_keys(content):
+    keys = set()
+    for line in content.splitlines():
+        if not re.match(r"^-\s+\[[ x]\]\s+https?://", line):
+            continue
+        fields = [field.strip() for field in line.split("|")]
+        if len(fields) < 3:
+            continue
+        keys.add(canonical_company_role_key(fields[1], fields[2]))
+    return keys
+
+
 def apply_to_pipeline(root, rows):
     path = pipeline_path(root)
     content = read_pipeline(root)
-    existing = set(URL_RE.findall(content))
-    added_rows = [row for row in rows if row["url"] not in existing]
+    existing_urls = set(URL_RE.findall(content))
+    existing_roles = pipeline_role_keys(content)
+    added_rows = []
+    duplicates = 0
+    for row in rows:
+        role_key = canonical_company_role_key(row.get("company"), row.get("role"))
+        if row["url"] in existing_urls or role_key in existing_roles:
+            duplicates += 1
+            continue
+        added_rows.append(row)
+        existing_urls.add(row["url"])
+        existing_roles.add(role_key)
     if not added_rows:
-        return {"added": 0, "duplicates": len(rows)}
+        return {"added": 0, "duplicates": duplicates}
 
     lines = content.split("\n")
     insert_at = -1
@@ -758,7 +797,7 @@ def apply_to_pipeline(root, rows):
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
-    return {"added": len(added_rows), "duplicates": len(rows) - len(added_rows)}
+    return {"added": len(added_rows), "duplicates": duplicates}
 
 
 def print_rows(rows, fmt):
