@@ -97,7 +97,7 @@ Notes:
 ## Step 6 -- Post-apply (optional)
 
 If the candidate confirms they submitted the application:
-1. Update status in `applications.md` from "Evaluated" to "Applied"
+1. Update status in `applications.md` from "Tailored" to "Applied"
 2. Update Section H of the report with final answers
 3. Suggest next step: `/catabull outreach` for LinkedIn outreach
 

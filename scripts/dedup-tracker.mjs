@@ -13,6 +13,7 @@ import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync } from
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { defaultWorkspace } from '../lib/workspace.mjs';
+import { canonicalCompanyName, canonicalCompanyRoleKey } from '../lib/role-identity.mjs';
 
 // Data root = the user's workspace. CATABULL_WORKSPACE_ROOT (set by the CLI and
 // the dashboard when it spawns scripts) wins; otherwise fall back to the package
@@ -34,6 +35,7 @@ const STATUS_RANK = {
   'skip': 0,
   'discarded': 0,
   'rejected': 1,
+  'tailored': 2,
   'evaluated': 2,
   'applied': 3,
   'responded': 4,
@@ -84,6 +86,7 @@ const LOCATION_STOPWORDS = new Set([
 ]);
 
 function roleMatch(a, b) {
+  if (canonicalCompanyRoleKey('', a) === canonicalCompanyRoleKey('', b)) return true;
   const filterStopwords = (words) =>
     words.filter(w => !ROLE_STOPWORDS.has(w) && !LOCATION_STOPWORDS.has(w));
 
@@ -149,7 +152,7 @@ console.log(`📊 ${entries.length} entries loaded`);
 // Group by company+role
 const groups = new Map();
 for (const entry of entries) {
-  const key = normalizeCompany(entry.company);
+  const key = canonicalCompanyName(entry.company);
   if (!groups.has(key)) groups.set(key, []);
   groups.get(key).push(entry);
 }

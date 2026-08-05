@@ -135,7 +135,7 @@ This system is designed to be customized by the AI Agent. When the user asks you
 
 | State | When to use |
 |-------|-------------|
-| `Evaluated` | Report completed, pending decision |
+| `Tailored` | Report completed and/or application materials tailored, pending decision |
 | `Applied` | Application sent |
 | `Responded` | Company responded |
 | `Interview` | In interview process |

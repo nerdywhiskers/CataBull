@@ -47,7 +47,7 @@ globalThis.localStorage = { getItem: () => null, setItem: noop, removeItem: noop
 
 console.log('\nPipeline action mappings');
 
-const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, pendingPassesScoreFilters, pendingTailorStatusLabel, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision, areAllPendingItemsSelected, setPendingSelectionForItems, countApplicationsForTab, applicationDateColumnLabel, applicationDateValue } = await import(
+const { PIPELINE_FILTERS, hasCanonicalRole, rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, pendingPassesScoreFilters, pendingTailorStatusLabel, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision, areAllPendingItemsSelected, setPendingSelectionForItems, countApplicationsForTab, applicationDateColumnLabel, applicationDateValue } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'pipeline.mjs')).href
 );
 const { shouldAutoExpireLivenessResult } = await import(
@@ -55,6 +55,12 @@ const { shouldAutoExpireLivenessResult } = await import(
 );
 const { api } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'api.mjs')).href
+);
+const { canonicalCompanyRoleKey: browserRoleKey } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'lib', 'role-identity.mjs')).href
+);
+const { canonicalCompanyRoleKey: serverRoleKey } = await import(
+  pathToFileURL(join(ROOT, 'lib', 'role-identity.mjs')).href
 );
 
 const skipRowActions = rowActionsForStatus('skip');
@@ -75,6 +81,34 @@ assert(rejectedRowActions.length === 0, 'rejected rows do not expose follow-up s
 
 const rejectedBatchActions = batchActionsForFilter('rejected');
 assert(rejectedBatchActions.length === 0, 'rejected filter has no batch stage actions');
+
+const pipelineFilterKeys = PIPELINE_FILTERS.map((filter) => filter.key);
+for (const canonicalState of ['tailored', 'applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'skip']) {
+  assert(pipelineFilterKeys.includes(canonicalState), `pipeline exposes a tab for canonical state ${canonicalState}`);
+}
+assert(
+  hasCanonicalRole([{ company: 'AMD', role: 'AI Creative Technologist' }], 'AMD, Inc.', 'AI Creative Technologist') === true,
+  'pipeline duplicate warnings use canonical company and role identity'
+);
+for (const [company, role] of [
+  ['AMD, Inc.', 'AI Creative Technologist'],
+  ['Acme & Company', 'Designer / Art Director'],
+  ['BMW Group', 'Visualizer'],
+]) {
+  assert(browserRoleKey(company, role) === serverRoleKey(company, role), `browser and server role identity agree for ${company} / ${role}`);
+}
+assert(
+  serverRoleKey('Group Nine Media', 'Designer') !== serverRoleKey('Nine Media', 'Designer'),
+  'role identity strips company suffixes only at the end of a company name'
+);
+assert(
+  serverRoleKey('Acme, Inc.', 'Designer') === serverRoleKey('Acme', 'Designer'),
+  'role identity strips trailing legal company suffixes'
+);
+assert(
+  serverRoleKey('Acme', 'C++ Developer') !== serverRoleKey('Acme', 'C# Developer'),
+  'role identity preserves meaningful language punctuation'
+);
 
 const tabCountFixtures = [
   { score: 4.5, statusNormalized: 'applied' },
