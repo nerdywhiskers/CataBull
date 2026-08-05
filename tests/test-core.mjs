@@ -239,6 +239,20 @@ assert(parsedAppsReportBound[0]?.tailorBundle?.paths?.cv === 'output/tailor-bund
 assert(parsedAppsReportBound[0]?.tailorBundle?.paths?.coverLetterDoc === 'output/tailor-bundles/acme-staff-designer-2026-07-22/cover-letter.doc', 'parseApplications keeps DOC exports when binding from the report-linked bundle');
 rmSync(testRoot5, { recursive: true, force: true });
 
+// Regression: legacy bundles used tailored-cv.md. Readers must expose it via
+// the canonical `paths.cv` field rather than treating the bundle as missing.
+const testRoot6 = join(ROOT, '.tmp-test-app-tailor-legacy-cv');
+const legacyDir = 'output/tailor-bundles/legacy-labs-designer-2026-07-22';
+mkdirSync(join(testRoot6, 'data'), { recursive: true });
+mkdirSync(join(testRoot6, 'reports'), { recursive: true });
+mkdirSync(join(testRoot6, ...legacyDir.split('/')), { recursive: true });
+writeFileSync(join(testRoot6, 'data', 'applications.md'), '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-07-22 | Legacy Labs | Designer | 4.0/5 | Tailored | ❌ | [009](reports/009-legacy-labs-2026-07-22.md) | |\n');
+writeFileSync(join(testRoot6, 'reports', '009-legacy-labs-2026-07-22.md'), `# Legacy Labs\n\n**Tailored CV:** ${legacyDir}/tailored-cv.md\n`);
+writeFileSync(join(testRoot6, ...legacyDir.split('/'), 'tailored-cv.md'), '# LEGACY CV\n');
+const parsedLegacyCv = parseApplications(testRoot6);
+assert(parsedLegacyCv[0]?.tailorBundle?.paths?.cv === `${legacyDir}/tailored-cv.md`, 'parseApplications maps legacy tailored-cv.md to paths.cv');
+rmSync(testRoot6, { recursive: true, force: true });
+
 // ── 5. SPAWN WITH TIMEOUT ───────────────────────────────────────
 
 console.log('\n5. spawnWithTimeout');
