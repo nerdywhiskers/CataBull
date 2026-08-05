@@ -1,6 +1,6 @@
 # Tailor/report idempotency implementation plan
 
-**Branch:** `fix/tailor-report-idempotency`  
+**Branch:** `fix/tailor-report-idempotency`
 **Base:** `fix/identity-state-integrity` (PR #79)
 
 ## Invariants
