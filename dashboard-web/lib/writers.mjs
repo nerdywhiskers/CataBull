@@ -262,24 +262,25 @@ export function updateApplicationStatus(root, reportNumber, rowNum, newStatus, t
   let found = false;
   let eventPayload = null;
 
+  let targetLine = -1;
+  if (trackerRowId != null) {
+    targetLine = lines.findIndex((line) => {
+      if (!line.startsWith('|') || line.startsWith('| #') || line.startsWith('|---')) return false;
+      return line.split('|')[1]?.trim() === String(trackerRowId);
+    });
+  } else if (reportNumber) {
+    targetLine = lines.findIndex((line) => line.startsWith('|') && line.includes(`[${reportNumber}]`));
+  } else if (rowNum) {
+    targetLine = lines.findIndex((line) => {
+      if (!line.startsWith('|') || line.startsWith('| #') || line.startsWith('|---')) return false;
+      return line.split('|')[1]?.trim() === String(rowNum);
+    });
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (!line.startsWith('|') || line.startsWith('| #') || line.startsWith('|---')) continue;
-
-    // Match by report number if available
-    if (reportNumber && line.includes(`[${reportNumber}]`)) {
-      found = true;
-    }
-    // Prefer stable tracker row id from the first column when available.
-    if (!found && trackerRowId) {
-      const firstField = line.split('|')[1]?.trim();
-      if (firstField === String(trackerRowId)) found = true;
-    }
-    // Legacy fallback: match by parse-order row number only when no stable tracker id exists.
-    if (!found && !trackerRowId && rowNum) {
-      const firstField = line.split('|')[1]?.trim();
-      if (firstField === String(rowNum)) found = true;
-    }
+    found = i === targetLine;
 
     if (found) {
       const parts = lines[i].split('|');
@@ -299,7 +300,6 @@ export function updateApplicationStatus(root, reportNumber, rowNum, newStatus, t
       }
       break;
     }
-    found = false;
   }
 
   if (!found) return false;
@@ -741,7 +741,10 @@ export function markPipelineApplied(root, url, company, role) {
   const appsRelPath = ws.exists('data/applications.md') ? 'data/applications.md' : 'applications.md';
   const appsContent = ensureApplicationsFile(ws, appsRelPath);
   const rows = appsContent.split('\n').filter(l => l.startsWith('|') && !l.startsWith('| #') && !l.startsWith('|---'));
-  const nextNum = rows.length + 1;
+  const nextNum = rows.reduce((max, line) => {
+    const rowId = parseInt(line.split('|')[1]?.trim(), 10);
+    return Number.isFinite(rowId) ? Math.max(max, rowId) : max;
+  }, 0) + 1;
 
   const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | | Applied | ❌ | | |`;
   ws.write(appsRelPath, appsContent.trimEnd() + '\n' + newRow + '\n');
