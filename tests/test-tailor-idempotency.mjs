@@ -147,6 +147,33 @@ console.log('\ntailor idempotency coordinator');
   }
 }
 
+// A recycled/shared posting URL is weaker than explicit role metadata. Never
+// append Acme tailoring to a report that declares a different logical role.
+{
+  const { root, ws } = makeRoot();
+  try {
+    const wrongPath = 'reports/004-otherco-2026-08-05.md';
+    const wrongBody = '# Evaluation\n\n**Company:** Other Co\n**Role:** Other Role\n**URL:** https://jobs.test/shared\n\nScore: 4.0/5\n';
+    ws.write(wrongPath, wrongBody);
+    const coordinator = createTailorCoordinator({
+      root,
+      runTailorFn: resultFactory(ws),
+      generatePdfs: async () => {},
+    });
+    const result = await coordinator.tailor({
+      company: 'Acme',
+      role: 'Designer',
+      url: 'https://jobs.test/shared',
+    });
+
+    assert(result.report.path !== wrongPath, 'conflicting report metadata beats an otherwise matching URL');
+    assert(ws.list('reports', { filter: (entry) => entry.isFile }).length === 2, 'conflicting URL match receives a separate role-owned report');
+    assert(ws.read(wrongPath) === wrongBody, 'conflicting report remains untouched');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
 // Failed work must leave no poisoned in-flight key; a retry can succeed.
 {
   const { root, ws } = makeRoot();

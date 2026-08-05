@@ -41,9 +41,10 @@ function findUnboundReport(ws, input) {
     const reportUrl = raw.match(/^\*\*URL:\*\*\s*(\S+)/mi)?.[1] || '';
     const company = raw.match(/^\*\*Company:\*\*\s*(.+)$/mi)?.[1]?.trim() || '';
     const role = raw.match(/^\*\*Role:\*\*\s*(.+)$/mi)?.[1]?.trim() || '';
-    const metadataMatch = company && role && canonicalCompanyRoleKey(company, role) === inputKey;
-    const urlMatch = inputUrl && reportUrl === inputUrl;
-    if (!urlMatch && !metadataMatch) continue;
+    const metadataPresent = Boolean(company || role);
+    const metadataMatch = metadataPresent && canonicalCompanyRoleKey(company, role) === inputKey;
+    const urlMatch = Boolean(inputUrl && reportUrl === inputUrl);
+    if (metadataPresent ? !metadataMatch : !urlMatch) continue;
     const number = entry.name.match(/^(\d+)-/)?.[1] || '';
     matches.push({
       company: company || input.company,
