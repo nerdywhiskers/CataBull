@@ -36,6 +36,14 @@ function runMergeTracker(workspace) {
   });
 }
 
+function runDedupTracker(workspace) {
+  return spawnSync('node', [join(ROOT, 'dedup-tracker.mjs')], {
+    cwd: ROOT,
+    env: { ...process.env, CATABULL_WORKSPACE_ROOT: workspace },
+    encoding: 'utf8',
+  });
+}
+
 console.log('\nmerge-tracker');
 
 {
@@ -81,6 +89,55 @@ console.log('\nmerge-tracker');
 
     assert(result.status === 0, 'merge-tracker exits 0 for duplicate Tailored TSV re-merge over Rejected row');
     assert(content.includes('| 12 | 2026-06-18 | Google | Designer, Creative Lab | 3.4/5 | Rejected | ❌ | [012](reports/012-google-old.md) | Prior rejection |'), 'duplicate Tailored additions do not downgrade existing Rejected status when score is unchanged');
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
+{
+  const workspace = makeWorkspace();
+  try {
+    writeFileSync(join(workspace, 'data', 'applications.md'), `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-01 | BMW Group | Visualizer | 3.5/5 | Tailored | ❌ | [001](reports/001-bmw.md) | |\n`);
+    writeFileSync(join(workspace, 'batch', 'tracker-additions', '002.tsv'), '2\t2026-06-02\tBMW Group, Inc.\tVisualizer\tTailored\t3.6/5\t❌\t[002](reports/002-bmw.md)\tRefresh\n');
+
+    const result = runMergeTracker(workspace);
+    const content = readFileSync(join(workspace, 'data', 'applications.md'), 'utf8');
+
+    assert(result.status === 0, 'merge-tracker exits 0 for a single-word duplicate role');
+    assert((content.match(/\| Visualizer \|/g) || []).length === 1, 'merge-tracker merges exact single-word roles across company suffix variants');
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
+{
+  const workspace = makeWorkspace();
+  try {
+    writeFileSync(join(workspace, 'data', 'applications.md'), `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n`);
+    writeFileSync(join(workspace, 'batch', 'tracker-additions', '007.tsv'), '7\t2026-06-01\tAcme\tDesigner\tTailored\t4.0/5\t❌\t[007](reports/007-acme.md)\tFirst\n');
+    writeFileSync(join(workspace, 'batch', 'tracker-additions', '008.tsv'), '8\t2026-06-02\tAcme, Inc.\tDesigner\tTailored\t4.1/5\t❌\t[008](reports/008-acme.md)\tSecond\n');
+
+    const result = runMergeTracker(workspace);
+    const content = readFileSync(join(workspace, 'data', 'applications.md'), 'utf8');
+
+    assert(result.status === 0, 'merge-tracker exits 0 for duplicate additions in one batch');
+    assert((content.match(/\| Designer \|/g) || []).length === 1, 'merge-tracker updates its identity index after accepting a fresh addition');
+    assert(content.includes('4.1/5'), 'merge-tracker keeps the stronger duplicate addition from the same batch');
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
+{
+  const workspace = makeWorkspace();
+  try {
+    writeFileSync(join(workspace, 'data', 'applications.md'), `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-01 | BMW Group | Visualizer | 3.5/5 | Tailored | ❌ | [001](reports/001-bmw.md) | first |\n| 2 | 2026-06-02 | BMW Group, Inc. | Visualizer | 3.6/5 | Applied | ❌ | [002](reports/002-bmw.md) | second |\n`);
+
+    const result = runDedupTracker(workspace);
+    const content = readFileSync(join(workspace, 'data', 'applications.md'), 'utf8');
+
+    assert(result.status === 0, 'dedup-tracker exits 0 for exact single-word duplicate roles');
+    assert((content.match(/\| Visualizer \|/g) || []).length === 1, 'dedup-tracker removes exact single-word duplicates across company suffix variants');
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }

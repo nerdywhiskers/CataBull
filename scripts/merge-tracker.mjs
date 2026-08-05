@@ -19,6 +19,7 @@ import { join, basename, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { defaultWorkspace } from '../lib/workspace.mjs';
 import { execFileSync } from 'child_process';
+import { canonicalCompanyRoleKey } from '../lib/role-identity.mjs';
 
 // Data root = the user's workspace. CATABULL_WORKSPACE_ROOT (set by the CLI and
 // the dashboard when it spawns scripts) wins; otherwise fall back to the package
@@ -266,7 +267,14 @@ for (const file of tsvFiles) {
   }
 
   if (!duplicate) {
-    // Company + role fuzzy match
+    // Canonical company + role identity handles punctuation, suffixes, and
+    // exact single-word titles before the legacy fuzzy fallback.
+    const additionKey = canonicalCompanyRoleKey(addition.company, addition.role);
+    duplicate = existingApps.find(app => canonicalCompanyRoleKey(app.company, app.role) === additionKey);
+  }
+
+  if (!duplicate) {
+    // Legacy fuzzy fallback for small title variations.
     const normCompany = normalizeCompany(addition.company);
     duplicate = existingApps.find(app => {
       if (normalizeCompany(app.company) !== normCompany) return false;
@@ -280,12 +288,19 @@ for (const file of tsvFiles) {
 
     if (newScore > oldScore) {
       console.log(`🔄 Update: #${duplicate.num} ${addition.company} — ${addition.role} (${oldScore}→${newScore})`);
+      const updatedLine = `| ${duplicate.num} | ${addition.date} | ${addition.company} | ${addition.role} | ${addition.score} | ${duplicate.status} | ${duplicate.pdf} | ${addition.report} | Re-eval ${addition.date} (${oldScore}→${newScore}). ${addition.notes} |`;
       const lineIdx = appLines.indexOf(duplicate.raw);
       if (lineIdx >= 0) {
-        const updatedLine = `| ${duplicate.num} | ${addition.date} | ${addition.company} | ${addition.role} | ${addition.score} | ${duplicate.status} | ${duplicate.pdf} | ${addition.report} | Re-eval ${addition.date} (${oldScore}→${newScore}). ${addition.notes} |`;
         appLines[lineIdx] = updatedLine;
         updated++;
+      } else {
+        const pendingIdx = newLines.indexOf(duplicate.raw);
+        if (pendingIdx >= 0) {
+          newLines[pendingIdx] = updatedLine;
+          updated++;
+        }
       }
+      Object.assign(duplicate, addition, { num: duplicate.num, status: duplicate.status, pdf: duplicate.pdf, raw: updatedLine });
     } else {
       console.log(`⏭️  Skip: ${addition.company} — ${addition.role} (existing #${duplicate.num} ${oldScore} >= new ${newScore})`);
       skipped++;
@@ -297,6 +312,7 @@ for (const file of tsvFiles) {
 
     const newLine = `| ${entryNum} | ${addition.date} | ${addition.company} | ${addition.role} | ${addition.score} | ${addition.status} | ${addition.pdf} | ${addition.report} | ${addition.notes} |`;
     newLines.push(newLine);
+    existingApps.push({ ...addition, num: entryNum, raw: newLine });
     added++;
     console.log(`➕ Add #${entryNum}: ${addition.company} — ${addition.role} (${addition.score})`);
   }

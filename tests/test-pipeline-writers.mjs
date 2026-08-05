@@ -25,7 +25,7 @@ function assert(condition, msg) {
 
 console.log('\nPipeline writer helpers');
 
-const { markPipelineTailored, updatePendingContextualScores, updatePendingItem, enforcePipelineConsistency, canonicalCompanyRoleKey, updateApplicationStatus, markPipelineApplied } = await import(
+const { addPendingItem, markPipelineTailored, updatePendingContextualScores, updatePendingItem, enforcePipelineConsistency, canonicalCompanyRoleKey, updateApplicationStatus, markPipelineApplied } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'lib', 'writers.mjs')).href
 );
 const { parsePipeline, parseApplications, parseApplicationEvents } = await import(
@@ -164,6 +164,22 @@ const duplicateOnlyCleanup = enforcePipelineConsistency(tmpRoot);
 assert(duplicateOnlyCleanup.removed === 2, 'enforcePipelineConsistency removes extra duplicate pending rows even without tracked applications');
 assert(duplicateOnlyCleanup.removedBecauseTracked === 0, 'duplicate-only cleanup does not mislabel rows as tracked');
 assert(duplicateOnlyCleanup.removedBecauseDuplicatePending === 2, 'duplicate-only cleanup keeps the first pending row and removes the rest');
+
+writeFileSync(join(tmpRoot, 'data', 'pipeline.md'), `# Pipeline\n\n## Pendientes\n- [ ] https://example.com/jobs/visualizer-a | BMW Group | Visualizer\n\n## Procesadas\n`);
+const duplicateRoleDifferentUrl = addPendingItem(tmpRoot, {
+  url: 'https://example.com/jobs/visualizer-b',
+  company: 'BMW Group',
+  role: 'Visualizer',
+});
+assert(duplicateRoleDifferentUrl.added === false, 'pending writer rejects the same canonical company and role under a different URL');
+assert(duplicateRoleDifferentUrl.duplicate === true, 'pending writer reports same-role different-URL entries as duplicates');
+
+const suffixVariantDuplicate = addPendingItem(tmpRoot, {
+  url: 'https://example.com/jobs/visualizer-c',
+  company: 'BMW Group, Inc.',
+  role: 'Visualizer',
+});
+assert(suffixVariantDuplicate.added === false, 'pending writer normalizes company suffix variants before duplicate checks');
 
 rmSync(tmpRoot, { recursive: true, force: true });
 

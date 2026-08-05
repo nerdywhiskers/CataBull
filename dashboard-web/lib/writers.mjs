@@ -10,30 +10,14 @@
  */
 
 import { asWorkspace } from '../../lib/workspace.mjs';
+import { canonicalCompanyRoleKey } from '../../lib/role-identity.mjs';
 // Cyclic import is fine: parsers.mjs imports `applicationsPath` from this
 // file but only at function call time (not module top), and we import
 // `parseApplications` the same way. ESM resolves both bindings before
 // either function runs.
 import { parseApplications } from './parsers.mjs';
 
-const COMPANY_SUFFIX_RE = /\b(?:inc|llc|ltd|corp|corporation|company|co|group|holdings?)\b/g;
-
-export function canonicalCompanyRoleKey(company, role) {
-  const companyKey = String(company || '')
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(COMPANY_SUFFIX_RE, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const roleKey = String(role || '')
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return `${companyKey}||${roleKey}`;
-}
+export { canonicalCompanyRoleKey } from '../../lib/role-identity.mjs';
 
 /** Resolve the canonical applications.md path.
  * Checks data/applications.md first (newer convention), falls back to root.
@@ -545,6 +529,12 @@ export function addPendingItem(root, { url, company, role, postedAt = null, loca
   }
 
   if (content.includes(url)) return { added: false, duplicate: true };
+  const candidateKey = canonicalCompanyRoleKey(company, role);
+  const duplicateRole = content.split('\n').some((line) => {
+    const item = parsePipelineIdentity(line);
+    return item?.key === candidateKey;
+  });
+  if (duplicateRole) return { added: false, duplicate: true };
 
   const lines = content.split('\n');
   // Find the Pendientes header so we can insert directly under it. If it's
