@@ -44,6 +44,22 @@ function runDedupTracker(workspace) {
   });
 }
 
+function runNormalizeStatuses(workspace) {
+  return spawnSync('node', [join(ROOT, 'normalize-statuses.mjs')], {
+    cwd: ROOT,
+    env: { ...process.env, CATABULL_WORKSPACE_ROOT: workspace },
+    encoding: 'utf8',
+  });
+}
+
+function runAnalyzePatterns(workspace, minThreshold = 1) {
+  return spawnSync('node', [join(ROOT, 'analyze-patterns.mjs'), '--min-threshold', String(minThreshold)], {
+    cwd: ROOT,
+    env: { ...process.env, CATABULL_WORKSPACE_ROOT: workspace },
+    encoding: 'utf8',
+  });
+}
+
 console.log('\nmerge-tracker');
 
 {
@@ -138,6 +154,54 @@ console.log('\nmerge-tracker');
 
     assert(result.status === 0, 'dedup-tracker exits 0 for exact single-word duplicate roles');
     assert((content.match(/\| Visualizer \|/g) || []).length === 1, 'dedup-tracker removes exact single-word duplicates across company suffix variants');
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
+{
+  const workspace = makeWorkspace();
+  try {
+    writeFileSync(join(workspace, 'data', 'applications.md'), `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n`);
+    writeFileSync(join(workspace, 'batch', 'tracker-additions', '001.tsv'), '1\t2026-06-01\tLegacyCo\tLegacy Role\tEvaluated\t3.5/5\t❌\t[001](reports/001-legacy.md)\tLegacy status\n');
+
+    const result = runMergeTracker(workspace);
+    const content = readFileSync(join(workspace, 'data', 'applications.md'), 'utf8');
+
+    assert(result.status === 0, 'merge-tracker accepts legacy Evaluated additions');
+    assert(content.includes('| Tailored |'), 'merge-tracker writes legacy Evaluated additions as canonical Tailored');
+    assert(!content.includes('| Evaluated |'), 'merge-tracker does not persist the legacy Evaluated alias');
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
+{
+  const workspace = makeWorkspace();
+  try {
+    writeFileSync(join(workspace, 'data', 'applications.md'), `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-01 | LegacyCo | Legacy Role | 3.5/5 | Evaluated | ❌ | [001](reports/001-legacy.md) | |\n| 2 | 2026-06-02 | ModernCo | Modern Role | 4.0/5 | Tailored | ❌ | [002](reports/002-modern.md) | |\n`);
+
+    const result = runNormalizeStatuses(workspace);
+    const content = readFileSync(join(workspace, 'data', 'applications.md'), 'utf8');
+
+    assert(result.status === 0, 'normalize-statuses exits 0 for legacy and canonical tailored states');
+    assert((content.match(/\| Tailored \|/g) || []).length === 2, 'normalize-statuses converts Evaluated to Tailored and preserves Tailored');
+    assert(!result.stdout.includes('unknown statuses'), 'normalize-statuses recognizes Tailored as canonical');
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
+{
+  const workspace = makeWorkspace();
+  try {
+    writeFileSync(join(workspace, 'data', 'applications.md'), `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-01 | PendingCo | Pending Role | 3.5/5 | Tailored | ❌ | | |\n`);
+
+    const result = runAnalyzePatterns(workspace, 1);
+    const payload = JSON.parse(result.stdout || '{}');
+
+    assert(result.status === 1, 'analyze-patterns returns its documented insufficient-data exit when only Tailored roles exist');
+    assert(payload.current === 0 && payload.threshold === 1, 'analyze-patterns excludes canonical Tailored roles from progressed outcomes');
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }

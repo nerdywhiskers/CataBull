@@ -6,6 +6,7 @@ import { openScoreModal } from '../components/score-modal.mjs';
 import { promptLowTailorScoreAction, promptTailorAction } from '../components/tailor-choice.mjs';
 import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
+import { canonicalCompanyRoleKey } from '../lib/role-identity.mjs';
 import { INDUSTRIES } from '../lib/industries.mjs';
 import { DEFAULT_PENDING_REFRESH_INTERVAL_MS, getPendingRefreshState, runPendingRefresh, subscribePendingRefresh } from '../lib/pending-refresh.mjs';
 import {
@@ -570,19 +571,22 @@ function tabCount(key) {
   });
 }
 
-const FILTERS = [
+export const PIPELINE_FILTERS = [
   { key: 'pending', label: 'Pending' },
   { key: 'all', label: 'All' },
   { key: 'tailored', label: 'Tailored' },
   { key: 'applied', label: 'Applied' },
+  { key: 'responded', label: 'Responded' },
   { key: 'rejected', label: 'Rejected' },
   { key: 'interview', label: 'Interview' },
+  { key: 'offer', label: 'Offer' },
+  { key: 'discarded', label: 'Discarded' },
   { key: 'top', label: 'Top \u22654' },
   { key: 'skip', label: 'Skip' },
 ];
 
 function renderFilters() {
-  return `<div class="filter-tabs">${FILTERS.map(f =>
+  return `<div class="filter-tabs">${PIPELINE_FILTERS.map(f =>
     `<button class="filter-tab${currentFilter === f.key ? ' active' : ''}" data-filter="${f.key}">${f.label}<span class="count">${tabCount(f.key)}</span></button>`
   ).join('')}</div>`;
 }
@@ -1311,10 +1315,13 @@ export function batchActionsForFilter(filter) {
   return [];
 }
 
+export function hasCanonicalRole(applications, company, role) {
+  const key = canonicalCompanyRoleKey(company, role);
+  return applications.some((app) => canonicalCompanyRoleKey(app.company, app.role) === key);
+}
+
 function isAlreadyEvaluated(company, role) {
-  const c = company.toLowerCase();
-  const r = role.toLowerCase();
-  return apps.some(a => a.company.toLowerCase() === c && a.role.toLowerCase() === r);
+  return hasCanonicalRole(apps, company, role);
 }
 
 function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }

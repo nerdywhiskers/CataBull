@@ -42,7 +42,7 @@ mkdirSync(ADDITIONS_DIR, { recursive: true });
 // Keep literal Tailored canonical here because evaluate-mode tracker TSVs
 // are instructed to emit Tailored, and the dashboard treats Tailored as the
 // explicit pre-application stage.
-const CANONICAL_STATES = ['Tailored', 'Evaluated', 'Applied', 'Responded', 'Interview', 'Offer', 'Rejected', 'Discarded', 'SKIP'];
+const CANONICAL_STATES = ['Tailored', 'Applied', 'Responded', 'Interview', 'Offer', 'Rejected', 'Discarded', 'SKIP'];
 
 function validateStatus(status) {
   const clean = status.replace(/\*\*/g, '').replace(/\s+\d{4}-\d{2}-\d{2}.*$/, '').trim();
@@ -56,7 +56,7 @@ function validateStatus(status) {
   const aliases = {
     // Spanish → English
     'tailored': 'Tailored', 'tailor': 'Tailored',
-    'evaluada': 'Evaluated', 'condicional': 'Evaluated', 'hold': 'Evaluated', 'evaluar': 'Evaluated', 'verificar': 'Evaluated',
+    'evaluated': 'Tailored', 'evaluada': 'Tailored', 'condicional': 'Tailored', 'hold': 'Tailored', 'evaluar': 'Tailored', 'verificar': 'Tailored',
     'aplicado': 'Applied', 'enviada': 'Applied', 'aplicada': 'Applied', 'applied': 'Applied', 'sent': 'Applied',
     'respondido': 'Responded',
     'entrevista': 'Interview',
@@ -72,8 +72,8 @@ function validateStatus(status) {
   // DUPLICADO/Repost → Discarded
   if (/^(duplicado|dup|repost)/i.test(lower)) return 'Discarded';
 
-  console.warn(`⚠️  Non-canonical status "${status}" → defaulting to "Evaluated"`);
-  return 'Evaluated';
+  console.warn(`⚠️  Non-canonical status "${status}" → defaulting to "Tailored"`);
+  return 'Tailored';
 }
 
 function normalizeCompany(name) {

@@ -35,6 +35,7 @@ const STATUS_RANK = {
   'skip': 0,
   'discarded': 0,
   'rejected': 1,
+  'tailored': 2,
   'evaluated': 2,
   'applied': 3,
   'responded': 4,

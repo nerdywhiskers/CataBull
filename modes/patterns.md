@@ -15,7 +15,7 @@ Analyze all tracked applications to find patterns in outcomes and surface action
 
 ## Minimum Threshold
 
-Before running analysis, check whether `data/applications.md` has at least 5 entries with status beyond `Evaluated`:
+Before running analysis, check whether `data/applications.md` has at least 5 entries with status beyond `Tailored`:
 
 - `Applied`
 - `Responded`
@@ -75,7 +75,7 @@ Write the report to `reports/pattern-analysis-{YYYY-MM-DD}.md`.
 
 | Stage | Count | % |
 |-------|-------|---|
-| Evaluated | X | X% |
+| Tailored | X | X% |
 | Applied | X | X% |
 
 ## Score vs Outcome
@@ -191,4 +191,4 @@ For reference, outcomes are classified as:
 | Interview, Offer, Responded, Applied | **Positive** |
 | Rejected, Discarded | **Negative** |
 | SKIP, NO APLICAR | **Self-filtered** |
-| Evaluated | **Pending** |
+| Tailored | **Pending** |

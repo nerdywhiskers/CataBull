@@ -53,8 +53,8 @@ function normalizeStatus(raw) {
   // Aplicado with date → Applied (strip date)
   if (/^aplicado\s+\d{4}/i.test(s)) return { status: 'Applied' };
 
-  // CONDICIONAL / HOLD / EVALUAR / Verificar → Evaluated
-  if (/^(condicional|hold|evaluar|verificar)$/i.test(s)) return { status: 'Evaluated' };
+  // Legacy pre-application aliases → Tailored
+  if (/^(evaluated|evaluada|condicional|hold|evaluar|verificar)$/i.test(s)) return { status: 'Tailored' };
 
   // MONITOR → SKIP
   if (/^monitor$/i.test(s)) return { status: 'SKIP' };
@@ -70,7 +70,7 @@ function normalizeStatus(raw) {
 
   // Already canonical (English, per states.yml) — just fix casing/bold
   const canonical = [
-    'Evaluated', 'Applied', 'Responded', 'Interview',
+    'Tailored', 'Applied', 'Responded', 'Interview',
     'Offer', 'Rejected', 'Discarded', 'SKIP',
   ];
   for (const c of canonical) {
@@ -78,7 +78,7 @@ function normalizeStatus(raw) {
   }
 
   // Spanish aliases → English canonicals
-  if (['evaluada'].includes(lower)) return { status: 'Evaluated' };
+  if (['evaluated', 'evaluada'].includes(lower)) return { status: 'Tailored' };
   if (['aplicado', 'enviada', 'aplicada', 'applied', 'sent'].includes(lower)) return { status: 'Applied' };
   if (['respondido'].includes(lower)) return { status: 'Responded' };
   if (['entrevista'].includes(lower)) return { status: 'Interview' };

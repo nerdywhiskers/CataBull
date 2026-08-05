@@ -35,8 +35,9 @@ const MIN_THRESHOLD = minThresholdIdx !== -1 && args[minThresholdIdx + 1] !== un
 
 // --- Status normalization (mirrors verify-pipeline.mjs) ---
 const ALIASES = {
-  'evaluada': 'evaluated', 'condicional': 'evaluated', 'hold': 'evaluated',
-  'evaluar': 'evaluated', 'verificar': 'evaluated',
+  'tailored': 'tailored', 'tailor': 'tailored', 'evaluated': 'tailored',
+  'evaluada': 'tailored', 'condicional': 'tailored', 'hold': 'tailored',
+  'evaluar': 'tailored', 'verificar': 'tailored',
   'aplicado': 'applied', 'enviada': 'applied', 'aplicada': 'applied',
   'applied': 'applied', 'sent': 'applied',
   'respondido': 'responded',
@@ -59,7 +60,7 @@ function classifyOutcome(status) {
   if (['interview', 'offer', 'responded', 'applied'].includes(s)) return 'positive';
   if (['rejected', 'discarded'].includes(s)) return 'negative';
   if (['skip'].includes(s)) return 'self_filtered';
-  return 'pending'; // evaluated
+  return 'pending'; // tailored
 }
 
 // --- Parse applications.md ---
@@ -245,12 +246,12 @@ function analyze() {
     };
   });
 
-  // Count entries beyond "Evaluated"
-  const beyondEvaluated = enriched.filter(e => e.normalizedStatus !== 'evaluated');
-  if (beyondEvaluated.length < MIN_THRESHOLD) {
+  // Count entries beyond the canonical pre-application Tailored state.
+  const beyondTailored = enriched.filter(e => e.normalizedStatus !== 'tailored');
+  if (beyondTailored.length < MIN_THRESHOLD) {
     return {
-      error: `Not enough data: ${beyondEvaluated.length}/${MIN_THRESHOLD} applications beyond "Evaluated". Keep applying and come back later.`,
-      current: beyondEvaluated.length,
+      error: `Not enough data: ${beyondTailored.length}/${MIN_THRESHOLD} applications beyond "Tailored". Keep applying and come back later.`,
+      current: beyondTailored.length,
       threshold: MIN_THRESHOLD,
     };
   }
