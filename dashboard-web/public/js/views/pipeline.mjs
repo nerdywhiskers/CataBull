@@ -1939,7 +1939,7 @@ function update(container) {
         return pending.find((item) => item.url === pendingItem.url) || current;
       };
 
-      const doTailor = async () => {
+      const doTailor = async (force = false) => {
         try {
           const scoredItem = await scorePendingItem();
           const decision = pendingTailorDecision(scoredItem);
@@ -1961,7 +1961,7 @@ function update(container) {
           }
           tailoringByUrl.set(pendingItem.url, 'tailoring');
           update(container);
-          const result = await api.tailor(scoredItem);
+          const result = await api.tailor({ ...scoredItem, force });
           await loadData();
           currentFilter = 'tailored';
           const matched = apps.find((app) => (
@@ -1984,7 +1984,7 @@ function update(container) {
         }
       };
 
-      const doEvaluate = async () => {
+      const doEvaluate = async (force = false) => {
         try {
           const scoredItem = await scorePendingItem();
           const decision = pendingTailorDecision(scoredItem);
@@ -2009,7 +2009,7 @@ function update(container) {
           await runModePrompt('evaluate', scoredItem);
           tailoringByUrl.set(pendingItem.url, 'tailoring');
           update(container);
-          const tailorResult = await api.tailor(scoredItem);
+          const tailorResult = await api.tailor({ ...scoredItem, force });
           await loadData();
           currentFilter = 'tailored';
           const matched = apps.find((app) => (
@@ -2033,14 +2033,14 @@ function update(container) {
         }
       };
 
-      const runChosenAction = async () => {
+      const runChosenAction = async (force = false) => {
         const choice = await promptTailorAction({ company: pendingItem.company, role: pendingItem.role });
         if (choice === 'evaluate') {
-          await doEvaluate();
+          await doEvaluate(force);
           return;
         }
         if (choice === 'tailor') {
-          await doTailor();
+          await doTailor(force);
         }
       };
 
@@ -2049,7 +2049,7 @@ function update(container) {
           title: 'Already Tailored',
           body: `<p style="font-size:14px;color:var(--subtext)">A tailored report already exists for <strong style="color:var(--text)">${esc(btn.dataset.company)} - ${esc(btn.dataset.role)}</strong>. Re-running will use additional API credits.</p>`,
         });
-        if (ok) await runChosenAction();
+        if (ok) await runChosenAction(true);
       } else {
         await runChosenAction();
       }

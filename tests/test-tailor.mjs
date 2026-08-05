@@ -76,7 +76,8 @@ function withTempWorkspace(fn) {
 console.log('\n1. tailorSlug');
 
 assert(tailorSlug('Anthropic', 'Staff Engineer', { date: '2026-05-07' }) === 'anthropic-staff-engineer-2026-05-07', 'normal slug');
-assert(tailorSlug('Acme, Inc.', 'C++ Engineer', { date: '2026-05-07' }) === 'acme-inc-c-engineer-2026-05-07', 'punctuation collapsed');
+assert(tailorSlug('Acme, Inc.', 'C++ Engineer', { date: '2026-05-07' }) === 'acme-cplusplus-engineer-2026-05-07', 'slug uses canonical company aliases and preserves technical role tokens');
+assert(tailorSlug('C# Labs, Inc.', '.NET Engineer', { date: '2026-05-07' }) !== tailorSlug('C Labs, Inc.', 'NET Engineer', { date: '2026-05-07' }), 'technical-token roles and companies cannot overwrite each other');
 assert(tailorSlug('  Whitespace  ', '  Role  ', { date: '2026-05-07' }) === 'whitespace-role-2026-05-07', 'whitespace stripped');
 assert(tailorSlug('', '', { date: '2026-05-07' }) === 'unknown-company-unknown-role-2026-05-07', 'empty fallbacks');
 assert(tailorSlug('A'.repeat(100), 'B'.repeat(100), { date: '2026-05-07' }).length <= 100, 'caps each segment to 40 chars');

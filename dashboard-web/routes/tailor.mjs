@@ -11,9 +11,8 @@
  */
 
 import { runAgentPrint } from '../lib/agents.mjs';
-import { appendTailorReportSection, runTailor, writeTailorReport } from '../../lib/tailor.mjs';
-import { readProfile, markPipelineTailored, enforcePipelineConsistency } from '../lib/writers.mjs';
-import { parseApplications } from '../lib/parsers.mjs';
+import { readProfile } from '../lib/writers.mjs';
+import { createTailorCoordinator } from '../lib/tailor-coordinator.mjs';
 import { asWorkspace } from '../../lib/workspace.mjs';
 import { basename, extname } from 'path';
 import { launchChromiumWithRetry } from '../../lib/playwright-launch.mjs';
@@ -48,43 +47,31 @@ async function generateTailorPdfs(ws, paths = {}) {
   if (paths.coverLetterHtml && paths.coverLetterPdf) await generatePdfFromHtml(ws, paths.coverLetterHtml, paths.coverLetterPdf);
 }
 
-function findExistingReport(root, { company, role, url } = {}) {
-  const companyKey = String(company || '').trim().toLowerCase();
-  const roleKey = String(role || '').trim().toLowerCase();
-  const urlKey = String(url || '').trim();
-  return parseApplications(root).find((app) => (
-    app.reportPath
-    && (
-      (urlKey && app.jobUrl === urlKey)
-      || (
-        String(app.company || '').trim().toLowerCase() === companyKey
-        && String(app.role || '').trim().toLowerCase() === roleKey
-      )
-    )
-  ));
-}
-
 export default async function (app) {
   const root = app.cataBullRoot;
+  const coordinator = createTailorCoordinator({ root, generatePdfs: generateTailorPdfs });
 
   app.post('/tailor', async (req, reply) => {
-    const { company, role, url, jd } = req.body || {};
+    const { company, role, url, jd, force } = req.body || {};
     if (!company || !role) {
       return reply.code(400).send({ error: 'company and role are required' });
     }
 
     const profile = readProfile(root) || {};
     const agent = profile?.preferences?.agent || req.body?.agent;
-    if (!agent) return reply.code(400).send({ error: 'No agent configured' });
 
     // Tailor wires together CV + cover letter + Q&A in one agent call.
     // It's expensive (full CV + JD context) but onboarding-style — runs
     // on demand, not on every page load. 6-minute ceiling.
     const timeoutMs = 360_000;
-    reply.raw.setTimeout(timeoutMs + 30_000);
+    reply.raw.setTimeout?.(timeoutMs + 30_000, () => {});
 
-    const ws = asWorkspace(root);
     const runAgent = async (prompt) => {
+      if (!agent) {
+        const error = new Error('No agent configured');
+        error.statusCode = 400;
+        throw error;
+      }
       const out = await runAgentPrint(agent, prompt, root, {
         timeoutMs,
         allowEdits: true,
@@ -94,49 +81,19 @@ export default async function (app) {
     };
 
     try {
-      const result = await runTailor({
+      const result = await coordinator.tailor({
         company,
         role,
         url,
         jd,
-        workspace: ws,
-        runAgent,
-      });
-      await generateTailorPdfs(ws, result.paths);
-      const existingReport = findExistingReport(root, { company, role, url });
-      const appended = existingReport?.reportPath
-        ? appendTailorReportSection(ws, existingReport.reportPath, result)
-        : null;
-      const report = appended
-        ? { ...appended, filename: existingReport.reportPath.split('/').pop(), existing: true }
-        : writeTailorReport(ws, result, { company, role, url });
-      markPipelineTailored(root, {
-        url,
-        company,
-        role,
-        reportPath: report.path,
-        reportNumber: report.number || existingReport?.reportNumber || '',
-        hasPdf: Boolean(result.paths?.cvPdf),
-      });
-      enforcePipelineConsistency(root);
+        force: force === true,
+      }, { runAgent });
       return {
-        success: true,
-        slug: result.slug,
-        dir: result.dir,
-        paths: result.paths,
-        report,
+        ...result,
         agent,
-        // Send a small preview the frontend can render in the modal.
-        // Capped so a huge CV doesn't blow up the response.
-        preview: {
-          cv_excerpt: result.payload.tailored_cv_markdown.slice(0, 1200),
-          cover_letter_excerpt: result.payload.cover_letter_markdown.slice(0, 1200),
-          qa_count: result.payload.qa_pairs.length,
-          qa_first: result.payload.qa_pairs.slice(0, 2),
-        },
       };
     } catch (err) {
-      return reply.code(502).send({ error: err.message || String(err) });
+      return reply.code(err.statusCode || 502).send({ error: err.message || String(err) });
     }
   });
 
