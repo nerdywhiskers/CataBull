@@ -241,6 +241,23 @@ console.log('\nmerge-tracker');
   }
 }
 
+{
+  const workspace = makeWorkspace();
+  try {
+    writeFileSync(join(workspace, 'data', 'applications.md'), `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-01 | C Labs, Inc. | Design Systems Manager | 3.0/5 | Tailored | ❌ | [001](reports/001-c-labs.md) | |\n`);
+    writeFileSync(join(workspace, 'batch', 'tracker-additions', '002.tsv'), '2\t2026-06-02\tC# Labs, Inc.\tSenior Design Systems Manager\tTailored\t4.5/5\t❌\t[002](reports/002-csharp-labs.md)\tDistinct technical company token\n');
+
+    const result = runMergeTracker(workspace);
+    const content = readFileSync(join(workspace, 'data', 'applications.md'), 'utf8');
+
+    assert(result.status === 0, 'merge-tracker handles technical-token company names in fuzzy fallback');
+    assert(content.includes('| 1 | 2026-06-01 | C Labs, Inc. | Design Systems Manager | 3.0/5 |'), 'merge-tracker preserves C Labs when C# Labs has a similar title');
+    assert(content.includes('| 2 | 2026-06-02 | C# Labs, Inc. | Senior Design Systems Manager | 4.5/5 |'), 'merge-tracker keeps C# Labs distinct through fuzzy role matching');
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
 console.log(`\nPassed: ${passed} / ${total}`);
 if (failed > 0) process.exitCode = 1;
 else console.log('All passed ✓');

@@ -19,7 +19,7 @@ import { join, basename, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { defaultWorkspace } from '../lib/workspace.mjs';
 import { execFileSync } from 'child_process';
-import { canonicalCompanyRoleKey } from '../lib/role-identity.mjs';
+import { canonicalCompanyName, canonicalCompanyRoleKey } from '../lib/role-identity.mjs';
 
 // Data root = the user's workspace. CATABULL_WORKSPACE_ROOT (set by the CLI and
 // the dashboard when it spawns scripts) wins; otherwise fall back to the package
@@ -74,10 +74,6 @@ function validateStatus(status) {
 
   console.warn(`⚠️  Non-canonical status "${status}" → defaulting to "Tailored"`);
   return 'Tailored';
-}
-
-function normalizeCompany(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 function roleFuzzyMatch(a, b) {
@@ -253,9 +249,9 @@ for (const file of tsvFiles) {
 
   if (!duplicate) {
     // Legacy fuzzy fallback for small title variations.
-    const normCompany = normalizeCompany(addition.company);
+    const normCompany = canonicalCompanyName(addition.company);
     duplicate = existingApps.find(app => {
-      if (normalizeCompany(app.company) !== normCompany) return false;
+      if (canonicalCompanyName(app.company) !== normCompany) return false;
       return roleFuzzyMatch(addition.role, app.role);
     });
   }
