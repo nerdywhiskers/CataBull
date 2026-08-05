@@ -55,13 +55,11 @@ the numeric score. It exists for narrative context in the report only.
 - 3.0-3.4 → Borderline, only tailor if the user still wants a focused shot
 - Below 3.0 → Recommend against applying or tailoring unless the user explicitly overrides
 
-**Tailor bundle rule:**
-- If Global score is **3.0 or higher**, ALWAYS generate a tailored CV and cover letter in addition to the evaluation.
-- Save them under `output/tailor-bundles/{company-role-date}/` (CV markdown + cover letter markdown at minimum).
-- Include direct report links in the evaluation header or TL;DR area using exact labels:
-  - `**Tailored CV:** <relative-path-or-none>`
-  - `**Cover Letter:** <relative-path-or-none>`
-- If Global score is below 3.0, do NOT spend time generating tailored assets unless the user explicitly asks to proceed anyway.
+**Tailor bundle ownership:**
+- The standard `evaluate` workflow owns scoring, the evaluation report, and tracker metadata only. It MUST NOT generate files under `output/tailor-bundles/`.
+- The dashboard's dedicated `/tailor` operation is the sole owner of CV, cover-letter, Q&A, and bundle-report-section generation after evaluation.
+- Workflows with explicit artifact ownership, such as `auto-pipeline` and `pdf`, keep following their own mode files.
+- If Global score is below 3.0, recommend against invoking the dedicated tailor operation unless the user explicitly overrides.
 
 **Required in every report header — exact format:**
 

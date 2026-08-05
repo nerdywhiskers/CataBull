@@ -2,6 +2,7 @@
 
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join, resolve } from 'path';
+import { readFileSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -62,6 +63,21 @@ const { canonicalCompanyRoleKey: browserRoleKey } = await import(
 const { canonicalCompanyRoleKey: serverRoleKey } = await import(
   pathToFileURL(join(ROOT, 'lib', 'role-identity.mjs')).href
 );
+const { getMode, inlinePromptForMode } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'lib', 'modes.mjs')).href
+);
+
+const evaluateMode = getMode('evaluate');
+const evaluatePrompt = inlinePromptForMode('evaluate', {
+  url: 'https://jobs.test/role',
+  company: 'Acme',
+  role: 'Designer',
+});
+const sharedModeRules = readFileSync(join(ROOT, 'modes', '_shared.md'), 'utf8');
+assert(evaluateMode?.label === 'Evaluate', 'evaluate mode is not mislabeled as the artifact-generating Tailor operation');
+assert(!/generate a tailored CV bundle/i.test(evaluatePrompt), 'evaluate inline prompt does not generate a second tailor bundle');
+assert(/dedicated \/tailor operation/i.test(evaluatePrompt), 'evaluate inline prompt names the dedicated tailor owner');
+assert(!/ALWAYS generate a tailored CV/i.test(sharedModeRules), 'shared evaluation rules do not assign artifact ownership to the evaluator');
 
 const skipRowActions = rowActionsForStatus('skip');
 assert(skipRowActions.length === 1, 'skip rows expose one primary restore action');
@@ -387,6 +403,16 @@ const watchResult = await watchPendingTailorCompletion(
 assert(watchResult === true, 'pending tailor watcher resolves when tailored row appears');
 assert(getApplicationsCalls === 2, 'pending tailor watcher polls until the tailored row exists');
 api.getApplications = originalGetApplications;
+
+const originalFetch = globalThis.fetch;
+let tailorRequestBody = null;
+globalThis.fetch = async (_url, options = {}) => {
+  tailorRequestBody = JSON.parse(options.body || '{}');
+  return { ok: true, json: async () => ({ success: true }) };
+};
+await api.tailor({ company: 'Acme', role: 'Designer', force: true });
+assert(tailorRequestBody?.force === true, 'frontend forwards explicit force regeneration to the tailor route');
+globalThis.fetch = originalFetch;
 
 console.log(`\nPassed: ${passed} / ${total}`);
 if (failed > 0) process.exitCode = 1;
