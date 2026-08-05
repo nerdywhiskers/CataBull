@@ -97,6 +97,18 @@ for (const [company, role] of [
 ]) {
   assert(browserRoleKey(company, role) === serverRoleKey(company, role), `browser and server role identity agree for ${company} / ${role}`);
 }
+assert(
+  serverRoleKey('Group Nine Media', 'Designer') !== serverRoleKey('Nine Media', 'Designer'),
+  'role identity strips company suffixes only at the end of a company name'
+);
+assert(
+  serverRoleKey('Acme, Inc.', 'Designer') === serverRoleKey('Acme', 'Designer'),
+  'role identity strips trailing legal company suffixes'
+);
+assert(
+  serverRoleKey('Acme', 'C++ Developer') !== serverRoleKey('Acme', 'C# Developer'),
+  'role identity preserves meaningful language punctuation'
+);
 
 const tabCountFixtures = [
   { score: 4.5, statusNormalized: 'applied' },

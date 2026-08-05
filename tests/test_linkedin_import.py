@@ -270,30 +270,44 @@ class LinkedInImportTests(unittest.TestCase):
             content = (data_dir / "pipeline.md").read_text(encoding="utf-8")
             self.assertNotIn("jobs/view/2", content)
 
-    def test_apply_to_pipeline_dedupes_incoming_company_suffix_variants(self):
-        with tempfile.TemporaryDirectory(prefix="catabull-linkedin-import-") as root:
+    def test_apply_to_pipeline_dedupes_within_incoming_batch(self):
+        with tempfile.TemporaryDirectory() as root:
             rows = [
                 {
-                    "url": "https://linkedin.com/jobs/view/1",
+                    "url": "https://www.linkedin.com/jobs/view/1/",
                     "company": "Acme",
                     "role": "Designer",
-                    "received": "2026-06-06",
+                    "received": None,
                     "location": None,
                 },
                 {
-                    "url": "https://linkedin.com/jobs/view/2",
+                    "url": "https://www.linkedin.com/jobs/view/2/",
                     "company": "Acme, Inc.",
                     "role": "Designer",
-                    "received": "2026-06-06",
+                    "received": None,
                     "location": None,
                 },
             ]
 
             result = linkedin_import.apply_to_pipeline(root, rows)
+            content = linkedin_import.read_pipeline(root)
 
             self.assertEqual({"added": 1, "duplicates": 1}, result)
-            content = (pathlib.Path(root) / "data" / "pipeline.md").read_text(encoding="utf-8")
             self.assertEqual(1, content.count("| Designer |"))
+
+    def test_canonical_role_identity_avoids_false_company_and_language_collisions(self):
+        self.assertNotEqual(
+            linkedin_import.canonical_company_role_key("Group Nine Media", "Designer"),
+            linkedin_import.canonical_company_role_key("Nine Media", "Designer"),
+        )
+        self.assertEqual(
+            linkedin_import.canonical_company_role_key("Acme, Inc.", "Designer"),
+            linkedin_import.canonical_company_role_key("Acme", "Designer"),
+        )
+        self.assertNotEqual(
+            linkedin_import.canonical_company_role_key("Acme", "C++ Developer"),
+            linkedin_import.canonical_company_role_key("Acme", "C# Developer"),
+        )
 
 
 if __name__ == "__main__":

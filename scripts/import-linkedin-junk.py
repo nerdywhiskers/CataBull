@@ -728,17 +728,20 @@ def pipeline_line(row):
 
 
 COMPANY_SUFFIX_RE = re.compile(
-    r"\b(?:inc|llc|ltd|corp|corporation|company|co|group|holdings?)\b",
+    r"(?:\s+(?:(?:and\s+)?(?:inc|llc|ltd|corp|corporation|company|co|group|holdings?)))+$",
     re.I,
 )
 
 
 def canonical_company_role_key(company, role):
     company_key = clean_cell(company).lower().replace("&", " and ")
-    company_key = re.sub(r"[^a-z0-9]+", " ", company_key)
+    company_key = re.sub(r"[^a-z0-9]+", " ", company_key).strip()
     company_key = COMPANY_SUFFIX_RE.sub(" ", company_key)
     company_key = " ".join(company_key.split())
     role_key = clean_cell(role).lower().replace("&", " and ")
+    role_key = re.sub(r"(?<![a-z0-9])c\+\+(?![a-z0-9])", "cplusplus", role_key)
+    role_key = re.sub(r"(?<![a-z0-9])c#(?![a-z0-9])", "csharp", role_key)
+    role_key = re.sub(r"(?<![a-z0-9])\.net(?![a-z0-9])", "dotnet", role_key)
     role_key = re.sub(r"[^a-z0-9]+", " ", role_key)
     role_key = " ".join(role_key.split())
     return f"{company_key}||{role_key}"
