@@ -8,10 +8,10 @@
  * is thin enough that real fs is the right scope.
  */
 
-import { mkdtempSync, rmSync, existsSync, readFileSync } from 'fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, sep } from 'path';
-import { LocalWorkspace, asWorkspace, defaultWorkspace } from '../lib/workspace.mjs';
+import { LocalWorkspace, asWorkspace, atomicWriteFileSync, defaultWorkspace } from '../lib/workspace.mjs';
 
 const VERBOSE = process.argv.includes('--verbose');
 
@@ -101,6 +101,19 @@ withTempWorkspace((ws) => {
   // Overwrite
   ws.write('cv.md', 'updated');
   assert(ws.read('cv.md') === 'updated', 'write() overwrites existing file');
+  assert(readdirSync(ws.root).every((name) => !name.includes('.catabull-tmp-')), 'successful write leaves no temporary files');
+});
+
+withTempWorkspace((ws) => {
+  const target = ws.resolve('cv.md');
+  writeFileSync(target, 'original');
+  assertThrows(() => atomicWriteFileSync(target, 'replacement', {
+    writeFile: writeFileSync,
+    renameFile: () => { throw new Error('simulated rename failure'); },
+    removeFile: unlinkSync,
+  }), 'simulated rename failure', 'atomic helper surfaces rename failures');
+  assert(readFileSync(target, 'utf8') === 'original', 'failed atomic replacement preserves original file');
+  assert(readdirSync(ws.root).every((name) => !name.includes('.catabull-tmp-')), 'failed atomic replacement cleans temporary file');
 });
 
 // ── 3. YAML HELPERS ───────────────────────────────────────────────────

@@ -2,6 +2,7 @@
 
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join, resolve } from 'path';
+import { readFileSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -47,7 +48,7 @@ globalThis.localStorage = { getItem: () => null, setItem: noop, removeItem: noop
 
 console.log('\nPipeline action mappings');
 
-const { rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, pendingPassesScoreFilters, pendingTailorStatusLabel, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision, areAllPendingItemsSelected, setPendingSelectionForItems, countApplicationsForTab, applicationDateColumnLabel, applicationDateValue } = await import(
+const { PIPELINE_FILTERS, hasCanonicalRole, rowActionsForStatus, batchActionsForFilter, buildAiSuggestion, watchPendingTailorCompletion, positionOverflowDropdown, pendingNeedsContextualScore, pendingPassesScoreFilters, pendingTailorStatusLabel, renderPendingScoreButton, shouldWarnLowTailorScore, shouldEnableTailorArtifacts, shouldShowTailorArtifactLinks, pendingTailorDecision, areAllPendingItemsSelected, setPendingSelectionForItems, countApplicationsForTab, applicationDateColumnLabel, applicationDateValue } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'pipeline.mjs')).href
 );
 const { shouldAutoExpireLivenessResult } = await import(
@@ -56,6 +57,29 @@ const { shouldAutoExpireLivenessResult } = await import(
 const { api } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'api.mjs')).href
 );
+const { canonicalCompanyRoleKey: browserRoleKey } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'lib', 'role-identity.mjs')).href
+);
+const { canonicalCompanyRoleKey: serverRoleKey } = await import(
+  pathToFileURL(join(ROOT, 'lib', 'role-identity.mjs')).href
+);
+const { getMode, inlinePromptForMode } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'lib', 'modes.mjs')).href
+);
+
+const evaluateMode = getMode('evaluate');
+const evaluatePrompt = inlinePromptForMode('evaluate', {
+  url: 'https://jobs.test/role',
+  company: 'Acme',
+  role: 'Designer',
+});
+const sharedModeRules = readFileSync(join(ROOT, 'modes', '_shared.md'), 'utf8');
+assert(evaluateMode?.label === 'Evaluate', 'evaluate mode is not mislabeled as the artifact-generating Tailor operation');
+assert(!/generate a tailored CV bundle/i.test(evaluatePrompt), 'evaluate inline prompt does not generate a second tailor bundle');
+assert(/dedicated \/tailor operation/i.test(evaluatePrompt), 'evaluate inline prompt names the dedicated tailor owner');
+assert(!/ALWAYS generate a tailored CV/i.test(sharedModeRules), 'shared evaluation rules do not assign artifact ownership to the evaluator');
+assert(sharedModeRules.includes('**Company:** {company}'), 'evaluation reports require machine-readable company identity');
+assert(sharedModeRules.includes('**Role:** {role}'), 'evaluation reports require machine-readable role identity');
 
 const skipRowActions = rowActionsForStatus('skip');
 assert(skipRowActions.length === 1, 'skip rows expose one primary restore action');
@@ -75,6 +99,34 @@ assert(rejectedRowActions.length === 0, 'rejected rows do not expose follow-up s
 
 const rejectedBatchActions = batchActionsForFilter('rejected');
 assert(rejectedBatchActions.length === 0, 'rejected filter has no batch stage actions');
+
+const pipelineFilterKeys = PIPELINE_FILTERS.map((filter) => filter.key);
+for (const canonicalState of ['tailored', 'applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'skip']) {
+  assert(pipelineFilterKeys.includes(canonicalState), `pipeline exposes a tab for canonical state ${canonicalState}`);
+}
+assert(
+  hasCanonicalRole([{ company: 'AMD', role: 'AI Creative Technologist' }], 'AMD, Inc.', 'AI Creative Technologist') === true,
+  'pipeline duplicate warnings use canonical company and role identity'
+);
+for (const [company, role] of [
+  ['AMD, Inc.', 'AI Creative Technologist'],
+  ['Acme & Company', 'Designer / Art Director'],
+  ['BMW Group', 'Visualizer'],
+]) {
+  assert(browserRoleKey(company, role) === serverRoleKey(company, role), `browser and server role identity agree for ${company} / ${role}`);
+}
+assert(
+  serverRoleKey('Group Nine Media', 'Designer') !== serverRoleKey('Nine Media', 'Designer'),
+  'role identity strips company suffixes only at the end of a company name'
+);
+assert(
+  serverRoleKey('Acme, Inc.', 'Designer') === serverRoleKey('Acme', 'Designer'),
+  'role identity strips trailing legal company suffixes'
+);
+assert(
+  serverRoleKey('Acme', 'C++ Developer') !== serverRoleKey('Acme', 'C# Developer'),
+  'role identity preserves meaningful language punctuation'
+);
 
 const tabCountFixtures = [
   { score: 4.5, statusNormalized: 'applied' },
@@ -353,6 +405,16 @@ const watchResult = await watchPendingTailorCompletion(
 assert(watchResult === true, 'pending tailor watcher resolves when tailored row appears');
 assert(getApplicationsCalls === 2, 'pending tailor watcher polls until the tailored row exists');
 api.getApplications = originalGetApplications;
+
+const originalFetch = globalThis.fetch;
+let tailorRequestBody = null;
+globalThis.fetch = async (_url, options = {}) => {
+  tailorRequestBody = JSON.parse(options.body || '{}');
+  return { ok: true, json: async () => ({ success: true }) };
+};
+await api.tailor({ company: 'Acme', role: 'Designer', force: true });
+assert(tailorRequestBody?.force === true, 'frontend forwards explicit force regeneration to the tailor route');
+globalThis.fetch = originalFetch;
 
 console.log(`\nPassed: ${passed} / ${total}`);
 if (failed > 0) process.exitCode = 1;

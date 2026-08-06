@@ -30,7 +30,7 @@ Parse the first token after `/catabull` as the mode; the rest is the target
 | Mode | File(s) to read first | What it does |
 |------|----------------------|--------------|
 | `auto-pipeline` | `_shared.md` + `_profile.md` + `auto-pipeline.md` | Evaluate pasted JD/URL in one pass (report + PDF + tracker) |
-| `evaluate` | `_shared.md` + `_profile.md` | Score a role (A–G), draft tailored CV on strong fit; save `reports/{###}-{company-slug}-{YYYY-MM-DD}.md` |
+| `evaluate` | `_shared.md` + `_profile.md` | Score a role (A–G) and save `reports/{###}-{company-slug}-{YYYY-MM-DD}.md`; dashboard `/tailor` owns artifacts |
 | `pdf` | `_shared.md` + `pdf.md` | Generate tailored CV via `templates/cv-template.html` + `generate-pdf.mjs` |
 | `apply` | `_shared.md` + `apply.md` | Live application assistant (Playwright form fill, present answers for review) |
 | `interview-prep` | `interview-prep.md` | Build interview prep; pull from `interview-prep/story-bank.md` |

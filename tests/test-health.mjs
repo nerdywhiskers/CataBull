@@ -43,6 +43,25 @@ const {
 } = await import(
   pathToFileURL(join(ROOT, 'scan', 'health.mjs')).href
 );
+const { createActiveChildController } = await import(
+  pathToFileURL(join(ROOT, 'dashboard-web', 'routes', 'health.mjs')).href
+);
+
+{
+  const killed = [];
+  const fakeProc = (name) => ({
+    killed: false,
+    kill(signal) { this.killed = true; killed.push(`${name}:${signal}`); },
+  });
+  const controller = createActiveChildController();
+  const recover = fakeProc('recover');
+  controller.set(recover);
+  controller.disconnect();
+  const apply = fakeProc('apply');
+  controller.set(apply);
+  assert(killed.includes('recover:SIGTERM'), 'disconnect terminates active recovery child');
+  assert(killed.includes('apply:SIGTERM'), 'child registered after disconnect is terminated immediately');
+}
 
 // ── 1. STATUS TAXONOMY ──────────────────────────────────────────────
 

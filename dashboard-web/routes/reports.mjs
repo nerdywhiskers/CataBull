@@ -2,6 +2,9 @@ import { readFileSync, readdirSync, existsSync, statSync, mkdirSync, renameSync 
 import { join, extname, basename } from 'path';
 import JSZip from 'jszip';
 import { loadReportSummary, parseApplications } from '../lib/parsers.mjs';
+import { inferTailorBundleFromReport } from '../../lib/tailor-bundle.mjs';
+
+export { inferTailorBundleFromReport };
 
 function reportArchiveDir(root) {
   return join(root, 'reports', 'archive');
@@ -96,50 +99,6 @@ export function hydrateTailorBundle(root, tailorBundle) {
       coverLetter: readOptionalPreview(root, paths.coverLetter),
       qa: readOptionalPreview(root, paths.qa),
     },
-  };
-}
-
-export function inferTailorBundleFromReport(raw = '') {
-  const paths = {};
-  const relPaths = new Set();
-  for (const match of String(raw).matchAll(/output\/tailor-bundles\/[a-z0-9._/-]+/gi)) {
-    const rel = match[0].replace(/\/(?:cv|cover-letter|answers)\.(?:md|html|doc|pdf)$/i, '');
-    relPaths.add(`${rel}/cv.md`);
-    relPaths.add(`${rel}/cv.doc`);
-    relPaths.add(`${rel}/cv.pdf`);
-    relPaths.add(`${rel}/cover-letter.md`);
-    relPaths.add(`${rel}/cover-letter.doc`);
-    relPaths.add(`${rel}/cover-letter.pdf`);
-    relPaths.add(`${rel}/answers.md`);
-  }
-  for (const match of String(raw).matchAll(/path=([^)\s`&]+)/g)) {
-    try {
-      relPaths.add(decodeURIComponent(match[1]));
-    } catch {
-      relPaths.add(match[1]);
-    }
-  }
-  for (const match of String(raw).matchAll(/output\/tailor-bundles\/[^)\s`]+\/(?:cv|cover-letter|answers)\.(?:md|html|doc|pdf)/g)) {
-    relPaths.add(match[0]);
-  }
-
-  for (const relPath of relPaths) {
-    if (!relPath.startsWith('output/tailor-bundles/')) continue;
-    if (relPath.endsWith('/cv.md')) paths.cv = relPath;
-    else if (relPath.endsWith('/cv.html')) paths.cvHtml = relPath;
-    else if (relPath.endsWith('/cv.doc')) paths.cvDoc = relPath;
-    else if (relPath.endsWith('/cv.pdf')) paths.cvPdf = relPath;
-    else if (relPath.endsWith('/cover-letter.md')) paths.coverLetter = relPath;
-    else if (relPath.endsWith('/cover-letter.html')) paths.coverLetterHtml = relPath;
-    else if (relPath.endsWith('/cover-letter.doc')) paths.coverLetterDoc = relPath;
-    else if (relPath.endsWith('/cover-letter.pdf')) paths.coverLetterPdf = relPath;
-    else if (relPath.endsWith('/answers.md')) paths.qa = relPath;
-  }
-  const firstPath = Object.values(paths)[0];
-  if (!firstPath) return null;
-  return {
-    dir: firstPath.replace(/\/[^/]+$/, ''),
-    paths,
   };
 }
 
