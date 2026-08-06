@@ -58,13 +58,17 @@ assert(packageGit.isRepo === true, 'terminal route can inspect the package repo 
 assert(typeof packageGit.branch === 'string' && packageGit.branch.length > 0, 'terminal route reports the live package repo branch name');
 assert(packageGit.noCommits === false, 'package repo git state includes a real commit');
 
-const workspaceGit = inspectGitContext('/home/jonathan/.catabull');
-assert(workspaceGit.isRepo === true, 'terminal route inspects the workspace git state when present');
-assert(workspaceGit.branch === 'master', 'workspace git state reflects the uninitialized workspace branch');
-assert(workspaceGit.noCommits === true, 'workspace git state marks zero-commit repos explicitly');
+const { existsSync } = await import('fs');
+const WORKSPACE_PATH = '/home/jonathan/.catabull';
+if (existsSync(WORKSPACE_PATH)) {
+  const workspaceGit = inspectGitContext(WORKSPACE_PATH);
+  assert(workspaceGit.isRepo === true, 'terminal route inspects the workspace git state when present');
+  assert(workspaceGit.branch === 'master', 'workspace git state reflects the uninitialized workspace branch');
+  assert(workspaceGit.noCommits === true, 'workspace git state marks zero-commit repos explicitly');
+}
 
 const wrappedPrompt = buildDashboardAgentPrompt('What is the current branch in this repo?', {
-  workspaceRoot: '/home/jonathan/.catabull',
+  workspaceRoot: WORKSPACE_PATH,
   packageRoot: ROOT,
   workspaceGit: { label: 'branch master with zero commits' },
   packageGit: { label: 'branch dev at 2953e69' },
