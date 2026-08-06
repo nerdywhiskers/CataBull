@@ -2,7 +2,9 @@ name: Tests
 
 on:
   pull_request:
-    branches: [main]
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
 
 jobs:
   test:
@@ -12,9 +14,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
-      - uses: actions/setup-go@v6
-        with:
-          go-version: '1.22'
-      - run: npm install
-      - run: npm audit --production
-      - run: node tests/test-all.mjs --quick
+          cache: 'npm'
+      - run: npm ci
+      - run: npm audit --omit=dev
+      - run: npm run test:repo
