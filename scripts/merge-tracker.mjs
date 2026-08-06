@@ -19,6 +19,7 @@ import { join, basename, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { defaultWorkspace } from '../lib/workspace.mjs';
 import { execFileSync } from 'child_process';
+import { canonicalCompanyName, canonicalCompanyRoleKey } from '../lib/role-identity.mjs';
 
 // Data root = the user's workspace. CATABULL_WORKSPACE_ROOT (set by the CLI and
 // the dashboard when it spawns scripts) wins; otherwise fall back to the package
@@ -41,7 +42,7 @@ mkdirSync(ADDITIONS_DIR, { recursive: true });
 // Keep literal Tailored canonical here because evaluate-mode tracker TSVs
 // are instructed to emit Tailored, and the dashboard treats Tailored as the
 // explicit pre-application stage.
-const CANONICAL_STATES = ['Tailored', 'Evaluated', 'Applied', 'Responded', 'Interview', 'Offer', 'Rejected', 'Discarded', 'SKIP'];
+const CANONICAL_STATES = ['Tailored', 'Applied', 'Responded', 'Interview', 'Offer', 'Rejected', 'Discarded', 'SKIP'];
 
 function validateStatus(status) {
   const clean = status.replace(/\*\*/g, '').replace(/\s+\d{4}-\d{2}-\d{2}.*$/, '').trim();
@@ -55,7 +56,7 @@ function validateStatus(status) {
   const aliases = {
     // Spanish → English
     'tailored': 'Tailored', 'tailor': 'Tailored',
-    'evaluada': 'Evaluated', 'condicional': 'Evaluated', 'hold': 'Evaluated', 'evaluar': 'Evaluated', 'verificar': 'Evaluated',
+    'evaluated': 'Tailored', 'evaluada': 'Tailored', 'condicional': 'Tailored', 'hold': 'Tailored', 'evaluar': 'Tailored', 'verificar': 'Tailored',
     'aplicado': 'Applied', 'enviada': 'Applied', 'aplicada': 'Applied', 'applied': 'Applied', 'sent': 'Applied',
     'respondido': 'Responded',
     'entrevista': 'Interview',
@@ -71,12 +72,8 @@ function validateStatus(status) {
   // DUPLICADO/Repost → Discarded
   if (/^(duplicado|dup|repost)/i.test(lower)) return 'Discarded';
 
-  console.warn(`⚠️  Non-canonical status "${status}" → defaulting to "Evaluated"`);
-  return 'Evaluated';
-}
-
-function normalizeCompany(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  console.warn(`⚠️  Non-canonical status "${status}" → defaulting to "Tailored"`);
+  return 'Tailored';
 }
 
 function roleFuzzyMatch(a, b) {
@@ -84,11 +81,6 @@ function roleFuzzyMatch(a, b) {
   const wordsB = b.toLowerCase().split(/\s+/).filter(w => w.length > 3);
   const overlap = wordsA.filter(w => wordsB.some(wb => wb.includes(w) || w.includes(wb)));
   return overlap.length >= 2;
-}
-
-function extractReportNum(reportStr) {
-  const m = reportStr.match(/\[(\d+)\]/);
-  return m ? parseInt(m[1]) : null;
 }
 
 function parseScore(s) {
@@ -246,30 +238,20 @@ for (const file of tsvFiles) {
   const addition = parseTsvContent(content, file);
   if (!addition) { skipped++; continue; }
 
-  // Check for duplicate by:
-  // 1. Exact report number match
-  // 2. Company + role fuzzy match
-  const reportNum = extractReportNum(addition.report);
+  // Role identity is company + role. Report numbers and requested row numbers
+  // are metadata and may legitimately collide with a different role.
   let duplicate = null;
 
-  if (reportNum) {
-    // Check if this report number already exists
-    duplicate = existingApps.find(app => {
-      const existingReportNum = extractReportNum(app.report);
-      return existingReportNum === reportNum;
-    });
-  }
+  // Canonical company + role identity handles punctuation, suffixes, and
+  // exact single-word titles before the legacy fuzzy fallback.
+  const additionKey = canonicalCompanyRoleKey(addition.company, addition.role);
+  duplicate = existingApps.find(app => canonicalCompanyRoleKey(app.company, app.role) === additionKey);
 
   if (!duplicate) {
-    // Exact entry number match
-    duplicate = existingApps.find(app => app.num === addition.num);
-  }
-
-  if (!duplicate) {
-    // Company + role fuzzy match
-    const normCompany = normalizeCompany(addition.company);
+    // Legacy fuzzy fallback for small title variations.
+    const normCompany = canonicalCompanyName(addition.company);
     duplicate = existingApps.find(app => {
-      if (normalizeCompany(app.company) !== normCompany) return false;
+      if (canonicalCompanyName(app.company) !== normCompany) return false;
       return roleFuzzyMatch(addition.role, app.role);
     });
   }
@@ -280,12 +262,19 @@ for (const file of tsvFiles) {
 
     if (newScore > oldScore) {
       console.log(`🔄 Update: #${duplicate.num} ${addition.company} — ${addition.role} (${oldScore}→${newScore})`);
+      const updatedLine = `| ${duplicate.num} | ${addition.date} | ${addition.company} | ${addition.role} | ${addition.score} | ${duplicate.status} | ${duplicate.pdf} | ${addition.report} | Re-eval ${addition.date} (${oldScore}→${newScore}). ${addition.notes} |`;
       const lineIdx = appLines.indexOf(duplicate.raw);
       if (lineIdx >= 0) {
-        const updatedLine = `| ${duplicate.num} | ${addition.date} | ${addition.company} | ${addition.role} | ${addition.score} | ${duplicate.status} | ${duplicate.pdf} | ${addition.report} | Re-eval ${addition.date} (${oldScore}→${newScore}). ${addition.notes} |`;
         appLines[lineIdx] = updatedLine;
         updated++;
+      } else {
+        const pendingIdx = newLines.indexOf(duplicate.raw);
+        if (pendingIdx >= 0) {
+          newLines[pendingIdx] = updatedLine;
+          updated++;
+        }
       }
+      Object.assign(duplicate, addition, { num: duplicate.num, status: duplicate.status, pdf: duplicate.pdf, raw: updatedLine });
     } else {
       console.log(`⏭️  Skip: ${addition.company} — ${addition.role} (existing #${duplicate.num} ${oldScore} >= new ${newScore})`);
       skipped++;
@@ -297,6 +286,7 @@ for (const file of tsvFiles) {
 
     const newLine = `| ${entryNum} | ${addition.date} | ${addition.company} | ${addition.role} | ${addition.score} | ${addition.status} | ${addition.pdf} | ${addition.report} | ${addition.notes} |`;
     newLines.push(newLine);
+    existingApps.push({ ...addition, num: entryNum, raw: newLine });
     added++;
     console.log(`➕ Add #${entryNum}: ${addition.company} — ${addition.role} (${addition.score})`);
   }

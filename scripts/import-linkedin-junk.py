@@ -727,13 +727,59 @@ def pipeline_line(row):
     return " | ".join(clean_cell(p) for p in parts)
 
 
+COMPANY_SUFFIX_RE = re.compile(
+    r"(?:\s+(?:(?:and\s+)?(?:inc|llc|ltd|corp|corporation|company|co|group|holdings?)))+$",
+    re.I,
+)
+
+
+def preserve_technical_tokens(value):
+    value = clean_cell(value).lower().replace("&", " and ")
+    value = re.sub(r"(?<![a-z0-9])c\+\+(?![a-z0-9])", "cplusplus", value)
+    value = re.sub(r"(?<![a-z0-9])c#(?![a-z0-9])", "csharp", value)
+    return re.sub(r"(?<![a-z0-9])\.net(?![a-z0-9])", "dotnet", value)
+
+
+def canonical_company_role_key(company, role):
+    company_key = preserve_technical_tokens(company)
+    company_key = re.sub(r"[^a-z0-9]+", " ", company_key).strip()
+    company_key = COMPANY_SUFFIX_RE.sub(" ", company_key)
+    company_key = " ".join(company_key.split())
+    role_key = preserve_technical_tokens(role)
+    role_key = re.sub(r"[^a-z0-9]+", " ", role_key)
+    role_key = " ".join(role_key.split())
+    return f"{company_key}||{role_key}"
+
+
+def pipeline_role_keys(content):
+    keys = set()
+    for line in content.splitlines():
+        if not re.match(r"^-\s+\[[ x]\]\s+https?://", line):
+            continue
+        fields = [field.strip() for field in line.split("|")]
+        if len(fields) < 3:
+            continue
+        keys.add(canonical_company_role_key(fields[1], fields[2]))
+    return keys
+
+
 def apply_to_pipeline(root, rows):
     path = pipeline_path(root)
     content = read_pipeline(root)
-    existing = set(URL_RE.findall(content))
-    added_rows = [row for row in rows if row["url"] not in existing]
+    existing_urls = set(URL_RE.findall(content))
+    existing_roles = pipeline_role_keys(content)
+    added_rows = []
+    duplicates = 0
+    for row in rows:
+        role_key = canonical_company_role_key(row.get("company"), row.get("role"))
+        if row["url"] in existing_urls or role_key in existing_roles:
+            duplicates += 1
+            continue
+        added_rows.append(row)
+        existing_urls.add(row["url"])
+        existing_roles.add(role_key)
     if not added_rows:
-        return {"added": 0, "duplicates": len(rows)}
+        return {"added": 0, "duplicates": duplicates}
 
     lines = content.split("\n")
     insert_at = -1
@@ -758,7 +804,7 @@ def apply_to_pipeline(root, rows):
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
-    return {"added": len(added_rows), "duplicates": len(rows) - len(added_rows)}
+    return {"added": len(added_rows), "duplicates": duplicates}
 
 
 def print_rows(rows, fmt):

@@ -20,6 +20,8 @@ try {
   mkdirSync(join(root, 'output', 'tailor-bundles', 'acme-engineer-2026-05-17'), { recursive: true });
   writeFileSync(join(root, 'output', 'tailor-bundles', 'acme-engineer-2026-05-17', 'cv.md'), '# Bundle CV\n');
   writeFileSync(join(root, 'output', 'tailor-bundles', 'acme-engineer-2026-05-17', 'answers.md'), '# Answers\n');
+  mkdirSync(join(root, 'output', 'tailor-bundles', 'legacy-designer-2026-05-17'), { recursive: true });
+  writeFileSync(join(root, 'output', 'tailor-bundles', 'legacy-designer-2026-05-17', 'tailored-cv.md'), '# Legacy Bundle CV\n');
 
   const cvs = listCvFiles(root);
   assert.equal(cvs[0].path, 'cv.md');
@@ -40,9 +42,14 @@ try {
   assert.equal(bundled.downloadMdPath, bundled.path);
   assert.deepEqual(bundled.formats, ['md']);
 
+  const legacyBundled = cvs.find(c => c.name === 'legacy-designer-2026-05-17 (tailor bundle)');
+  assert.ok(legacyBundled);
+  assert.equal(legacyBundled.path, 'output/tailor-bundles/legacy-designer-2026-05-17/tailored-cv.md');
+
   assert.equal(resolveCvPath(root, 'cv.md').ok, true);
   assert.equal(resolveCvPath(root, 'output/cv-demo-role-2026-05-17.pdf').ok, true);
   assert.equal(resolveCvPath(root, 'output/tailor-bundles/acme-engineer-2026-05-17/cv.md').ok, true);
+  assert.equal(resolveCvPath(root, 'output/tailor-bundles/legacy-designer-2026-05-17/tailored-cv.md').ok, true);
   assert.equal(resolveCvPath(root, 'output/tailor-bundles/acme-engineer-2026-05-17/answers.md').ok, false);
   assert.equal(resolveCvPath(root, '../cv.md').ok, false);
 

@@ -25,7 +25,7 @@ function assert(condition, msg) {
 
 console.log('\nPipeline writer helpers');
 
-const { markPipelineTailored, updatePendingContextualScores, updatePendingItem, enforcePipelineConsistency, canonicalCompanyRoleKey, updateApplicationStatus, markPipelineApplied } = await import(
+const { addPendingItem, markPipelineTailored, updatePendingContextualScores, updatePendingItem, enforcePipelineConsistency, canonicalCompanyRoleKey, updateApplicationStatus, markPipelineApplied } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'lib', 'writers.mjs')).href
 );
 const { parsePipeline, parseApplications, parseApplicationEvents } = await import(
@@ -130,6 +130,20 @@ const parsedAppsWithEvents = parseApplications(tmpRoot);
 assert(parsedAppsWithEvents[0].appliedAt === applicationEvents.find((event) => event.event === 'applied')?.date, 'parseApplications derives appliedAt from the first applied event');
 assert(parsedAppsWithEvents[0].lastEventType === 'applied', 'parseApplications exposes the last recorded application event');
 
+writeFileSync(appsPath, `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 10 | 2026-06-01 | WrongCo | Wrong Role | 4.0/5 | Tailored | ❌ | [0007](reports/0007-wrong.md) | |\n| 20 | 2026-06-02 | RightCo | Right Role | 4.1/5 | Tailored | ❌ | [0007](reports/0007-right.md) | |\n`);
+const duplicateReportStatusUpdate = updateApplicationStatus(tmpRoot, '0007', 2, 'Applied', 20);
+assert(duplicateReportStatusUpdate === true, 'status update succeeds when duplicate report numbers exist');
+const duplicateReportApps = readFileSync(appsPath, 'utf8');
+assert(duplicateReportApps.includes('| 10 | 2026-06-01 | WrongCo | Wrong Role | 4.0/5 | Tailored |'), 'stable tracker id prevents a duplicate report number from updating the wrong row');
+assert(duplicateReportApps.includes('| 20 | 2026-06-02 | RightCo | Right Role | 4.1/5 | Applied |'), 'stable tracker id updates the intended row when report numbers collide');
+
+writeFileSync(appsPath, `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-01 | FirstCo | First Role | | Applied | ❌ | | |\n| 3 | 2026-06-02 | ThirdCo | Third Role | | Applied | ❌ | | |\n`);
+writeFileSync(join(tmpRoot, 'data', 'pipeline.md'), `# Pipeline\n\n## Pendientes\n- [ ] https://example.com/jobs/new-role | NewCo | New Role\n\n## Procesadas\n`);
+markPipelineApplied(tmpRoot, 'https://example.com/jobs/new-role', 'NewCo', 'New Role');
+const nonContiguousApps = readFileSync(appsPath, 'utf8');
+assert(nonContiguousApps.includes('| 4 |') && nonContiguousApps.includes('| NewCo | New Role |'), 'new applied rows allocate max tracker id plus one');
+assert((nonContiguousApps.match(/^\| 3 \|/gm) || []).length === 1, 'new applied rows do not reuse an existing tracker id after gaps');
+
 mkdirSync(join(tmpRoot, 'data'), { recursive: true });
 writeFileSync(join(tmpRoot, 'data', 'pipeline.md'), `# Pipeline\n\n## Pendientes\n- [ ] https://example.com/jobs/duplicate-1 | AMD, Inc. | AI Creative Technologist\n- [ ] https://example.com/jobs/duplicate-2 | AMD | AI Creative Technologist\n- [ ] https://example.com/jobs/unique | OtherCo | Design Engineer\n- [x] https://example.com/jobs/skipped | HiddenCo | Hidden Role | SKIP | 2026-06-06\n- [ ] https://example.com/jobs/skipped-dup | HiddenCo | Hidden Role\n\n## Procesadas\n`);
 writeFileSync(appsPath, `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-03 | AMD | AI Creative Technologist | 4.4/5 | Applied | ❌ | [0007](reports/0007-old.md) | |\n`);
@@ -150,6 +164,22 @@ const duplicateOnlyCleanup = enforcePipelineConsistency(tmpRoot);
 assert(duplicateOnlyCleanup.removed === 2, 'enforcePipelineConsistency removes extra duplicate pending rows even without tracked applications');
 assert(duplicateOnlyCleanup.removedBecauseTracked === 0, 'duplicate-only cleanup does not mislabel rows as tracked');
 assert(duplicateOnlyCleanup.removedBecauseDuplicatePending === 2, 'duplicate-only cleanup keeps the first pending row and removes the rest');
+
+writeFileSync(join(tmpRoot, 'data', 'pipeline.md'), `# Pipeline\n\n## Pendientes\n- [ ] https://example.com/jobs/visualizer-a | BMW Group | Visualizer\n\n## Procesadas\n`);
+const duplicateRoleDifferentUrl = addPendingItem(tmpRoot, {
+  url: 'https://example.com/jobs/visualizer-b',
+  company: 'BMW Group',
+  role: 'Visualizer',
+});
+assert(duplicateRoleDifferentUrl.added === false, 'pending writer rejects the same canonical company and role under a different URL');
+assert(duplicateRoleDifferentUrl.duplicate === true, 'pending writer reports same-role different-URL entries as duplicates');
+
+const suffixVariantDuplicate = addPendingItem(tmpRoot, {
+  url: 'https://example.com/jobs/visualizer-c',
+  company: 'BMW Group, Inc.',
+  role: 'Visualizer',
+});
+assert(suffixVariantDuplicate.added === false, 'pending writer normalizes company suffix variants before duplicate checks');
 
 rmSync(tmpRoot, { recursive: true, force: true });
 

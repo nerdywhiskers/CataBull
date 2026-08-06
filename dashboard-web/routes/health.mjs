@@ -31,6 +31,29 @@ import { writePortals, readProfile, updateCompany } from '../lib/writers.mjs';
 import { discoverCompany, defaultVerifier } from '../../lib/discovery.mjs';
 import { runAgentPrint } from '../lib/agents.mjs';
 
+export function createActiveChildController() {
+  let active = null;
+  let disconnected = false;
+  const terminate = (proc) => {
+    if (!proc || proc.killed) return;
+    try { proc.kill('SIGTERM'); } catch { /* best effort */ }
+  };
+  return {
+    get disconnected() { return disconnected; },
+    set(proc) {
+      active = proc;
+      if (disconnected) terminate(proc);
+    },
+    clear(proc) {
+      if (active === proc) active = null;
+    },
+    disconnect() {
+      disconnected = true;
+      terminate(active);
+    },
+  };
+}
+
 // In-flight tracking — reject overlapping POSTs so we don't run two
 // health sweeps in parallel against the same chromium pool.
 let inFlight = null;
@@ -381,6 +404,9 @@ export default async function (app) {
       } catch { /* client gone — caught by close handler below */ }
     };
 
+    const childController = createActiveChildController();
+    req.raw.on('close', () => childController.disconnect());
+
     // Spawn the recover step first. Pipe its stdout so we can echo the
     // per-company `[N/M] CompanyName ✓` lines back to the client as
     // progress events. The script writes machine-friendly summaries
@@ -391,6 +417,7 @@ export default async function (app) {
       env: { ...process.env, CATABULL_WORKSPACE_ROOT: root },
     });
     bulkFixInFlight = recoverProc;
+    childController.set(recoverProc);
 
     let phase1Total = 0;
     let phase2Total = 0;
@@ -436,18 +463,15 @@ export default async function (app) {
     recoverProc.stdout.on('data', onData);
     recoverProc.stderr.on('data', onData);
 
-    // Client disconnect: kill the child so we don't keep doing work the
-    // user is no longer watching for.
-    req.raw.on('close', () => {
-      if (!recoverProc.killed) {
-        try { recoverProc.kill('SIGTERM'); } catch { /* ignore */ }
-      }
-    });
-
     const recoverExit = await new Promise((res) => recoverProc.on('close', res));
+    childController.clear(recoverProc);
     if (recoverExit !== 0) {
       send({ event: 'error', step: 'recover', exitCode: recoverExit });
       reply.raw.end();
+      bulkFixInFlight = null;
+      return;
+    }
+    if (childController.disconnected) {
       bulkFixInFlight = null;
       return;
     }
@@ -460,6 +484,7 @@ export default async function (app) {
       env: { ...process.env, CATABULL_WORKSPACE_ROOT: root },
     });
     bulkFixInFlight = applyProc;
+    childController.set(applyProc);
 
     let appliedCount = 0;
     let stderrTail = '';
@@ -474,6 +499,7 @@ export default async function (app) {
     });
 
     const applyExit = await new Promise((res) => applyProc.on('close', res));
+    childController.clear(applyProc);
     if (applyExit !== 0) {
       send({ event: 'error', step: 'apply', exitCode: applyExit, detail: stderrTail.trim().slice(0, 400) });
       reply.raw.end();

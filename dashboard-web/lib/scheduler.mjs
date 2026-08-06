@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
+import { asWorkspace } from '../../lib/workspace.mjs';
 import { readScanRunState } from './scan-run-state.mjs';
 
 // Package root (dashboard-web/lib → project root). scan.mjs ships here, not in
@@ -21,18 +22,14 @@ let timer = null;
 let running = false;
 let lastResult = null;
 
-function statePath(root) {
-  return join(root, STATE_FILE);
-}
-
 function readState(root) {
-  const path = statePath(root);
-  if (!existsSync(path)) return { lastScanAt: null, lastScanResult: null };
-  try { return JSON.parse(readFileSync(path, 'utf-8')); } catch { return { lastScanAt: null, lastScanResult: null }; }
+  const raw = asWorkspace(root).read(STATE_FILE);
+  if (raw == null) return { lastScanAt: null, lastScanResult: null };
+  try { return JSON.parse(raw); } catch { return { lastScanAt: null, lastScanResult: null }; }
 }
 
-function writeState(root, state) {
-  writeFileSync(statePath(root), JSON.stringify(state, null, 2));
+export function writeSchedulerState(root, state) {
+  asWorkspace(root).write(STATE_FILE, JSON.stringify(state, null, 2));
 }
 
 function resultFromRunState(runState) {
@@ -160,7 +157,7 @@ export function runScan(root, opts = {}) {
             summary: result.stdout.split('\n').slice(-3).join(' ').substring(0, 200),
           },
         };
-        writeState(root, state);
+        writeSchedulerState(root, state);
       }
 
       resolve(result);

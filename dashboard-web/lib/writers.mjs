@@ -10,30 +10,14 @@
  */
 
 import { asWorkspace } from '../../lib/workspace.mjs';
+import { canonicalCompanyRoleKey } from '../../lib/role-identity.mjs';
 // Cyclic import is fine: parsers.mjs imports `applicationsPath` from this
 // file but only at function call time (not module top), and we import
 // `parseApplications` the same way. ESM resolves both bindings before
 // either function runs.
 import { parseApplications } from './parsers.mjs';
 
-const COMPANY_SUFFIX_RE = /\b(?:inc|llc|ltd|corp|corporation|company|co|group|holdings?)\b/g;
-
-export function canonicalCompanyRoleKey(company, role) {
-  const companyKey = String(company || '')
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(COMPANY_SUFFIX_RE, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const roleKey = String(role || '')
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return `${companyKey}||${roleKey}`;
-}
+export { canonicalCompanyRoleKey } from '../../lib/role-identity.mjs';
 
 /** Resolve the canonical applications.md path.
  * Checks data/applications.md first (newer convention), falls back to root.
@@ -262,24 +246,25 @@ export function updateApplicationStatus(root, reportNumber, rowNum, newStatus, t
   let found = false;
   let eventPayload = null;
 
+  let targetLine = -1;
+  if (trackerRowId != null) {
+    targetLine = lines.findIndex((line) => {
+      if (!line.startsWith('|') || line.startsWith('| #') || line.startsWith('|---')) return false;
+      return line.split('|')[1]?.trim() === String(trackerRowId);
+    });
+  } else if (reportNumber) {
+    targetLine = lines.findIndex((line) => line.startsWith('|') && line.includes(`[${reportNumber}]`));
+  } else if (rowNum) {
+    targetLine = lines.findIndex((line) => {
+      if (!line.startsWith('|') || line.startsWith('| #') || line.startsWith('|---')) return false;
+      return line.split('|')[1]?.trim() === String(rowNum);
+    });
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (!line.startsWith('|') || line.startsWith('| #') || line.startsWith('|---')) continue;
-
-    // Match by report number if available
-    if (reportNumber && line.includes(`[${reportNumber}]`)) {
-      found = true;
-    }
-    // Prefer stable tracker row id from the first column when available.
-    if (!found && trackerRowId) {
-      const firstField = line.split('|')[1]?.trim();
-      if (firstField === String(trackerRowId)) found = true;
-    }
-    // Legacy fallback: match by parse-order row number only when no stable tracker id exists.
-    if (!found && !trackerRowId && rowNum) {
-      const firstField = line.split('|')[1]?.trim();
-      if (firstField === String(rowNum)) found = true;
-    }
+    found = i === targetLine;
 
     if (found) {
       const parts = lines[i].split('|');
@@ -299,7 +284,6 @@ export function updateApplicationStatus(root, reportNumber, rowNum, newStatus, t
       }
       break;
     }
-    found = false;
   }
 
   if (!found) return false;
@@ -545,6 +529,12 @@ export function addPendingItem(root, { url, company, role, postedAt = null, loca
   }
 
   if (content.includes(url)) return { added: false, duplicate: true };
+  const candidateKey = canonicalCompanyRoleKey(company, role);
+  const duplicateRole = content.split('\n').some((line) => {
+    const item = parsePipelineIdentity(line);
+    return item?.key === candidateKey;
+  });
+  if (duplicateRole) return { added: false, duplicate: true };
 
   const lines = content.split('\n');
   // Find the Pendientes header so we can insert directly under it. If it's
@@ -741,7 +731,10 @@ export function markPipelineApplied(root, url, company, role) {
   const appsRelPath = ws.exists('data/applications.md') ? 'data/applications.md' : 'applications.md';
   const appsContent = ensureApplicationsFile(ws, appsRelPath);
   const rows = appsContent.split('\n').filter(l => l.startsWith('|') && !l.startsWith('| #') && !l.startsWith('|---'));
-  const nextNum = rows.length + 1;
+  const nextNum = rows.reduce((max, line) => {
+    const rowId = parseInt(line.split('|')[1]?.trim(), 10);
+    return Number.isFinite(rowId) ? Math.max(max, rowId) : max;
+  }, 0) + 1;
 
   const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | | Applied | ❌ | | |`;
   ws.write(appsRelPath, appsContent.trimEnd() + '\n' + newRow + '\n');

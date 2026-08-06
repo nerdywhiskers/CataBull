@@ -3,7 +3,7 @@ import { join, basename, extname, resolve, sep } from 'path';
 import { readCV, writeCV } from '../lib/writers.mjs';
 
 const FLAT_OUTPUT_CV_RE = /^output\/cv-[^/]+\.(md|html|pdf)$/i;
-const TAILOR_BUNDLE_CV_RE = /^output\/tailor-bundles\/[^/]+\/cv\.(md|pdf)$/i;
+const TAILOR_BUNDLE_CV_RE = /^output\/tailor-bundles\/[^/]+\/(?:tailored-)?cv\.(md|pdf)$/i;
 const FORMAT_ORDER = ['md', 'pdf', 'html'];
 
 // Resolve a user-supplied CV path against the project root, refusing anything
@@ -23,7 +23,7 @@ export function resolveCvPath(root, requested) {
   const isOutputCv = FLAT_OUTPUT_CV_RE.test(rel);
   const isTailorBundleCv = TAILOR_BUNDLE_CV_RE.test(rel);
   if (!isMaster && !isOutputCv && !isTailorBundleCv) {
-    return { ok: false, error: 'CV path must be cv.md, output/cv-*.{md,html,pdf}, or output/tailor-bundles/*/cv.{md,pdf}' };
+    return { ok: false, error: 'CV path must be cv.md, output/cv-*.{md,html,pdf}, or a CV under output/tailor-bundles/*/' };
   }
 
   return { ok: true, abs, rel, isMaster };
@@ -97,6 +97,7 @@ function listTailorBundleCvs(root) {
     const baseRel = `output/tailor-bundles/${entry.name}`;
     const variants = {};
     addExistingVariant(root, variants, 'md', `${baseRel}/cv.md`);
+    if (!variants.md) addExistingVariant(root, variants, 'md', `${baseRel}/tailored-cv.md`);
     addExistingVariant(root, variants, 'pdf', `${baseRel}/cv.pdf`);
     const path = variants.md || variants.pdf;
     if (!path) continue;

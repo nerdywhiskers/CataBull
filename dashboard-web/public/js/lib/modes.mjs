@@ -3,7 +3,7 @@ import { runPrompt, getCurrentAgent } from '../views/chat.mjs';
 
 const MODES = [
   { id: 'auto-pipeline', label: 'Auto Pipeline', description: 'Evaluate pasted JD text or a job post in one pass.', slash: 'auto-pipeline', group: 'Evaluate', needsTarget: true, targetKind: 'jd-text', placements: ['palette'] },
-  { id: 'evaluate', label: 'Tailor', description: 'Score a role from a job URL and draft a tailored CV when it is a strong fit.', slash: 'evaluate', group: 'Tailor', needsTarget: true, targetKind: 'url', placements: ['palette', 'pipeline-row'] },
+  { id: 'evaluate', label: 'Evaluate', description: 'Score a role from a job URL and save its evaluation report.', slash: 'evaluate', group: 'Tailor', needsTarget: true, targetKind: 'url', placements: ['palette', 'pipeline-row'] },
   { id: 'pdf', label: 'Generate PDF', description: 'Create a tailored PDF for a strong-fit role.', slash: 'pdf', group: 'Apply', needsTarget: true, targetKind: 'url', placements: ['palette', 'offer-row'] },
   { id: 'apply', label: 'Start Apply Mode', description: 'Prepare to fill the application form for a role.', slash: 'apply', group: 'Apply', needsTarget: true, targetKind: 'url', placements: ['palette', 'offer-row'] },
   { id: 'interview-prep', label: 'Prep Interview', description: 'Build interview prep for a company and role.', slash: 'interview-prep', group: 'Interview', needsTarget: true, targetKind: 'company', placements: ['palette', 'app-row'] },
@@ -85,9 +85,9 @@ const INLINE_EXPANSIONS = {
       '  3. modes/humanizer.md (writing style)\n' +
       '  4. cv.md              (candidate background)',
     'Then evaluate this offer following _shared.md exactly. Save the report to reports/{###}-{company-slug}-{YYYY-MM-DD}.md using the next available report number.',
-    'If the final Global score is 3.0 or higher, you MUST also generate a tailored CV bundle and cover letter, save them under output/tailor-bundles/, and include report links labeled **Tailored CV:** and **Cover Letter:**. If the score is below 3.0, skip tailored assets unless the user explicitly overrides.',
+    'Do not generate tailored artifacts in this evaluation step. The dashboard runs the dedicated /tailor operation after a successful evaluation; that operation exclusively owns CV, cover-letter, Q&A, and bundle report-section writes.',
     'Register the evaluation in the tracker. Do not stop after saving the report.',
-    'Write one tracker addition TSV under batch/tracker-additions/ using the canonical columns: num\tdate\tcompany\trole\tstatus\tscore\tpdf\treport\tnotes. Use status Tailored, include the report markdown link, and set PDF based on whether a tailored PDF was actually generated.',
+    'Write one tracker addition TSV under batch/tracker-additions/ using the canonical columns: num\tdate\tcompany\trole\tstatus\tscore\tpdf\treport\tnotes. Use status Tailored, include the report markdown link, and leave PDF unchecked because artifact generation belongs to the dedicated tailor operation.',
     'After writing the TSV, run node merge-tracker.mjs so data/applications.md reflects the new tailored role before you finish.',
     metaBlock([['URL', target], ['Company', ctx.company], ['Role', ctx.role]]),
   ]),
