@@ -56,7 +56,8 @@ assert(opencodeRuntimeEnv.XDG_CONFIG_HOME === join(opencodeRuntimeEnv.HOME, '.co
 
 const packageGit = inspectGitContext(ROOT);
 assert(packageGit.isRepo === true, 'terminal route can inspect the package repo git state');
-assert(typeof packageGit.branch === 'string' && packageGit.branch.length > 0, 'terminal route reports the live package repo branch name');
+assert(typeof packageGit.branch === 'string', 'terminal route reports the package repo branch state');
+assert(packageGit.branch.length > 0 || packageGit.label.includes('detached'), 'terminal route reports a live branch name or a detached checkout');
 assert(packageGit.noCommits === false, 'package repo git state includes a real commit');
 
 const workspacePath = '/home/jonathan/.catabull';
