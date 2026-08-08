@@ -246,19 +246,38 @@ export function updateApplicationStatus(root, reportNumber, rowNum, newStatus, t
   let found = false;
   let eventPayload = null;
 
+  const dataLineIndexes = lines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => line.startsWith('|') && !line.startsWith('| #') && !line.startsWith('|---'))
+    .map(({ index }) => index);
+
   let targetLine = -1;
+  let trackerMatches = [];
   if (trackerRowId != null) {
-    targetLine = lines.findIndex((line) => {
-      if (!line.startsWith('|') || line.startsWith('| #') || line.startsWith('|---')) return false;
-      return line.split('|')[1]?.trim() === String(trackerRowId);
-    });
-  } else if (reportNumber) {
-    targetLine = lines.findIndex((line) => line.startsWith('|') && line.includes(`[${reportNumber}]`));
-  } else if (rowNum) {
-    targetLine = lines.findIndex((line) => {
-      if (!line.startsWith('|') || line.startsWith('| #') || line.startsWith('|---')) return false;
-      return line.split('|')[1]?.trim() === String(rowNum);
-    });
+    trackerMatches = dataLineIndexes.filter((index) =>
+      lines[index].split('|')[1]?.trim() === String(trackerRowId)
+    );
+    if (trackerMatches.length === 1) {
+      targetLine = trackerMatches[0];
+    } else if (trackerMatches.length > 1) {
+      const reportMatches = reportNumber
+        ? trackerMatches.filter((index) => lines[index].includes(`[${reportNumber}]`))
+        : [];
+      if (reportMatches.length === 1) {
+        targetLine = reportMatches[0];
+      } else {
+        const parseOrderLine = dataLineIndexes[Number(rowNum) - 1];
+        if (trackerMatches.includes(parseOrderLine)) targetLine = parseOrderLine;
+      }
+    }
+  }
+  if (targetLine === -1 && reportNumber && (trackerRowId == null || trackerMatches.length === 0)) {
+    targetLine = dataLineIndexes.find((index) => lines[index].includes(`[${reportNumber}]`)) ?? -1;
+  }
+  if (targetLine === -1 && trackerRowId == null && rowNum) {
+    targetLine = dataLineIndexes.find((index) =>
+      lines[index].split('|')[1]?.trim() === String(rowNum)
+    ) ?? -1;
   }
 
   for (let i = 0; i < lines.length; i++) {

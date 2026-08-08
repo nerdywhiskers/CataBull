@@ -1,5 +1,5 @@
 import { parseApplications, loadReportSummary, parsePipeline } from '../lib/parsers.mjs';
-import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem, updatePendingItem, updatePendingContextualScores, canonicalCompanyRoleKey } from '../lib/writers.mjs';
+import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem, updatePendingItem, updatePendingContextualScores, canonicalCompanyRoleKey, enforcePipelineConsistency } from '../lib/writers.mjs';
 import { readProfile, readProfileMarkdown, readPortals } from '../lib/writers.mjs';
 import { scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../lib/relevance.mjs';
 import { enrichJobUrl } from '../lib/job-url-metadata.mjs';
