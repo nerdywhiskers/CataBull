@@ -137,6 +137,19 @@ const duplicateReportApps = readFileSync(appsPath, 'utf8');
 assert(duplicateReportApps.includes('| 10 | 2026-06-01 | WrongCo | Wrong Role | 4.0/5 | Tailored |'), 'stable tracker id prevents a duplicate report number from updating the wrong row');
 assert(duplicateReportApps.includes('| 20 | 2026-06-02 | RightCo | Right Role | 4.1/5 | Applied |'), 'stable tracker id updates the intended row when report numbers collide');
 
+writeFileSync(appsPath, `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 7 | 2026-06-01 | FirstCo | First Role | 4.0/5 | Tailored | ❌ | | |\n| 7 | 2026-06-02 | SecondCo | Second Role | 4.1/5 | Tailored | ❌ | | |\n`);
+const duplicateTrackerIdStatusUpdate = updateApplicationStatus(tmpRoot, '', 2, 'SKIP', 7);
+assert(duplicateTrackerIdStatusUpdate === true, 'status update tolerates legacy duplicate tracker row ids');
+const duplicateTrackerIdApps = readFileSync(appsPath, 'utf8');
+assert(duplicateTrackerIdApps.includes('| 7 | 2026-06-01 | FirstCo | First Role | 4.0/5 | Tailored |'), 'duplicate tracker ids do not redirect a later row action to the first row');
+assert(duplicateTrackerIdApps.includes('| 7 | 2026-06-02 | SecondCo | Second Role | 4.1/5 | SKIP |'), 'parse-order fallback updates the intended duplicate-id row without a report link');
+
+writeFileSync(appsPath, `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 7 | 2026-06-01 | FirstCo | First Role | 4.0/5 | Tailored | ❌ | | |\n| 7 | 2026-06-02 | SecondCo | Second Role | 4.1/5 | Tailored | ❌ | | |\n| 9 | 2026-06-03 | UnrelatedCo | Unrelated Role | 3.0/5 | Tailored | ❌ | [0099](reports/0099-unrelated.md) | |\n`);
+const ambiguousTrackerIdStatusUpdate = updateApplicationStatus(tmpRoot, '0099', 99, 'SKIP', 7);
+assert(ambiguousTrackerIdStatusUpdate === false, 'ambiguous duplicate tracker ids fail closed instead of falling back to an unrelated report');
+const ambiguousTrackerIdApps = readFileSync(appsPath, 'utf8');
+assert(!ambiguousTrackerIdApps.includes('| UnrelatedCo | Unrelated Role | 3.0/5 | SKIP |'), 'failed duplicate-id disambiguation leaves unrelated report rows untouched');
+
 writeFileSync(appsPath, `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-01 | FirstCo | First Role | | Applied | ❌ | | |\n| 3 | 2026-06-02 | ThirdCo | Third Role | | Applied | ❌ | | |\n`);
 writeFileSync(join(tmpRoot, 'data', 'pipeline.md'), `# Pipeline\n\n## Pendientes\n- [ ] https://example.com/jobs/new-role | NewCo | New Role\n\n## Procesadas\n`);
 markPipelineApplied(tmpRoot, 'https://example.com/jobs/new-role', 'NewCo', 'New Role');

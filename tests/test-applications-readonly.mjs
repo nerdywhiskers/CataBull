@@ -32,6 +32,32 @@ try {
   assert(response.statusCode === 200, 'GET /applications succeeds');
   assert(body.pendingTotal === 0, 'GET filters already-tracked roles from response');
   assert(readFileSync(pipelinePath, 'utf8') === originalPipeline, 'GET does not rewrite pipeline state');
+
+  writeFileSync(pipelinePath, '# Pipeline\n\n- [ ] https://jobs.test/skip-me | OtherCo | Other Role\n');
+  const skipResponse = await server.inject({
+    method: 'POST',
+    url: '/pipeline/skip',
+    payload: { url: 'https://jobs.test/skip-me' },
+  });
+  assert(skipResponse.statusCode === 200, 'POST /pipeline/skip completes without a route exception');
+  assert(skipResponse.json().success === true, 'POST /pipeline/skip reports the mutation succeeded');
+
+  const statusResponse = await server.inject({
+    method: 'PATCH',
+    url: '/applications/1',
+    payload: { status: 'SKIP' },
+  });
+  assert(statusResponse.statusCode === 200, 'PATCH /applications/:num completes without a route exception');
+  assert(statusResponse.json().success === true, 'PATCH /applications/:num reports the mutation succeeded');
+
+  writeFileSync(pipelinePath, '# Pipeline\n\n- [ ] https://jobs.test/apply-me | ApplyCo | Apply Role\n');
+  const applyResponse = await server.inject({
+    method: 'POST',
+    url: '/pipeline/apply',
+    payload: { url: 'https://jobs.test/apply-me', company: 'ApplyCo', role: 'Apply Role' },
+  });
+  assert(applyResponse.statusCode === 200, 'POST /pipeline/apply completes without a route exception');
+  assert(applyResponse.json().success === true, 'POST /pipeline/apply reports the mutation succeeded');
 } finally {
   await server.close();
   rmSync(root, { recursive: true, force: true });
