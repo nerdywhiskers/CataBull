@@ -227,14 +227,14 @@ export default async function (app) {
   });
 
   app.patch('/pipeline/item', async (req, reply) => {
-    const { url, company, role, postedAt, location } = req.body || {};
+    const { url, company, role, postedAt, location, newUrl } = req.body || {};
     if (!url || !company || !role) {
       return reply.code(400).send({ error: 'url, company, and role are required' });
     }
-    if ([url, company, role, location].some((value) => /[\n\r|]/.test(value || ''))) {
+    if ([url, company, role, location, newUrl].some((value) => /[\n\r|]/.test(value || ''))) {
       return reply.code(400).send({ error: 'fields must not contain newlines or pipe characters' });
     }
-    const result = updatePendingItem(root, { url, company, role, postedAt, location });
+    const result = updatePendingItem(root, { url, company, role, postedAt, location, newUrl });
     if (!result.updated) {
       return reply.code(result.error === 'pending item not found' ? 404 : 400).send({ error: result.error || 'Failed to update pending item' });
     }

@@ -58,6 +58,50 @@ try {
   });
   assert(applyResponse.statusCode === 200, 'POST /pipeline/apply completes without a route exception');
   assert(applyResponse.json().success === true, 'POST /pipeline/apply reports the mutation succeeded');
+
+  writeFileSync(pipelinePath, '# Pipeline\n\n- [ ] https://jobs.test/old-url | EditCo | Edit Role | posted:2026-08-01 | loc:Remote\n');
+  const renameResponse = await server.inject({
+    method: 'PATCH',
+    url: '/pipeline/item',
+    payload: {
+      url: 'https://jobs.test/old-url',
+      company: 'EditCo',
+      role: 'Edit Role',
+      postedAt: '2026-08-01',
+      location: 'Remote',
+      newUrl: 'https://jobs.test/new-url',
+    },
+  });
+  assert(renameResponse.statusCode === 200, 'PATCH /pipeline/item with newUrl completes');
+  assert(renameResponse.json().success === true, 'PATCH /pipeline/item reports the url rename succeeded');
+  const renamedFile = readFileSync(pipelinePath, 'utf8');
+  assert(renamedFile.includes('https://jobs.test/new-url | EditCo | Edit Role | posted:2026-08-01 | loc:Remote'), 'url rename persists the new url with metadata intact');
+  assert(!renamedFile.includes('https://jobs.test/old-url'), 'url rename removes the old url from the pipeline');
+
+  const badSchemeResponse = await server.inject({
+    method: 'PATCH',
+    url: '/pipeline/item',
+    payload: {
+      url: 'https://jobs.test/new-url',
+      company: 'EditCo',
+      role: 'Edit Role',
+      newUrl: 'ftp://jobs.test/bad-scheme',
+    },
+  });
+  assert(badSchemeResponse.statusCode === 400, 'PATCH /pipeline/item rejects a newUrl without an http(s) scheme');
+  assert(!readFileSync(pipelinePath, 'utf8').includes('ftp://jobs.test/bad-scheme'), 'rejected url rename does not touch the pipeline');
+
+  const badCharResponse = await server.inject({
+    method: 'PATCH',
+    url: '/pipeline/item',
+    payload: {
+      url: 'https://jobs.test/new-url',
+      company: 'EditCo',
+      role: 'Edit Role',
+      newUrl: 'https://jobs.test/pipe|char',
+    },
+  });
+  assert(badCharResponse.statusCode === 400, 'PATCH /pipeline/item rejects a newUrl containing a pipe character');
 } finally {
   await server.close();
   rmSync(root, { recursive: true, force: true });
