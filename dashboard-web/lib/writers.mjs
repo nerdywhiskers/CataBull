@@ -586,9 +586,10 @@ export function addPendingItem(root, { url, company, role, postedAt = null, loca
 
 /**
  * Update a pending (unchecked) pipeline item without losing optional metadata
- * like posted date, location, or match tier.
+ * like posted date, location, or match tier. Pass `newUrl` to move the item to
+ * a different posting URL; the lookup still uses the original `url`.
  */
-export function updatePendingItem(root, { url, company, role, postedAt = null, location = null }) {
+export function updatePendingItem(root, { url, company, role, postedAt = null, location = null, newUrl = null } = {}) {
   if (!url || !company || !role) return { updated: false, error: 'url, company, and role are required' };
   const ws = asWorkspace(root);
   const content = ws.read('data/pipeline.md');
@@ -598,6 +599,18 @@ export function updatePendingItem(root, { url, company, role, postedAt = null, l
   const roleClean = String(role).replace(/[\n\r|]/g, '').trim();
   const postedClean = postedAt ? String(postedAt).replace(/[\n\r|]/g, '').trim() : '';
   const locationClean = location ? String(location).replace(/[\n\r|]/g, '').trim() : '';
+  const newUrlClean = newUrl ? String(newUrl).replace(/[\s|\n\r]/g, '').trim() : '';
+
+  if (newUrlClean) {
+    if (!/^https?:\/\//i.test(newUrlClean)) return { updated: false, error: 'url must start with http:// or https://' };
+    if (newUrlClean !== url) {
+      const targetExists = content.split('\n').some(line => {
+        const m = line.match(/^-\s+\[\s\]\s+(https?:\/\/\S+)/);
+        return m && m[1].trim() === newUrlClean;
+      });
+      if (targetExists) return { updated: false, error: 'a pending item already exists for that url' };
+    }
+  }
 
   const lines = content.split('\n');
   let found = false;
@@ -622,7 +635,8 @@ export function updatePendingItem(root, { url, company, role, postedAt = null, l
       extras.splice(insertAt, 0, `loc:${locationClean}`);
     }
 
-    lines[i] = [`- [ ] ${url}`, companyClean, roleClean, ...extras]
+    const effectiveUrl = newUrlClean || url;
+    lines[i] = [`- [ ] ${effectiveUrl}`, companyClean, roleClean, ...extras]
       .filter(Boolean)
       .join(' | ');
     found = true;

@@ -761,8 +761,8 @@ export function toggle() {
 
 // Match terminal.mjs DEFAULT_RUN_TIMEOUT_MS plus a 30s grace for the HTTP
 // round-trip. Long enough for evaluate / deep research / outreach without
-// aborting mid-run.
-const CHAT_RUN_TIMEOUT_MS = 630_000;
+// aborting mid-run — including slow local-model fallbacks.
+const CHAT_RUN_TIMEOUT_MS = 1_830_000;
 
 export async function runPrompt(text, {
   readinessTimeoutMs = 45000,

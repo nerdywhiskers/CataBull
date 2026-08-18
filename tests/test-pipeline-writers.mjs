@@ -194,6 +194,58 @@ const suffixVariantDuplicate = addPendingItem(tmpRoot, {
 });
 assert(suffixVariantDuplicate.added === false, 'pending writer normalizes company suffix variants before duplicate checks');
 
+writeFileSync(join(tmpRoot, 'data', 'pipeline.md'), `# Pipeline\n\n## Pendientes\n- [ ] https://example.com/jobs/old-1 | Acme | Platform Engineer | posted:2026-06-10 | loc:Remote | match:high\n- [ ] https://example.com/jobs/keep-2 | Beta | Data Scientist\n\n## Procesadas\n`);
+const renamed = updatePendingItem(tmpRoot, {
+  url: 'https://example.com/jobs/old-1',
+  company: 'Acme',
+  role: 'Platform Engineer',
+  postedAt: '2026-06-10',
+  location: 'Remote',
+  newUrl: 'https://example.com/jobs/new-1',
+});
+assert(renamed.updated === true, 'updatePendingItem moves a pending row to a new url');
+const renamedPipeline = readFileSync(join(tmpRoot, 'data', 'pipeline.md'), 'utf8');
+assert(renamedPipeline.includes('- [ ] https://example.com/jobs/new-1 | Acme | Platform Engineer | posted:2026-06-10 | loc:Remote | match:high'), 'url rename preserves metadata and other fields');
+assert(!renamedPipeline.includes('https://example.com/jobs/old-1'), 'url rename removes the old url');
+assert(renamedPipeline.includes('- [ ] https://example.com/jobs/keep-2 | Beta | Data Scientist'), 'url rename leaves unrelated rows untouched');
+
+const sameUrlRename = updatePendingItem(tmpRoot, {
+  url: 'https://example.com/jobs/new-1',
+  company: 'Acme',
+  role: 'Platform Engineer',
+  newUrl: 'https://example.com/jobs/new-1',
+});
+assert(sameUrlRename.updated === true, 'updatePendingItem accepts a newUrl equal to the current url');
+
+const duplicateUrlRename = updatePendingItem(tmpRoot, {
+  url: 'https://example.com/jobs/new-1',
+  company: 'Acme',
+  role: 'Platform Engineer',
+  newUrl: 'https://example.com/jobs/keep-2',
+});
+assert(duplicateUrlRename.updated === false, 'updatePendingItem rejects moving a row onto an existing pending url');
+assert(duplicateUrlRename.error === 'a pending item already exists for that url', 'url rename duplicate reports the conflict');
+
+const badSchemeRename = updatePendingItem(tmpRoot, {
+  url: 'https://example.com/jobs/new-1',
+  company: 'Acme',
+  role: 'Platform Engineer',
+  newUrl: 'ftp://example.com/jobs/nope',
+});
+assert(badSchemeRename.updated === false, 'updatePendingItem rejects a newUrl without an http(s) scheme');
+assert(badSchemeRename.error === 'url must start with http:// or https://', 'url rename scheme failure reports the validation error');
+
+const missingSourceRename = updatePendingItem(tmpRoot, {
+  url: 'https://example.com/jobs/never-existed',
+  company: 'Acme',
+  role: 'Platform Engineer',
+  newUrl: 'https://example.com/jobs/also-new',
+});
+assert(missingSourceRename.updated === false, 'updatePendingItem with newUrl still fails when the source url is missing');
+assert(missingSourceRename.error === 'pending item not found', 'newUrl lookup uses the original url');
+const afterFailedRename = readFileSync(join(tmpRoot, 'data', 'pipeline.md'), 'utf8');
+assert(!afterFailedRename.includes('https://example.com/jobs/also-new'), 'failed url rename does not write the new url into the pipeline');
+
 rmSync(tmpRoot, { recursive: true, force: true });
 
 console.log(`\nPassed: ${passed} / ${total}`);
