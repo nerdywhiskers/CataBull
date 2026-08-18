@@ -476,7 +476,11 @@ function unwrapOpencodeReply(raw, root) {
 }
 
 export function runAgentPrint(agentName, prompt, root, {
-  timeoutMs = 120_000,
+  // 10 minutes: routes pass explicit caps for their own workloads, but a
+  // bare caller on a local fallback model (LM Studio) can need more. This
+  // was 2 minutes, which cut local-model runs off before their first API
+  // call even finished on large contexts.
+  timeoutMs = 600_000,
   allowEdits = false,
   rejectOnError = false,
   continueSession = false,
