@@ -927,23 +927,33 @@ async function openPendingEditModal(item) {
     title: 'Edit pending role',
     confirmText: 'Save changes',
     body: `
-      <div class="form-group"><label class="form-label">Company</label><input class="form-input" data-return="company" type="text" value="${esc(item.company || '')}" autocomplete="off" autofocus></div>
+      <div class="form-group"><label class="form-label">URL</label><input class="form-input" data-return="url" type="url" value="${esc(item.url || '')}" autocomplete="off" autofocus placeholder="https://"></div>
+      <div class="form-group"><label class="form-label">Company</label><input class="form-input" data-return="company" type="text" value="${esc(item.company || '')}" autocomplete="off"></div>
       <div class="form-group"><label class="form-label">Role</label><input class="form-input" data-return="role" type="text" value="${esc(item.role || '')}" autocomplete="off"></div>
       <div class="form-group"><label class="form-label">Posted date</label><input class="form-input" data-return="postedAt" type="date" value="${esc(item.postedAt || '')}" autocomplete="off"></div>
       <div class="form-group"><label class="form-label">Location</label><input class="form-input" data-return="location" type="text" value="${esc(item.location || '')}" autocomplete="off" placeholder="Remote / Los Angeles / Hybrid"></div>
     `,
   });
   if (!result?.data) return;
+  const rawUrl = String(result.data.url || '').trim();
   const company = String(result.data.company || '').trim();
   const role = String(result.data.role || '').trim();
   const postedAt = String(result.data.postedAt || '').trim();
   const location = String(result.data.location || '').trim();
+  if (!rawUrl) {
+    toast('URL is required.', 'error');
+    return;
+  }
+  if (!/^https?:\/\//i.test(rawUrl)) {
+    toast('URL must start with http:// or https://', 'error');
+    return;
+  }
   if (!company || !role) {
     toast('Company and role are required.', 'error');
     return;
   }
   try {
-    await api.updatePending({ url: item.url, company, role, postedAt, location });
+    await api.updatePending({ url: item.url, company, role, postedAt, location, newUrl: rawUrl });
     toast('Pending role updated');
     await refreshData(activeContainer);
   } catch (err) {

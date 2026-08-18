@@ -35,7 +35,13 @@ export function confirmModal({ title, body = '', confirmText = 'Proceed', danger
     };
     const onKey = (e) => {
       if (e.key === 'Escape') close(false);
-      else if (e.key === 'Enter') close(true);
+      else if (e.key === 'Enter') {
+        // Don't submit while typing inside a field — Enter there should
+        // just move between inputs, not save a half-edited form.
+        const tag = (document.activeElement?.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+        close(true);
+      }
     };
     document.addEventListener('keydown', onKey);
 
