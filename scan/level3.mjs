@@ -3,7 +3,7 @@
  *
  * Runs the same job-search-engine sweeps that modes/scan.md prose-spec'd
  * for the agent, but in-process so the dashboard can stream progress,
- * sidestep agent network sandboxing, and write to pipeline.md + history
+ * sidestep agent network sandboxing, and write to Discover + history
  * with the same machinery the rest of scan.mjs uses.
  *
  * Pure module — no top-level side effects, no `process.argv` reads.
@@ -15,6 +15,7 @@
 import { buildTitleClassifier } from '../lib/title-filter.mjs';
 import { searchWeb } from './websearch.mjs';
 import { isActiveLiveness } from '../lib/job-board-liveness.mjs';
+import { canonicalCompanyRoleKey } from '../lib/role-identity.mjs';
 
 const LIVENESS_CONCURRENCY = 1;   // Playwright is single-threaded per browser
 const SEARCH_CONCURRENCY = 3;     // Rate-limit-friendly across providers
@@ -307,7 +308,7 @@ export async function runLevel3({
 
       const company = cand.companyHint || extractCompany({ title: cand.searchTitle, url: cand.url });
       const role = extractRole(cand.searchTitle);
-      const companyRoleKey = `${company.toLowerCase()}::${role.toLowerCase()}`;
+      const companyRoleKey = canonicalCompanyRoleKey(company, role);
       if (seenCompanyRoles.has(companyRoleKey)) {
         skipped.dup++;
         continue;
@@ -335,7 +336,7 @@ export async function runLevel3({
       if (totalCap && added.length >= totalCap) break;
       const company = cand.companyHint || extractCompany({ title: cand.searchTitle, url: cand.url });
       const role = extractRole(cand.searchTitle);
-      const companyRoleKey = `${company.toLowerCase()}::${role.toLowerCase()}`;
+      const companyRoleKey = canonicalCompanyRoleKey(company, role);
       if (seenCompanyRoles.has(companyRoleKey)) {
         skipped.dup++;
         continue;

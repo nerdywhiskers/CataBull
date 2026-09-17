@@ -6,9 +6,12 @@
  * and renders; tests exercise the helpers directly.
  */
 
+export const DISCOVER_VIEW_MODES = Object.freeze(['cards', 'list']);
+
 /** Build the predicate used to filter pending postings on the Discover tab. */
 export function buildDiscoverFilter({
   minScore = 0,
+  exactScore = null,
   industries = null,    // Set | null
   company = '',         // free text, case-insensitive substring
   search = '',          // free text, matches company OR role
@@ -20,7 +23,9 @@ export function buildDiscoverFilter({
 
   return (posting) => {
     if (!posting) return false;
-    if (Number.isFinite(minScore) && (posting.relevance ?? 0) < minScore) return false;
+    const score = Number(posting.relevance ?? 0);
+    if (Number.isFinite(minScore) && score < minScore) return false;
+    if (Number.isFinite(exactScore) && Math.round(score * 10) !== Math.round(exactScore * 10)) return false;
     if (wantsIndustry) {
       const inds = resolveIndustries(posting) || [];
       if (!inds.some((i) => industries.has(i))) return false;

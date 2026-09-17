@@ -424,9 +424,7 @@ function normalizeCompany(name) {
   return s.trim();
 }
 
-/** Parse pipeline.md and return pending, skipped, and expired offers. */
-export function parsePipeline(cataBullRoot) {
-  const content = asWorkspace(cataBullRoot).read('data/pipeline.md');
+function parseOfferQueueContent(content) {
   if (content == null) return { pending: [], skipped: [], expired: [] };
 
   const pending = [];
@@ -502,6 +500,16 @@ export function parsePipeline(cataBullRoot) {
   }
 
   return { pending, skipped, expired };
+}
+
+/** Parse pipeline.md and return pending, skipped, and expired offers. */
+export function parsePipeline(cataBullRoot) {
+  return parseOfferQueueContent(asWorkspace(cataBullRoot).read('data/pipeline.md'));
+}
+
+/** Parse the scan-backed Discover inbox. */
+export function parseDiscovery(cataBullRoot) {
+  return parseOfferQueueContent(asWorkspace(cataBullRoot).read('data/discover.md')).pending;
 }
 
 /** Load report summary (archetype, tldr, remote, comp) from a report file. */

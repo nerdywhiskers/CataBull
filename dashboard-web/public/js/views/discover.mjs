@@ -15,15 +15,12 @@
  */
 
 import { api } from '../api.mjs';
-import { deepProgressFromEvent, pendingRefreshProgressFromState, quickProgressFromEvent, renderScanProgress } from '../components/scan-progress.mjs';
+import { deepProgressFromEvent, quickProgressFromEvent, renderScanProgress } from '../components/scan-progress.mjs';
 import { toast } from '../components/toast.mjs';
 import { confirmModal } from '../components/confirm.mjs';
 import { openScoreModal } from '../components/score-modal.mjs';
-import { promptLowTailorScoreAction, promptTailorAction } from '../components/tailor-choice.mjs';
 import { notifyScanComplete, requestPermission } from '../components/notifications.mjs';
-import { runModePrompt } from '../lib/modes.mjs';
 import { preserveFocus } from '../lib/focus.mjs';
-import { DEFAULT_PENDING_REFRESH_INTERVAL_MS, getPendingRefreshState, runPendingRefresh, subscribePendingRefresh } from '../lib/pending-refresh.mjs';
 import {
   applyContextualScoreResults,
   contextualScoringEnabled,
@@ -33,7 +30,6 @@ import {
 } from '../lib/pending-contextual-scoring.mjs';
 import {
   buildDiscoverFilter,
-  groupPostingsByCompany,
   sortByRelevance,
   collectIndustries,
 } from '../lib/discover-grouping.mjs';
@@ -44,13 +40,12 @@ let portals = null;
 let scanStatus = null;
 let scanProgress = { visible: false };
 let minScore = 2.5;     // default threshold; matches the scan relevance default
+let exactScore = null;
 let industryFilter = new Set();   // empty = no filter
 let companyFilter = '';          // free-text
 let searchQuery = '';
-let groupBy = 'flat';            // 'company' | 'flat' — flat by default per UX 2026-05-16
+let viewMode = localStorage.getItem('catabull-discover-view') === 'list' ? 'list' : 'cards';
 let activeContainer = null;
-let pendingRefreshPoller = null;
-let pendingRefreshState = getPendingRefreshState();
 let contextualScoringRun = 0;
 let contextualScoringActive = false;
 let contextualScoringError = '';
@@ -77,55 +72,13 @@ function rerenderIfActive(container) {
   rerender(container);
 }
 
-async function refreshPendingPostings(container, { force = false, source = 'auto' } = {}) {
-  const manual = source === 'manual';
-  if (manual) toast('Refreshing — verifying pending postings…');
-  try {
-    const result = await runPendingRefresh({
-      pendingCount: pending.length,
-      force,
-      source,
-      checkLivenessAll: () => api.checkLivenessAll(),
-      reload: loadData,
-      rerender: async () => rerenderIfActive(container),
-    });
-    if (manual) {
-      if (result?.error) toast(`Liveness check failed: ${result.error}`, 'error');
-      else if (result?.checked) toast(`Checked ${result.checked} jobs — ${result.expired} expired`);
-      else rerenderIfActive(container);
-    } else if (result?.error) {
-      toast(`Auto-refresh failed: ${result.error}`, 'error');
-    } else if (result?.expired) {
-      toast(`Auto-refresh expired ${result.expired} posting${result.expired === 1 ? '' : 's'}`);
-    } else if (result?.checked) {
-      rerenderIfActive(container);
-    }
-    return result;
-  } catch (err) {
-    const message = manual ? `Liveness check failed: ${err.message}` : `Auto-refresh failed: ${err.message}`;
-    toast(message, 'error');
-    throw err;
-  }
-}
-
-function ensurePendingRefresh(container) {
+function ensureDiscoverUpdates(container) {
   activeContainer = container;
-  if (!pendingRefreshPoller) {
-    pendingRefreshPoller = setInterval(() => {
-      if (!isContainerActive(activeContainer)) return;
-      refreshPendingPostings(activeContainer, { source: 'auto' }).catch(() => {});
-    }, DEFAULT_PENDING_REFRESH_INTERVAL_MS);
-  }
   if (!window.__catabullDiscoverRefreshBound) {
     window.__catabullDiscoverRefreshBound = true;
-    subscribePendingRefresh((state) => {
-      pendingRefreshState = state;
-      rerenderIfActive(activeContainer);
-    });
     window.addEventListener('catabull:data-maybe-changed', () => {
       if (!isContainerActive(activeContainer)) return;
       loadData().then(() => rerenderIfActive(activeContainer)).catch(() => {});
-      refreshPendingPostings(activeContainer, { source: 'auto' }).catch(() => {});
     });
   }
 }
@@ -239,6 +192,7 @@ function postingIndustries(p) {
 function applyFilters(items) {
   const predicate = buildDiscoverFilter({
     minScore,
+    exactScore,
     industries: industryFilter,
     company: companyFilter,
     search: searchQuery,
@@ -254,7 +208,7 @@ function uniqueIndustries() {
 function renderScanSchedule() {
   if (!scanStatus) return '';
   const savedLimit = localStorage.getItem(SCAN_LIMIT_KEY) || '0';
-  const busy = scanStatus.running || scanProgress?.visible || pendingRefreshState?.active;
+  const busy = scanStatus.running || scanProgress?.visible;
   const titleFilter = normalizeTitleFilter(portals?.title_filter);
   const keywordCount = titleFilter.positive.length + titleFilter.negative.length;
 
@@ -296,7 +250,7 @@ function renderScanSchedule() {
         </span>
       </div>
       <div class="scan-card-controls">
-        <select class="form-select scan-card-select" id="scan-limit-select" ${busy ? 'disabled' : ''} title="Cap on new offers added per scan">
+        <select class="form-select scan-card-select" id="scan-limit-select" ${busy ? 'disabled' : ''} title="Cap on new roles added to Discover per scan">
           ${SCAN_LIMIT_OPTIONS.map(o => `<option value="${o.value}"${o.value === savedLimit ? ' selected' : ''}>Max: ${o.label}</option>`).join('')}
         </select>
         <button class="btn btn-sm btn-primary" id="scan-now-btn" ${busy ? 'disabled' : ''} title="ATS-only quick scan. Direct providers only; no branded-page scraping.">
@@ -304,7 +258,7 @@ function renderScanSchedule() {
           ${busy ? 'Scanning' : 'Quick Scan'}
         </button>
         <button class="btn btn-sm btn-secondary" id="deep-scan-btn" ${busy ? 'disabled' : ''} title="Quick Scan + WebSearch on job boards + JobSpy aggregator scrape. Several minutes; uses WebSearch quota.">Deep Scan</button>
-        <button class="btn-icon" id="discover-refresh-btn" title="Refresh + verify each pending posting is still live" ${busy ? 'disabled' : ''}>
+        <button class="btn-icon" id="discover-refresh-btn" title="Refresh Discover results" ${busy ? 'disabled' : ''}>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 6a4.5 4.5 0 1 1-1.3-3.18"/><polyline points="11.5 1 11.5 4 8.5 4"/></svg>
         </button>
       </div>
@@ -455,16 +409,20 @@ function renderTopBar() {
     ${renderHeader()}
     ${renderScanSchedule()}
     <div class="scan-progress-slot">${renderScanProgress(scanProgress)}</div>
-    <div class="scan-progress-slot">${renderScanProgress(pendingRefreshProgressFromState(pendingRefreshState))}</div>
+
     <div class="discover-toolbar">
       <div class="discover-toolbar-row">
-        <div class="discover-group-toggle">
-          <button class="discover-toggle-btn${groupBy === 'flat' ? ' active' : ''}" data-group="flat" type="button">Flat</button>
-          <button class="discover-toggle-btn${groupBy === 'company' ? ' active' : ''}" data-group="company" type="button">By company</button>
+        <div class="discover-group-toggle" aria-label="Discover view">
+          <button class="discover-toggle-btn${viewMode === 'cards' ? ' active' : ''}" data-view="cards" type="button">Cards</button>
+          <button class="discover-toggle-btn${viewMode === 'list' ? ' active' : ''}" data-view="list" type="button">List</button>
         </div>
         <label class="discover-score-slider">
           <span>Min score: <strong id="discover-min-label">${minScore.toFixed(1)}</strong></span>
           <input type="range" min="0" max="5" step="0.5" value="${minScore}" id="discover-min-input" />
+        </label>
+        <label class="discover-exact-score">
+          <span>Exact score</span>
+          <input class="form-input" id="discover-exact-input" type="number" min="0" max="5" step="0.1" placeholder="Any" value="${exactScore == null ? '' : exactScore.toFixed(1)}" />
         </label>
       </div>
       ${industries.length > 0 ? `
@@ -505,30 +463,20 @@ function renderCard(p) {
       </div>
       <div class="discover-card-actions">
         <a class="btn btn-ghost btn-sm" href="${esc(p.url)}" target="_blank" rel="noreferrer" data-card-stop>Open</a>
-        <button class="btn btn-sm btn-secondary discover-tailor" type="button" data-card-stop title="Score the role and draft a tailored CV + cover letter when the fit is strong">Tailor</button>
-        <button class="btn btn-sm btn-soft discover-applied" type="button" data-card-stop>Applied</button>
-        <button class="btn btn-ghost btn-sm discover-skip" type="button" data-card-stop>Skip</button>
+        <button class="btn btn-sm btn-primary discover-add" type="button" data-card-stop>Add to pipeline</button>
       </div>
     </article>
   `;
 }
 
 function renderGroups(filtered) {
-  if (groupBy === 'flat') {
-    const sorted = sortByRelevance(filtered);
-    return `<div class="discover-grid">${sorted.map(renderCard).join('')}</div>`;
-  }
-  const groups = groupPostingsByCompany(filtered);
-  return groups.map((g) => `
-    <details class="discover-group" open>
-      <summary class="discover-group-summary">
-        <span class="discover-group-name">${esc(g.company)}</span>
-        <span class="discover-group-count">${g.count} role${g.count === 1 ? '' : 's'}</span>
-        <span class="badge badge-score ${scoreClass(g.bestScore)} discover-group-best">${g.bestScore.toFixed(1)} top</span>
-      </summary>
-      <div class="discover-grid">${g.items.map(renderCard).join('')}</div>
-    </details>
-  `).join('');
+  const sorted = sortByRelevance(filtered);
+  if (viewMode === 'cards') return `<div class="discover-grid">${sorted.map(renderCard).join('')}</div>`;
+  return `<div class="table-scroll"><table class="data-table discover-list"><thead><tr><th>Company</th><th>Role</th><th>Score</th><th>Posted</th><th>Location</th><th>Actions</th></tr></thead><tbody>${sorted.map((p) => `
+    <tr data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}">
+      <td>${esc(p.company)}</td><td>${esc(p.role)}</td><td>${scoreValue(p).toFixed(1)}</td><td>${esc(p.postedAt || '—')}</td><td>${esc(p.location || '—')}</td>
+      <td class="cell-actions"><a class="btn btn-ghost btn-sm" href="${esc(p.url)}" target="_blank" rel="noreferrer" data-card-stop>Open</a><button class="btn btn-sm btn-primary discover-add" type="button">Add to pipeline</button></td>
+    </tr>`).join('')}</tbody></table></div>`;
 }
 
 function renderEmptyState() {
@@ -568,12 +516,13 @@ function rerender(container) {
 
 function bindEvents(container) {
   container.querySelector('#discover-refresh-btn')?.addEventListener('click', async (e) => {
-    const btn = e.currentTarget;
-    btn.disabled = true;
+    e.currentTarget.disabled = true;
     try {
-      await refreshPendingPostings(container, { force: true, source: 'manual' });
+      await loadData();
+      rerender(container);
+      toast('Discover refreshed');
     } finally {
-      if (btn.isConnected) btn.disabled = false;
+      if (e.currentTarget.isConnected) e.currentTarget.disabled = false;
     }
   });
 
@@ -616,9 +565,21 @@ function bindEvents(container) {
     }
   });
 
+  container.querySelector('#discover-exact-input')?.addEventListener('input', (e) => {
+    const value = e.target.value.trim();
+    const parsed = value === '' ? null : Number.parseFloat(value);
+    exactScore = Number.isFinite(parsed) && parsed >= 0 && parsed <= 5 ? parsed : null;
+    const body = container.querySelector('.discover-body');
+    if (body) {
+      body.innerHTML = renderBody();
+      bindCardEvents(container);
+    }
+  });
+
   container.querySelectorAll('.discover-toggle-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      groupBy = btn.dataset.group;
+      viewMode = btn.dataset.view === 'list' ? 'list' : 'cards';
+      localStorage.setItem('catabull-discover-view', viewMode);
       rerender(container);
     });
   });
@@ -711,7 +672,7 @@ function bindScanControls(container) {
       const ok = await confirmModal({
         title: 'Run Deep Scan?',
         body: `
-          <p style="font-size:14px;color:var(--subtext);margin-bottom:8px">Starts with the same ATS-only Quick Scan, then searches broader job boards (Wellfound / RemoteOK / Ladders / JobSpy aggregators) and Playwright-verifies each hit before adding it to your pipeline.</p>
+          <p style="font-size:14px;color:var(--subtext);margin-bottom:8px">Starts with the same ATS-only Quick Scan, then searches broader job boards (Wellfound / RemoteOK / Ladders / JobSpy aggregators) and Playwright-verifies each hit before adding it to Discover.</p>
           <ul style="font-size:13px;color:var(--text);margin:8px 0 8px 20px;line-height:1.7">
             <li>Takes <strong>several minutes</strong> (vs the ATS-only quick scan)</li>
             <li>Uses your configured WebSearch provider quota (Brave / Serper / scrape)</li>
@@ -780,7 +741,7 @@ function bindScanControls(container) {
 // path (which only repaints `.discover-body`) can re-attach them without
 // touching the toolbar inputs that would otherwise lose focus mid-drag.
 function bindCardEvents(container) {
-  container.querySelectorAll('.discover-card').forEach((card) => {
+  container.querySelectorAll('.discover-card, .discover-list tbody tr').forEach((card) => {
     const url = card.dataset.url;
     const company = card.dataset.company;
     const role = card.dataset.role;
@@ -790,7 +751,7 @@ function bindCardEvents(container) {
     const openMatchModal = () => {
       const posting = pending.find((p) => p.url === url);
       if (!posting) return;
-      openScoreModal(posting, { kind: 'pending' });
+      openScoreModal(posting, { kind: 'pending', allowEvaluate: false });
     };
     card.addEventListener('click', (e) => {
       if (e.target.closest('[data-card-stop]')) return;
@@ -804,199 +765,19 @@ function bindCardEvents(container) {
       }
     });
 
-    card.querySelector('.discover-tailor')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const item = pending.find((p) => p.url === url) || { company, role, url };
-      openTailorModal(item, container);
-    });
-    card.querySelector('.discover-applied')?.addEventListener('click', async (e) => {
+    card.querySelector('.discover-add')?.addEventListener('click', async (e) => {
       e.stopPropagation();
       try {
-        await api.applyPending(url, company, role);
-        toast(`${company} marked as applied`);
+        await api.addDiscoveryToPipeline(url);
+        toast(`${role} added to pipeline`);
         await loadData();
         rerender(container);
+        window.dispatchEvent(new CustomEvent('catabull:data-maybe-changed'));
       } catch (err) {
-        toast(`Failed: ${err.message}`, 'error');
-      }
-    });
-    card.querySelector('.discover-skip')?.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      try {
-        await api.skipPending(url);
-        toast(`${role} skipped`);
-        await loadData();
-        rerender(container);
-      } catch (err) {
-        toast(`Failed: ${err.message}`, 'error');
+        toast(`Add failed: ${err.message}`, 'error');
       }
     });
   });
-}
-
-function tailorScoreForWarning(item) {
-  const llmScore = Number(item?.contextualScore);
-  const heuristicScore = Number(item?.relevance);
-  return item?.contextualScoreSource === 'llm' && Number.isFinite(llmScore) ? llmScore : heuristicScore;
-}
-
-async function confirmLowTailorScore(item) {
-  const score = tailorScoreForWarning(item);
-  if (!Number.isFinite(score) || score >= 3) return 'tailor';
-  return promptLowTailorScoreAction({
-    company: item.company,
-    role: item.role,
-    score,
-  });
-}
-
-async function openTailorModal(item, container) {
-  const { company, role, url } = item;
-  const lowScoreChoice = await confirmLowTailorScore(item);
-  if (lowScoreChoice === 'skip') {
-    try {
-      await api.skipPending(url);
-      await loadData();
-      rerender(container);
-      toast(`Skipped ${company} for low fit`);
-    } catch (err) {
-      toast(`Skip failed: ${err.message || String(err)}`, 'error');
-    }
-    return;
-  }
-  if (lowScoreChoice !== 'tailor') return;
-  const action = await promptTailorAction({ company, role });
-  if (!action) return;
-  if (action === 'evaluate') {
-    toast(`Running full evaluation for ${company}`);
-    try {
-      await runModePrompt('evaluate', { url, company, role });
-      const tailorResult = await api.tailor({ company, role, url });
-      await loadData();
-      rerender(container);
-      toast(`Evaluation + tailor bundle ready for ${company}`);
-      renderResult(tailorResult);
-    } catch (err) {
-      toast(`Evaluation failed: ${err.message || String(err)}`, 'error');
-    }
-    return;
-  }
-
-  // Modal lives on body so it overlays the whole dashboard. Built once
-  // and reused — re-renders into innerHTML for state changes.
-  let modal = document.getElementById('tailor-modal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'tailor-modal';
-    modal.className = 'tailor-modal-backdrop';
-    document.body.appendChild(modal);
-  }
-
-  const close = () => modal.remove();
-
-  function renderRunning() {
-    modal.innerHTML = `
-      <div class="tailor-modal">
-        <header class="tailor-modal-head">
-          <h3>Tailoring application for <em>${esc(role)}</em> at <em>${esc(company)}</em></h3>
-          <button class="btn btn-ghost btn-sm" id="tailor-cancel" type="button">Close</button>
-        </header>
-        <div class="tailor-modal-body">
-          <div class="onboarding-status" style="display:flex">
-            <span class="spinner"></span>
-            <span>Running the agent — generating tailored CV, cover letter, and Q&amp;A. ~1–3 minutes.</span>
-          </div>
-          <p class="tailor-modal-hint">The agent reads your CV, profile, and the JD. Output lands in <code>output/tailor-bundles/</code> on disk and previews here when done.</p>
-        </div>
-      </div>
-    `;
-    modal.querySelector('#tailor-cancel').addEventListener('click', close);
-  }
-
-  function renderResult(result) {
-    const { paths, preview, slug } = result;
-    const reportFilename = result.report?.filename || '';
-    const qaPreview = (preview.qa_first || []).map((q) => `
-      <details class="tailor-qa">
-        <summary>${esc(q.question)}</summary>
-        <p>${esc(q.answer)}</p>
-      </details>
-    `).join('');
-
-    modal.innerHTML = `
-      <div class="tailor-modal tailor-modal-result">
-        <header class="tailor-modal-head">
-          <h3>✓ Tailor bundle ready</h3>
-          <button class="btn btn-ghost btn-sm" id="tailor-cancel" type="button">Close</button>
-        </header>
-        <div class="tailor-modal-body">
-          <p class="tailor-modal-hint">
-            Saved to <code>${esc(result.dir)}</code>${reportFilename ? ` and added to <a href="#/reports/${encodeURIComponent(reportFilename)}">Reports</a>` : ''}.
-          </p>
-
-          <section class="tailor-section">
-            <header>
-              <h4>Tailored CV</h4>
-              <span class="cell-actions">
-                <a class="btn btn-sm" href="${api.tailorFileUrl(paths.cv)}" target="_blank" rel="noreferrer">MD</a>
-                ${paths.cvDoc ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.cvDoc)}" target="_blank" rel="noreferrer">DOC</a>` : ''}
-                ${paths.cvPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.cvPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
-              </span>
-            </header>
-            <pre class="tailor-preview">${esc(preview.cv_excerpt)}…</pre>
-          </section>
-
-          <section class="tailor-section">
-            <header>
-              <h4>Cover letter</h4>
-              <span class="cell-actions">
-                <a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetter)}" target="_blank" rel="noreferrer">MD</a>
-                ${paths.coverLetterDoc ? `<a class="btn btn-sm" href="${api.tailorFileUrl(paths.coverLetterDoc)}" target="_blank" rel="noreferrer">DOC</a>` : ''}
-                ${paths.coverLetterPdf ? `<a class="btn btn-sm btn-primary" href="${api.tailorFileUrl(paths.coverLetterPdf)}" target="_blank" rel="noreferrer">PDF</a>` : ''}
-              </span>
-            </header>
-            <pre class="tailor-preview">${esc(preview.cover_letter_excerpt)}…</pre>
-          </section>
-
-        <section class="tailor-section">
-          <header>
-            <h4>Application Q&amp;A (${preview.qa_count})</h4>
-          </header>
-          ${qaPreview}
-        </section>
-
-          ${reportFilename ? `<a class="btn btn-sm btn-secondary" href="#/reports/${encodeURIComponent(reportFilename)}">View report</a>` : ''}
-        </div>
-      </div>
-    `;
-    modal.querySelector('#tailor-cancel').addEventListener('click', close);
-  }
-
-  function renderError(message) {
-    modal.innerHTML = `
-      <div class="tailor-modal tailor-modal-error">
-        <header class="tailor-modal-head">
-          <h3>Tailor failed</h3>
-          <button class="btn btn-ghost btn-sm" id="tailor-cancel" type="button">Close</button>
-        </header>
-        <div class="tailor-modal-body">
-          <p class="tailor-modal-error-text">${esc(message)}</p>
-          <p class="tailor-modal-hint">The agent's output couldn't be parsed, or the agent didn't return all three required sections. Try again — agents are non-deterministic and a re-run often succeeds.</p>
-        </div>
-      </div>
-    `;
-    modal.querySelector('#tailor-cancel').addEventListener('click', close);
-  }
-
-  renderRunning();
-
-  api.tailor({ company, role, url })
-    .then(async (result) => {
-      renderResult(result);
-      await loadData();
-      rerender(container);
-    })
-    .catch((err) => renderError(err.message || String(err)));
 }
 
 async function loadData() {
@@ -1006,7 +787,7 @@ async function loadData() {
       api.getPortals(),
       api.getScanStatus().catch(() => null),
     ]);
-    const nextPending = Array.isArray(appsResp.pending) ? appsResp.pending : [];
+    const nextPending = Array.isArray(appsResp.discover) ? appsResp.discover : [];
     pending = mergePendingContextualState(nextPending, pending);
     portals = portalsResp?.portals || portalsResp || null;
     scanStatus = statusResp || null;
@@ -1032,7 +813,7 @@ async function startContextualScoring(container) {
   rerenderIfActive(container);
 
   try {
-    const result = await api.getContextualScores(urls);
+    const result = await api.getContextualScores(urls, 'discover');
     if (runId !== contextualScoringRun) return;
     pending = applyContextualScoreResults(pending, result.scores || []);
   } catch (err) {
@@ -1049,9 +830,8 @@ async function startContextualScoring(container) {
 }
 
 export async function render(container) {
-  ensurePendingRefresh(container);
+  ensureDiscoverUpdates(container);
   container.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
   await loadData();
   rerender(container);
-  refreshPendingPostings(container, { source: 'load' }).catch(() => {});
 }

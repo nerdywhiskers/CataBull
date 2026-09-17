@@ -23,6 +23,8 @@ try {
   const pipelinePath = join(root, 'data', 'pipeline.md');
   const originalPipeline = '# Pipeline\n\n- [ ] https://jobs.test/acme | Acme | Designer\n';
   writeFileSync(pipelinePath, originalPipeline);
+  const discoverPath = join(root, 'data', 'discover.md');
+  writeFileSync(discoverPath, '# Discover\n\n- [ ] https://jobs.test/new-role | NewCo | Product Designer | posted:2026-08-06 | loc:Remote | match:high | llm:4.0 | why:Exact profile fit | signals:portfolio,leadership\n- [ ] https://jobs.test/new-role-mirror | NewCo, Inc. | Product Designer\n- [ ] https://jobs.test/acme-mirror | Acme, Inc. | Designer\n');
 
   server.decorate('cataBullRoot', root);
   await server.register(applicationsRoute);
@@ -31,7 +33,48 @@ try {
 
   assert(response.statusCode === 200, 'GET /applications succeeds');
   assert(body.pendingTotal === 0, 'GET filters already-tracked roles from response');
+  assert(body.discoverTotal === 1, 'GET returns only untracked, canonically deduplicated discoveries');
+  assert(body.discover[0].url === 'https://jobs.test/new-role', 'GET preserves first discovery and its stable URL');
   assert(readFileSync(pipelinePath, 'utf8') === originalPipeline, 'GET does not rewrite pipeline state');
+  assert(readFileSync(discoverPath, 'utf8').includes('new-role-mirror'), 'GET does not destructively rewrite duplicate discovery rows');
+
+  const promoteResponse = await server.inject({
+    method: 'POST',
+    url: '/discover/add-to-pipeline',
+    payload: { url: 'https://jobs.test/new-role' },
+  });
+  assert(promoteResponse.statusCode === 200, 'POST /discover/add-to-pipeline succeeds');
+  assert(promoteResponse.json().success === true, 'promotion reports success');
+  const promotedPipeline = readFileSync(pipelinePath, 'utf8');
+  const promotedDiscover = readFileSync(discoverPath, 'utf8');
+  assert(promotedPipeline.includes('https://jobs.test/new-role | NewCo | Product Designer | posted:2026-08-06 | loc:Remote'), 'promotion preserves discovery metadata in pipeline');
+  assert(promotedPipeline.includes('| match:high | llm:4.0 | why:Exact profile fit | signals:portfolio,leadership'), 'promotion preserves match and contextual score metadata');
+  assert(!promotedDiscover.includes('NewCo | Product Designer'), 'promotion removes the selected role from Discover');
+  assert(!promotedDiscover.includes('NewCo, Inc. | Product Designer'), 'promotion removes canonical duplicate mirrors from Discover');
+
+  const repeatPromotion = await server.inject({
+    method: 'POST',
+    url: '/discover/add-to-pipeline',
+    payload: { url: 'https://jobs.test/new-role' },
+  });
+  assert(repeatPromotion.statusCode === 200, 'repeated promotion is idempotent');
+  assert((readFileSync(pipelinePath, 'utf8').match(/Product Designer/g) || []).length === 1, 'repeated promotion never duplicates the pipeline row');
+
+  const substringPromotion = await server.inject({
+    method: 'POST',
+    url: '/discover/add-to-pipeline',
+    payload: { url: 'https://jobs.test/new' },
+  });
+  assert(substringPromotion.statusCode === 404, 'idempotency requires an exact pipeline URL instead of a substring match');
+
+  writeFileSync(discoverPath, '# Discover\n\n- [ ] https://jobs.test/new | SmallCo | Small Role\n');
+  const distinctShortUrlPromotion = await server.inject({
+    method: 'POST',
+    url: '/discover/add-to-pipeline',
+    payload: { url: 'https://jobs.test/new' },
+  });
+  assert(distinctShortUrlPromotion.statusCode === 200, 'a shorter distinct URL can still be promoted');
+  assert(readFileSync(pipelinePath, 'utf8').includes('https://jobs.test/new | SmallCo | Small Role'), 'URL dedupe uses exact identity instead of substring containment');
 
   writeFileSync(pipelinePath, '# Pipeline\n\n- [ ] https://jobs.test/skip-me | OtherCo | Other Role\n');
   const skipResponse = await server.inject({

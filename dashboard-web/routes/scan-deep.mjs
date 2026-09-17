@@ -32,6 +32,7 @@ import { launchChromiumWithRetry } from '../../lib/playwright-launch.mjs';
 import { createLineBuffer, parseProgressLine } from '../../lib/scan-progress-stream.mjs';
 import { buildTitleClassifier } from '../../lib/title-filter.mjs';
 import { loadEnvFile } from '../../lib/load-env.mjs';
+import { canonicalCompanyRoleKey } from '../../lib/role-identity.mjs';
 import { DEFAULT_MIN_RELEVANCE, hasRelevanceSignals, resolveMinRelevance, scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../lib/relevance.mjs';
 import { readProfile } from '../lib/writers.mjs';
 import { finishScanRun, startScanRun, updateScanRun } from '../lib/scan-run-state.mjs';
@@ -186,7 +187,7 @@ export default async function (app) {
         // seenUrls + seenCompanyRoles, which are mutated by runLevel3)
         // catches anything L3 just added.
         if (level3Result.added.length > 0) {
-          appendToPipeline(root, level3Result.added);
+          appendToDiscovery(root, level3Result.added);
           appendToScanHistory(root, level3Result.added);
         }
 
@@ -221,7 +222,7 @@ export default async function (app) {
         }
 
         if (level4Result?.added?.length > 0) {
-          appendToPipeline(root, level4Result.added);
+          appendToDiscovery(root, level4Result.added);
           appendToScanHistory(root, level4Result.added);
         }
       } catch (err) {
@@ -410,6 +411,20 @@ function loadDedupSets({ root, addedNow = [] }) {
     for (const match of text.matchAll(/- \[[ x]\] (https?:\/\/\S+)/g)) {
       seenUrls.add(normalizeUrl(match[1]));
     }
+    for (const match of text.matchAll(/^-\s+\[[ x]\]\s+https?:\/\/\S+\s*\|\s*([^|]+)\s*\|\s*([^|\n]+)/gm)) {
+      seenCompanyRoles.add(canonicalCompanyRoleKey(match[1], match[2]));
+    }
+  }
+
+  const DISCOVER_PATH = join(root, 'data', 'discover.md');
+  if (existsSync(DISCOVER_PATH)) {
+    const text = readFileSync(DISCOVER_PATH, 'utf-8');
+    for (const match of text.matchAll(/- \[[ x]\] (https?:\/\/\S+)/g)) {
+      seenUrls.add(normalizeUrl(match[1]));
+    }
+    for (const match of text.matchAll(/^-\s+\[[ x]\]\s+https?:\/\/\S+\s*\|\s*([^|]+)\s*\|\s*([^|\n]+)/gm)) {
+      seenCompanyRoles.add(canonicalCompanyRoleKey(match[1], match[2]));
+    }
   }
 
   const APPLICATIONS_PATH = join(root, 'data', 'applications.md');
@@ -419,22 +434,22 @@ function loadDedupSets({ root, addedNow = [] }) {
       seenUrls.add(normalizeUrl(match[0]));
     }
     for (const match of text.matchAll(/\|[^|]+\|[^|]+\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|/g)) {
-      const company = match[1].trim().toLowerCase();
-      const role = match[2].trim().toLowerCase();
-      if (company && role && company !== 'company') {
-        seenCompanyRoles.add(`${company}::${role}`);
+      const company = match[1].trim();
+      const role = match[2].trim();
+      if (company && role && company.toLowerCase() !== 'company') {
+        seenCompanyRoles.add(canonicalCompanyRoleKey(company, role));
       }
     }
   }
 
-  // Items added by the Quick Scan we just ran would be in pipeline.md
+  // Items added by the Quick Scan we just ran are in discover.md
   // already if scan.mjs ran to completion — covered above. The arg is
   // here for forward-compat in case we ever stream Level 1+2 results
   // through this route directly.
   for (const item of addedNow) {
     seenUrls.add(normalizeUrl(item.url));
     if (item.company && item.title) {
-      seenCompanyRoles.add(`${String(item.company).toLowerCase()}::${String(item.title).toLowerCase()}`);
+      seenCompanyRoles.add(canonicalCompanyRoleKey(item.company, item.title));
     }
   }
 
@@ -443,17 +458,10 @@ function loadDedupSets({ root, addedNow = [] }) {
 
 // ── Writers (mirror scan.mjs so Level 3 survivors land in the same place) ──
 
-function appendToPipeline(root, offers) {
-  const PIPELINE_PATH = join(root, 'data', 'pipeline.md');
+function appendToDiscovery(root, offers) {
+  const DISCOVER_PATH = join(root, 'data', 'discover.md');
   if (offers.length === 0) return;
 
-  if (!existsSync(PIPELINE_PATH)) {
-    writeFileSync(PIPELINE_PATH, '# Pipeline\n\n## Pendientes\n\n## Procesadas\n', 'utf-8');
-  }
-
-  let text = readFileSync(PIPELINE_PATH, 'utf-8');
-  const marker = '## Pendientes';
-  const idx = text.indexOf(marker);
   const block = offers.map((o) => {
     const datePart = o.postedAt ? ` | posted:${o.postedAt}` : '';
     const locRaw = (o.location || '').toString().replace(/[\n\r|]/g, '').trim();
@@ -461,18 +469,10 @@ function appendToPipeline(root, offers) {
     const matchPart = o.matchTier && o.matchTier !== 'strong' ? ` | match:${o.matchTier}` : '';
     return `- [ ] ${o.url} | ${o.company} | ${o.title}${datePart}${locPart}${matchPart}`;
   }).join('\n');
-
-  if (idx === -1) {
-    const procIdx = text.indexOf('## Procesadas');
-    const insertAt = procIdx === -1 ? text.length : procIdx;
-    text = text.slice(0, insertAt) + `\n${marker}\n\n${block}\n\n` + text.slice(insertAt);
-  } else {
-    const afterMarker = idx + marker.length;
-    const nextSection = text.indexOf('\n## ', afterMarker);
-    const insertAt = nextSection === -1 ? text.length : nextSection;
-    text = text.slice(0, insertAt) + '\n' + block + '\n' + text.slice(insertAt);
-  }
-  writeFileSync(PIPELINE_PATH, text, 'utf-8');
+  const existing = existsSync(DISCOVER_PATH)
+    ? readFileSync(DISCOVER_PATH, 'utf-8').trimEnd()
+    : '# Discover';
+  writeFileSync(DISCOVER_PATH, `${existing}\n${block}\n`, 'utf-8');
 }
 
 function appendToScanHistory(root, offers) {
@@ -492,7 +492,7 @@ function appendToScanHistory(root, offers) {
 // Runs the JobSpy Python sidecar against Indeed / Wellfound / ZipRecruiter
 // / Google Jobs / Glassdoor (LinkedIn opt-in). Results flow through the
 // same title-filter + aggregator-filter + dedupe + liveness pipeline that
-// Level 3 uses, so JobSpy hits land in pipeline.md with `source: jobspy:<board>`.
+// Level 3 uses, so JobSpy hits land in discover.md with `source: jobspy:<board>`.
 //
 // Silently skips (returns { available: false }) when neither `uv` nor
 // `python3` resolves on PATH — JobSpy is opt-in via install.
@@ -722,7 +722,7 @@ async function filterLevel4Hits({ portals, hits, remainingCap, seenUrls, seenCom
     if (result?.result === 'expired') { skipped.expired++; continue; }
     if (!isActiveLiveness(result)) { skipped.unverified++; continue; }
     if (seenUrls.has(candidate.normalizedUrl)) { skipped.dup++; continue; }
-    const companyKey = `${String(candidate.company || 'unknown').toLowerCase()}::${String(candidate.title || '').toLowerCase()}`;
+    const companyKey = canonicalCompanyRoleKey(candidate.company || 'unknown', candidate.title);
     if (seenCompanyRoles.has(companyKey)) { skipped.dup++; continue; }
     seenCompanyRoles.add(companyKey);
     seenUrls.add(candidate.normalizedUrl);

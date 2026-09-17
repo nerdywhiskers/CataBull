@@ -16,7 +16,8 @@ These files contain your personal data, customizations, and work product. Update
 | `portals.yml` | Your customized company list |
 | `memory/` | Agent-learned memory, auditable and editable |
 | `data/applications.md` | Your application tracker |
-| `data/pipeline.md` | Your URL inbox |
+| `data/discover.md` | Scanned roles awaiting explicit user selection |
+| `data/pipeline.md` | User-selected roles in the active pipeline |
 | `data/scan-history.tsv` | Your scan history |
 | `data/follow-ups.md` | Your follow-up history |
 | `data/outreach/` | Your contact discovery and outreach drafts |

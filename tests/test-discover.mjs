@@ -9,6 +9,7 @@
 
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join, resolve } from 'path';
+import { readFileSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -30,6 +31,7 @@ function assert(cond, msg) {
 }
 
 const {
+  DISCOVER_VIEW_MODES,
   buildDiscoverFilter,
   groupPostingsByCompany,
   sortByRelevance,
@@ -74,6 +76,15 @@ assert(postings.every(allPass), 'no filters → all pass');
 const min4 = buildDiscoverFilter({ minScore: 4 });
 assert(postings.filter(min4).length === 3, 'minScore 4 keeps 3 of 6 postings');
 assert(!min4(postings.find((p) => p.relevance === 3.2)), 'min 4 drops 3.2');
+
+// Exact score is independent from the minimum slider and matches the
+// displayed one-decimal score rather than using a range.
+const exact4 = buildDiscoverFilter({ exactScore: 4.0 });
+assert(postings.filter(exact4).length === 1, 'exact score 4.0 keeps only the 4.0 posting');
+assert(exact4(postings.find((p) => p.relevance === 4.0)), 'exact score includes an equal score');
+assert(!exact4(postings.find((p) => p.relevance === 4.5)), 'exact score excludes higher scores');
+const exactAndMinimum = buildDiscoverFilter({ minScore: 3.5, exactScore: 4.0 });
+assert(postings.filter(exactAndMinimum).length === 1, 'exact score composes with the minimum slider');
 
 // Industry filter — single
 const aiOnly = buildDiscoverFilter({
@@ -199,6 +210,24 @@ assert(dup.includes('fintech'), 'fintech surfaced');
 
 assert(collectIndustries([]).length === 0, 'empty input → []');
 assert(collectIndustries(null).length === 0, 'null input → []');
+
+assert(DISCOVER_VIEW_MODES.join(',') === 'cards,list', 'Discover exposes cards and list view modes');
+
+const discoverViewSource = readFileSync(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'discover.mjs'), 'utf8');
+const scoreModalSource = readFileSync(join(ROOT, 'dashboard-web', 'public', 'js', 'components', 'score-modal.mjs'), 'utf8');
+const scanSource = readFileSync(join(ROOT, 'scripts', 'scan.mjs'), 'utf8');
+const deepScanSource = readFileSync(join(ROOT, 'dashboard-web', 'routes', 'scan-deep.mjs'), 'utf8');
+assert(discoverViewSource.includes('appsResp.discover'), 'Discover renders the isolated discovery queue instead of pipeline pending rows');
+assert(discoverViewSource.includes('Add to pipeline'), 'Discover exposes explicit pipeline promotion in both views');
+assert(discoverViewSource.includes('discover-list'), 'Discover implements list rendering alongside cards');
+assert(!discoverViewSource.includes('checkLivenessAll'), 'Discover refresh cannot mutate Pipeline liveness state');
+assert(discoverViewSource.includes('allowEvaluate: false'), 'Discover match details enforce the evaluation gate');
+assert(scoreModalSource.includes("allowEvaluate ? `<button class=\"btn btn-secondary\" data-action=\"evaluate\""), 'score modal hides evaluation action when the gate is closed');
+assert(scoreModalSource.includes('Add this role to Pipeline'), 'score modal explains the promotion gate');
+assert(scanSource.includes('appendToDiscovery(newOffers)'), 'Quick Scan writes new roles to Discover');
+assert(!scanSource.includes('appendToPipeline(newOffers)'), 'Quick Scan no longer inserts scanned roles directly into Pipeline');
+assert(deepScanSource.includes('appendToDiscovery(root, level3Result.added)'), 'Deep Scan Level 3 writes new roles to Discover');
+assert(deepScanSource.includes('appendToDiscovery(root, level4Result.added)'), 'Deep Scan Level 4 writes new roles to Discover');
 
 // ── DONE ──────────────────────────────────────────────────────────────
 

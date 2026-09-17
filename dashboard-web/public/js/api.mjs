@@ -72,7 +72,7 @@ export const api = {
 
   // Applications
   getApplications: () => request('/applications'),
-  getContextualScores: (urls = []) => request('/applications/contextual-scores', { method: 'POST', body: { urls } }),
+  getContextualScores: (urls = [], scope = 'pipeline') => request('/applications/contextual-scores', { method: 'POST', body: { urls, scope } }),
   updateApplication: (num, status) => request(`/applications/${num}`, { method: 'PATCH', body: { status } }),
 
   // Tailor bundle (PR 1.5)
@@ -97,6 +97,7 @@ export const api = {
     request('/pipeline/item', { method: 'PATCH', body: { url, company, role, postedAt, location, newUrl } }),
   addPending: ({ url, company, role, postedAt, location } = {}) =>
     request('/pipeline/add', { method: 'POST', body: { url, company, role, postedAt, location } }),
+  addDiscoveryToPipeline: (url) => request('/discover/add-to-pipeline', { method: 'POST', body: { url } }),
 
   // Reports
   getReports: () => request('/reports'),
