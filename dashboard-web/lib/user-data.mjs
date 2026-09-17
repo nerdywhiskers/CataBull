@@ -25,6 +25,7 @@ export const USER_PATHS = [
   'portals.yml',
   'article-digest.md',
   'data/applications.md',
+  'data/discover.md',
   'data/pipeline.md',
   'data/scan-history.tsv',
   'data/scan-events.jsonl',

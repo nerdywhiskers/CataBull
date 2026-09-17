@@ -81,7 +81,7 @@ function renderEvaluated(app) {
   };
 }
 
-function renderPending(item) {
+function renderPending(item, { allowEvaluate = true } = {}) {
   const score = Number.isFinite(item.contextualScore) ? item.contextualScore : (Number(item.relevance) || 0);
   const tone = scoreTone(score);
   const factors = Array.isArray(item.relevanceFactors) ? item.relevanceFactors : [];
@@ -119,15 +119,15 @@ function renderPending(item) {
     tone,
     headerSub: `${esc(item.company || '')} · ${esc(item.role || '')}`,
     body: `
-      <p class="score-modal-meta">${isContextual ? 'LLM contextual score from your profile + archetype notes.' : 'Heuristic preview from your profile + portal keywords.'} Run a full evaluation for the complete A–E breakdown.</p>
+      <p class="score-modal-meta">${isContextual ? 'LLM contextual score from your profile + archetype notes.' : 'Heuristic preview from your profile + portal keywords.'}${allowEvaluate ? ' Run a full evaluation for the complete A–E breakdown.' : ' Add this role to Pipeline before running a full evaluation.'}</p>
       ${isContextual ? contextualRows : `<div class="score-modal-factors">${factorRows}</div>`}
     `,
-    actions: `<button class="btn btn-secondary" data-action="evaluate">Run full evaluation</button>`,
+    actions: allowEvaluate ? `<button class="btn btn-secondary" data-action="evaluate">Run full evaluation</button>` : '',
   };
 }
 
-export function openScoreModal(target, { kind = 'evaluated' } = {}) {
-  const view = kind === 'pending' ? renderPending(target) : renderEvaluated(target);
+export function openScoreModal(target, { kind = 'evaluated', allowEvaluate = true } = {}) {
+  const view = kind === 'pending' ? renderPending(target, { allowEvaluate }) : renderEvaluated(target);
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';

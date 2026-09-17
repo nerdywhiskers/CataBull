@@ -1883,6 +1883,20 @@
   flex-wrap: wrap;
 }
 .discover-score-slider input[type="range"] { width: 140px; }
+.discover-exact-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--subtext);
+  font-size: 12px;
+}
+.discover-exact-score .form-input {
+  width: 76px;
+  min-height: 30px;
+  padding: 4px 8px;
+}
+.discover-list td:last-child { white-space: nowrap; }
+.discover-list .cell-actions { display: flex; gap: 6px; align-items: center; }
 .pipeline-score-slider {
   flex-wrap: nowrap;
 }

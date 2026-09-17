@@ -15,7 +15,7 @@ import { canonicalCompanyRoleKey } from '../../lib/role-identity.mjs';
 // file but only at function call time (not module top), and we import
 // `parseApplications` the same way. ESM resolves both bindings before
 // either function runs.
-import { parseApplications } from './parsers.mjs';
+import { parseApplications, parseDiscovery, parsePipeline } from './parsers.mjs';
 
 export { canonicalCompanyRoleKey } from '../../lib/role-identity.mjs';
 
@@ -538,7 +538,17 @@ export function deletePendingByUrl(root, urls) {
  * URL already exists anywhere in pipeline.md (pending, skipped, or
  * processed).
  */
-export function addPendingItem(root, { url, company, role, postedAt = null, location = null }) {
+export function addPendingItem(root, {
+  url,
+  company,
+  role,
+  postedAt = null,
+  location = null,
+  matchTier = null,
+  contextualScore = null,
+  contextualRationale = null,
+  contextualSignals = null,
+}) {
   if (!url || !company || !role) return { added: false, duplicate: false };
   const ws = asWorkspace(root);
   let content = ws.read('data/pipeline.md');
@@ -547,7 +557,8 @@ export function addPendingItem(root, { url, company, role, postedAt = null, loca
     content = '# Pipeline\n\n## Pendientes\n\n## Procesadas\n';
   }
 
-  if (content.includes(url)) return { added: false, duplicate: true };
+  const duplicateUrl = content.split('\n').some((line) => parsePipelineIdentity(line)?.url === url);
+  if (duplicateUrl) return { added: false, duplicate: true };
   const candidateKey = canonicalCompanyRoleKey(company, role);
   const duplicateRole = content.split('\n').some((line) => {
     const item = parsePipelineIdentity(line);
@@ -578,10 +589,66 @@ export function addPendingItem(root, { url, company, role, postedAt = null, loca
   // pipe-delimited format. Empty location → omit the field entirely.
   const locClean = location ? String(location).replace(/[\n\r|]/g, '').trim() : '';
   const locPart = locClean ? ` | loc:${locClean}` : '';
-  const newLine = `- [ ] ${url} | ${company} | ${role}${datePart}${locPart}`;
+  const matchClean = cleanPipelineField(matchTier, 40);
+  const matchPart = matchClean ? ` | match:${matchClean}` : '';
+  const llmPart = Number.isFinite(contextualScore)
+    ? ` | llm:${Math.max(0, Math.min(5, contextualScore)).toFixed(1)}`
+    : '';
+  const whyClean = cleanPipelineField(contextualRationale, 180);
+  const whyPart = whyClean ? ` | why:${whyClean}` : '';
+  const signalsClean = Array.isArray(contextualSignals)
+    ? contextualSignals.map((signal) => cleanPipelineField(signal, 60)).filter(Boolean).slice(0, 4).join(',')
+    : '';
+  const signalsPart = signalsClean ? ` | signals:${signalsClean}` : '';
+  const newLine = `- [ ] ${url} | ${company} | ${role}${datePart}${locPart}${matchPart}${llmPart}${whyPart}${signalsPart}`;
   lines.splice(insertAt, 0, newLine);
   ws.write('data/pipeline.md', lines.join('\n'));
   return { added: true, duplicate: false };
+}
+
+function removeDiscoveryRole(ws, company, role) {
+  const content = ws.read('data/discover.md');
+  if (content == null) return 0;
+  const targetKey = canonicalCompanyRoleKey(company, role);
+  let removed = 0;
+  const kept = content.split('\n').filter((line) => {
+    const item = parsePipelineIdentity(line);
+    if (!item || item.key !== targetKey) return true;
+    removed++;
+    return false;
+  });
+  if (removed) ws.write('data/discover.md', kept.join('\n'));
+  return removed;
+}
+
+/** Promote one discovery into Pipeline and remove every canonical mirror. */
+export function promoteDiscoveryItem(root, url) {
+  const ws = asWorkspace(root);
+  const selected = parseDiscovery(root).find((item) => item.url === url);
+  if (!selected) {
+    const pipeline = parsePipeline(root);
+    const alreadyAdded = [...pipeline.pending, ...pipeline.skipped, ...pipeline.expired]
+      .some((item) => item.url === url);
+    return alreadyAdded
+      ? { success: true, alreadyAdded: true, removed: 0 }
+      : { success: false, error: 'discovery item not found' };
+  }
+
+  const key = canonicalCompanyRoleKey(selected.company, selected.role);
+  const alreadyTracked = parseApplications(root).some((app) =>
+    canonicalCompanyRoleKey(app.company, app.role) === key
+  );
+  const result = alreadyTracked
+    ? { added: false, duplicate: true }
+    : addPendingItem(root, selected);
+  const removed = removeDiscoveryRole(ws, selected.company, selected.role);
+  return {
+    success: result.added || result.duplicate,
+    added: result.added,
+    alreadyAdded: result.duplicate,
+    alreadyTracked,
+    removed,
+  };
 }
 
 /**
@@ -652,9 +719,9 @@ function cleanPipelineField(value, max = 240) {
   return String(value || '').replace(/[\n\r|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
-export function updatePendingContextualScores(root, scores = []) {
+function updateQueueContextualScores(root, relPath, scores = []) {
   const ws = asWorkspace(root);
-  const content = ws.read('data/pipeline.md');
+  const content = ws.read(relPath);
   if (content == null || !Array.isArray(scores) || !scores.length) return { updated: 0 };
 
   const byUrl = new Map(scores
@@ -686,8 +753,16 @@ export function updatePendingContextualScores(root, scores = []) {
     return [`- [ ] ${url}`, match[2].trim(), role, ...extras].filter(Boolean).join(' | ');
   });
 
-  if (updated > 0) ws.write('data/pipeline.md', lines.join('\n'));
+  if (updated > 0) ws.write(relPath, lines.join('\n'));
   return { updated };
+}
+
+export function updatePendingContextualScores(root, scores = []) {
+  return updateQueueContextualScores(root, 'data/pipeline.md', scores);
+}
+
+export function updateDiscoveryContextualScores(root, scores = []) {
+  return updateQueueContextualScores(root, 'data/discover.md', scores);
 }
 
 /** Mark a pending offer in pipeline.md with a status (SKIP or EXPIRED) and date */

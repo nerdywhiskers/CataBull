@@ -1,5 +1,5 @@
-import { parseApplications, loadReportSummary, parsePipeline } from '../lib/parsers.mjs';
-import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem, updatePendingItem, updatePendingContextualScores, canonicalCompanyRoleKey, enforcePipelineConsistency } from '../lib/writers.mjs';
+import { parseApplications, loadReportSummary, parsePipeline, parseDiscovery } from '../lib/parsers.mjs';
+import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem, updatePendingItem, updatePendingContextualScores, updateDiscoveryContextualScores, promoteDiscoveryItem, canonicalCompanyRoleKey, enforcePipelineConsistency } from '../lib/writers.mjs';
 import { readProfile, readProfileMarkdown, readPortals } from '../lib/writers.mjs';
 import { scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../lib/relevance.mjs';
 import { enrichJobUrl } from '../lib/job-url-metadata.mjs';
@@ -70,15 +70,49 @@ export default async function (app) {
     return urls;
   }
 
+  function discoveryWithHeuristicScores() {
+    const apps = parseApplications(root);
+    const pipeline = parsePipeline(root);
+    const rawDiscover = parseDiscovery(root);
+    const pipelineItems = [...pipeline.pending, ...pipeline.skipped, ...pipeline.expired];
+    const blockedUrls = new Set([
+      ...apps.map((item) => item.jobUrl),
+      ...pipelineItems.map((item) => item.url),
+    ].filter(Boolean));
+    const blockedKeys = new Set([
+      ...apps.map((item) => canonicalCompanyRoleKey(item.company, item.role)),
+      ...pipelineItems.map((item) => canonicalCompanyRoleKey(item.company, item.role)),
+    ]);
+    const seenKeys = new Set();
+    const discover = rawDiscover.filter((item) => {
+      const key = canonicalCompanyRoleKey(item.company, item.role);
+      if (blockedUrls.has(item.url) || blockedKeys.has(key) || seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+    const inputs = relevanceInputsFrom({ profile: readProfile(root), portals: readPortals(root) });
+    for (const item of discover) {
+      const { score, factors } = scorePostingTitle(item.role, inputs);
+      const contextual = Number.isFinite(item.contextualScore) ? item.contextualScore : null;
+      item.relevance = contextual ?? score;
+      item.heuristicRelevance = score;
+      item.relevanceFactors = factors;
+      item.relevanceRationale = rationaleSummary(factors);
+    }
+    discover.sort((a, b) => b.relevance - a.relevance);
+    return discover;
+  }
+
   app.get('/applications', async () => {
     const { apps, pending, skipped, expired } = pendingWithHeuristicScores();
+    const discover = discoveryWithHeuristicScores();
     for (const a of apps) {
       if (a.reportPath) {
         a.enrichment = loadReportSummary(root, a.reportPath);
       }
     }
 
-    return { applications: apps, total: apps.length, pending, pendingTotal: pending.length, skipped, skippedTotal: skipped.length, expired, expiredTotal: expired.length };
+    return { applications: apps, total: apps.length, pending, pendingTotal: pending.length, discover, discoverTotal: discover.length, skipped, skippedTotal: skipped.length, expired, expiredTotal: expired.length };
   });
 
   app.post('/applications/contextual-scores', async (req, reply) => {
@@ -91,8 +125,9 @@ export default async function (app) {
         .map((url) => String(url || '').trim())
         .filter(Boolean)
     );
-    const { pending } = pendingWithHeuristicScores();
-    const postings = pending
+    const scope = req.body?.scope === 'discover' ? 'discover' : 'pipeline';
+    const source = scope === 'discover' ? discoveryWithHeuristicScores() : pendingWithHeuristicScores().pending;
+    const postings = source
       .filter((p) => requestedUrls.size === 0 || requestedUrls.has(p.url))
       .slice(0, MAX_CONTEXTUAL_POSTINGS);
     if (!postings.length) return { success: true, agent, scores: [] };
@@ -114,7 +149,8 @@ export default async function (app) {
       });
       const payload = extractJsonObject(out.output || '');
       const scores = normalizeContextualScores(payload, postings);
-      updatePendingContextualScores(root, scores);
+      if (scope === 'discover') updateDiscoveryContextualScores(root, scores);
+      else updatePendingContextualScores(root, scores);
       return { success: true, agent, scores };
     } catch (err) {
       return reply.code(502).send({ error: err.message || String(err), agent });
@@ -224,6 +260,15 @@ export default async function (app) {
     } catch (err) {
       return reply.code(500).send({ error: err.message });
     }
+  });
+
+  app.post('/discover/add-to-pipeline', async (req, reply) => {
+    const url = String(req.body?.url || '').trim();
+    if (!url) return reply.code(400).send({ error: 'url is required' });
+    const result = promoteDiscoveryItem(root, url);
+    if (!result.success) return reply.code(404).send({ error: result.error || 'Discovery item not found' });
+    enforcePipelineConsistency(root);
+    return result;
   });
 
   app.patch('/pipeline/item', async (req, reply) => {
