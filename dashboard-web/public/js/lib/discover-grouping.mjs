@@ -25,7 +25,7 @@ export function buildDiscoverFilter({
     if (!posting) return false;
     const score = Number(posting.relevance ?? 0);
     if (Number.isFinite(minScore) && score < minScore) return false;
-    if (Number.isFinite(exactScore) && Math.round(score * 10) !== Math.round(exactScore * 10)) return false;
+    if (Number.isFinite(exactScore) && score.toFixed(1) !== Number(exactScore).toFixed(1)) return false;
     if (wantsIndustry) {
       const inds = resolveIndustries(posting) || [];
       if (!inds.some((i) => industries.has(i))) return false;
