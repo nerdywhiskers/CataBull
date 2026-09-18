@@ -83,6 +83,7 @@ const exact4 = buildDiscoverFilter({ exactScore: 4.0 });
 assert(postings.filter(exact4).length === 1, 'exact score 4.0 keeps only the 4.0 posting');
 assert(exact4(postings.find((p) => p.relevance === 4.0)), 'exact score includes an equal score');
 assert(!exact4(postings.find((p) => p.relevance === 4.5)), 'exact score excludes higher scores');
+assert(exact4({ company: 'Boundary', role: 'Designer', relevance: 4.05 }), 'exact score matches displayed score at JavaScript half-rounding boundaries');
 const exactAndMinimum = buildDiscoverFilter({ minScore: 3.5, exactScore: 4.0 });
 assert(postings.filter(exactAndMinimum).length === 1, 'exact score composes with the minimum slider');
 
