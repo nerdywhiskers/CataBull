@@ -1,6 +1,7 @@
 import { asWorkspace } from '../../lib/workspace.mjs';
 import { tailorSlug } from '../../lib/tailor.mjs';
 import { inferTailorBundleFromReport } from '../../lib/tailor-bundle.mjs';
+import { canonicalJobUrlKey, sameJobPosting } from '../../lib/role-identity.mjs';
 import { applicationEventsPath, applicationsPath } from './writers.mjs';
 
 function existingTailorBundlePaths(ws, paths = {}) {
@@ -283,7 +284,9 @@ export function parseApplications(cataBullRoot) {
       reportNumber: '',
       tailorBundle: null,
       notes: fields.length > 8 ? fields[8] : '',
-      jobUrl: '',
+      jobUrl: fields.length > 9
+        ? (fields[9].match(/https?:\/\/[^\s)]+/)?.[0] || '')
+        : '',
       enrichment: null,
     };
 
@@ -386,42 +389,19 @@ function enrichFromScanHistory(root, apps) {
   const content = asWorkspace(root).read('data/scan-history.tsv');
   if (content == null) return;
 
-  const byCompany = {};
+  const postings = [];
   for (const line of content.split('\n')) {
     const fields = line.split('\t');
     if (fields.length < 5 || fields[0] === 'url' || !fields[0].startsWith('http')) continue;
-    const key = normalizeCompany(fields[4]);
-    if (!byCompany[key]) byCompany[key] = [];
-    byCompany[key].push({ url: fields[0], title: fields[3] });
+    postings.push({ url: fields[0], company: fields[4], role: fields[3] });
   }
 
   for (const app of apps) {
     if (app.jobUrl) continue;
-    const key = normalizeCompany(app.company);
-    const matches = byCompany[key];
-    if (!matches) continue;
-    if (matches.length === 1) { app.jobUrl = matches[0].url; continue; }
-    // Pick best role match
-    const appRole = app.role.toLowerCase();
-    let best = matches[0].url, bestScore = 0;
-    for (const m of matches) {
-      let score = 0;
-      const mTitle = m.title.toLowerCase();
-      for (const word of appRole.split(/\s+/)) {
-        if (word.length > 2 && mTitle.includes(word)) score++;
-      }
-      if (score > bestScore) { bestScore = score; best = m.url; }
-    }
-    app.jobUrl = best;
+    const matches = postings.filter((posting) => sameJobPosting(app, posting));
+    const identities = new Set(matches.map((posting) => canonicalJobUrlKey(posting.url)).filter(Boolean));
+    if (identities.size === 1) app.jobUrl = matches[0].url;
   }
-}
-
-function normalizeCompany(name) {
-  let s = name.trim().toLowerCase();
-  for (const suffix of [' inc.', ' inc', ' llc', ' ltd', ' corp', ' corporation', ' technologies', ' technology', ' group', ' co.']) {
-    if (s.endsWith(suffix)) s = s.slice(0, -suffix.length);
-  }
-  return s.trim();
 }
 
 function parseOfferQueueContent(content) {

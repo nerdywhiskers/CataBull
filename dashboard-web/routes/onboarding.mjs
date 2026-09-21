@@ -650,7 +650,7 @@ export default async function (app) {
     if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
     const path = join(dataDir, 'applications.md');
     if (!existsSync(path)) {
-      writeFileSync(path, `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n`);
+      writeFileSync(path, `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes | Job URL |\n|---|------|---------|------|-------|--------|-----|--------|-------|---------|\n`);
     }
     return { success: true };
   });

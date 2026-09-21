@@ -5,6 +5,7 @@ import { scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../
 import { enrichJobUrl } from '../lib/job-url-metadata.mjs';
 import { runAgentPrint } from '../lib/agents.mjs';
 import { buildContextualScoringPrompt, extractJsonObject, MAX_CONTEXTUAL_POSTINGS, normalizeContextualScores } from '../../lib/contextual-scoring.mjs';
+import { canonicalJobUrlKey, sameJobPosting } from '../../lib/role-identity.mjs';
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -16,19 +17,22 @@ export default async function (app) {
     const { pending: rawPending, skipped, expired } = parsePipeline(root);
     const reportedUrls = collectReportUrls(root);
 
-    const appUrls = new Set(apps.map(a => a.jobUrl).filter(Boolean));
+    const appUrls = new Set(apps.map(a => canonicalJobUrlKey(a.jobUrl)).filter(Boolean));
     const appKeys = new Set(apps.map(a => canonicalCompanyRoleKey(a.company, a.role)));
-    const skippedUrls = new Set(skipped.map(s => s.url));
+    const skippedUrls = new Set(skipped.map(s => canonicalJobUrlKey(s.url)).filter(Boolean));
     const seenPendingKeys = new Set();
+    const seenPending = [];
 
     const pending = rawPending.filter(p => {
       const key = canonicalCompanyRoleKey(p.company, p.role);
-      if (appUrls.has(p.url)) return false;
+      const urlKey = canonicalJobUrlKey(p.url);
+      if (appUrls.has(urlKey) || apps.some((item) => sameJobPosting(item, p))) return false;
       if (reportedUrls.has(p.url)) return false;
-      if (skippedUrls.has(p.url)) return false;
+      if (skippedUrls.has(urlKey) || skipped.some((item) => sameJobPosting(item, p))) return false;
       if (appKeys.has(key)) return false;
-      if (seenPendingKeys.has(key)) return false;
+      if (seenPendingKeys.has(key) || seenPending.some((item) => sameJobPosting(item, p))) return false;
       seenPendingKeys.add(key);
+      seenPending.push(p);
       return true;
     });
 
@@ -78,16 +82,21 @@ export default async function (app) {
     const blockedUrls = new Set([
       ...apps.map((item) => item.jobUrl),
       ...pipelineItems.map((item) => item.url),
-    ].filter(Boolean));
+    ].map(canonicalJobUrlKey).filter(Boolean));
     const blockedKeys = new Set([
       ...apps.map((item) => canonicalCompanyRoleKey(item.company, item.role)),
       ...pipelineItems.map((item) => canonicalCompanyRoleKey(item.company, item.role)),
     ]);
     const seenKeys = new Set();
+    const blockedPostings = [...apps, ...pipelineItems];
+    const seenPostings = [];
     const discover = rawDiscover.filter((item) => {
       const key = canonicalCompanyRoleKey(item.company, item.role);
-      if (blockedUrls.has(item.url) || blockedKeys.has(key) || seenKeys.has(key)) return false;
+      if (blockedUrls.has(canonicalJobUrlKey(item.url)) || blockedKeys.has(key)) return false;
+      if (blockedPostings.some((posting) => sameJobPosting(posting, item))) return false;
+      if (seenKeys.has(key) || seenPostings.some((posting) => sameJobPosting(posting, item))) return false;
       seenKeys.add(key);
+      seenPostings.push(item);
       return true;
     });
     const inputs = relevanceInputsFrom({ profile: readProfile(root), portals: readPortals(root) });
@@ -248,7 +257,7 @@ export default async function (app) {
 
       const existingApps = parseApplications(root);
       const targetKey = canonicalCompanyRoleKey(finalCompany, finalRole);
-      if (existingApps.some((app) => canonicalCompanyRoleKey(app.company, app.role) === targetKey)) {
+      if (existingApps.some((app) => canonicalCompanyRoleKey(app.company, app.role) === targetKey || sameJobPosting(app, { url, company: finalCompany, role: finalRole }))) {
         return reply.code(409).send({ error: 'Role already exists in the pipeline tracker with a later status' });
       }
 

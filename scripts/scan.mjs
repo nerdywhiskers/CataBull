@@ -26,7 +26,7 @@ import { disposeBrowser as disposeWebfetchBrowser } from '../scan/providers/webf
 import { buildTitleClassifier } from '../lib/title-filter.mjs';
 import { loadEnvFile } from '../lib/load-env.mjs';
 import { encodeScanProgress } from '../lib/scan-progress-stream.mjs';
-import { canonicalCompanyRoleKey } from '../lib/role-identity.mjs';
+import { canonicalCompanyRoleKey, canonicalJobUrlKey, sameJobPosting } from '../lib/role-identity.mjs';
 import {
   DEFAULT_MIN_RELEVANCE,
   hasRelevanceSignals,
@@ -181,32 +181,10 @@ async function withRetry(fn, { retries = 2, baseDelayMs = 400 } = {}) {
 
 // ── Dedup ───────────────────────────────────────────────────────────
 
-// Tracking parameters that don't affect job identity. Stripped before dedup
-// so the same posting linked from different referrers collapses to one URL.
-const TRACKING_PARAMS = new Set([
-  'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-  'src', 'source', 'ref', 'referrer', 'fbclid', 'gclid', 'mc_cid', 'mc_eid',
-]);
-
-// Canonicalize URLs so that trailing-slash, host case, fragment, query order,
-// and tracking params don't make duplicates look distinct.
+// Canonicalize URLs so that provider aliases, tracking params, fragments, and
+// trailing slashes do not make one posting look distinct.
 function normalizeUrl(raw) {
-  if (!raw) return '';
-  const input = String(raw).trim();
-  if (!input) return '';
-  try {
-    const u = new URL(input);
-    u.hostname = u.hostname.toLowerCase();
-    u.hash = '';
-    const filtered = [...u.searchParams.entries()].filter(([k]) => !TRACKING_PARAMS.has(k.toLowerCase()));
-    filtered.sort(([a], [b]) => a.localeCompare(b));
-    u.search = '';
-    for (const [k, v] of filtered) u.searchParams.append(k, v);
-    if (u.pathname.length > 1) u.pathname = u.pathname.replace(/\/+$/, '');
-    return u.toString();
-  } catch {
-    return input;
-  }
+  return canonicalJobUrlKey(raw);
 }
 
 function loadSeenUrls() {
@@ -273,6 +251,28 @@ function loadSeenCompanyRoles() {
   collectTable(APPLICATIONS_PATH);
   collectQueue(PIPELINE_PATH);
   collectQueue(DISCOVER_PATH);
+  return seen;
+}
+
+function loadSeenPostings() {
+  const seen = [];
+  const collectQueue = (path) => {
+    if (!existsSync(path)) return;
+    for (const line of readFileSync(path, 'utf8').split('\n')) {
+      const match = line.match(/^-\s+\[[ x]\]\s+(https?:\/\/\S+)\s*\|\s*([^|]+)\s*\|\s*([^|\n]+)/);
+      if (match) seen.push({ url: match[1], company: match[2].trim(), role: match[3].trim() });
+    }
+  };
+  collectQueue(PIPELINE_PATH);
+  collectQueue(DISCOVER_PATH);
+
+  if (existsSync(APPLICATIONS_PATH)) {
+    for (const line of readFileSync(APPLICATIONS_PATH, 'utf8').split('\n')) {
+      if (!line.startsWith('|') || line.startsWith('| #') || line.startsWith('|---')) continue;
+      const parts = line.replace(/^\|/, '').replace(/\|$/, '').split('|').map((field) => field.trim());
+      if (parts.length >= 4) seen.push({ url: parts[9] || '', company: parts[2], role: parts[3] });
+    }
+  }
   return seen;
 }
 
@@ -416,6 +416,7 @@ async function main() {
   // 3. Load dedup sets
   const seenUrls = loadSeenUrls();
   const seenCompanyRoles = loadSeenCompanyRoles();
+  const seenPostings = loadSeenPostings();
 
   // 4. Fetch all APIs
   const date = new Date().toISOString().slice(0, 10);
@@ -480,7 +481,8 @@ async function main() {
         continue;
       }
       const key = canonicalCompanyRoleKey(job.company, job.title);
-      if (seenCompanyRoles.has(key)) {
+      const posting = { url: job.url, company: job.company, role: job.title };
+      if (seenCompanyRoles.has(key) || seenPostings.some((existing) => sameJobPosting(existing, posting))) {
         totalDupes++;
         if (stats) stats.dupes++;
         continue;
@@ -488,6 +490,7 @@ async function main() {
       // Mark as seen to avoid intra-scan dupes
       seenUrls.add(normalizedUrl);
       seenCompanyRoles.add(key);
+      seenPostings.push(posting);
       newOffers.push({
         ...job,
         source,

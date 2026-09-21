@@ -10,7 +10,7 @@
  */
 
 import { asWorkspace } from '../../lib/workspace.mjs';
-import { canonicalCompanyRoleKey } from '../../lib/role-identity.mjs';
+import { canonicalCompanyRoleKey, sameJobPosting } from '../../lib/role-identity.mjs';
 // Cyclic import is fine: parsers.mjs imports `applicationsPath` from this
 // file but only at function call time (not module top), and we import
 // `parseApplications` the same way. ESM resolves both bindings before
@@ -330,8 +330,9 @@ export function enforcePipelineConsistency(root) {
   const content = ws.read('data/pipeline.md');
   if (content == null) return { removed: 0, removedBecauseTracked: 0, removedBecauseDuplicatePending: 0 };
 
+  const blockedPostings = parseApplications(root);
   const blockedKeys = new Set(
-    parseApplications(root)
+    blockedPostings
       .map((app) => canonicalCompanyRoleKey(app.company, app.role))
       .filter((key) => key && key !== '||')
   );
@@ -347,9 +348,11 @@ export function enforcePipelineConsistency(root) {
     const item = parsePipelineIdentity(line);
     if (!item || !item.done || !item.key || item.key === '||') continue;
     blockedKeys.add(item.key);
+    blockedPostings.push(item);
   }
 
   const seenPendingKeys = new Set();
+  const seenPendingPostings = [];
   let removedBecauseTracked = 0;
   let removedBecauseDuplicatePending = 0;
   inProcessed = false;
@@ -362,15 +365,16 @@ export function enforcePipelineConsistency(root) {
 
     const item = parsePipelineIdentity(line);
     if (!item || item.done || !item.key || item.key === '||') return true;
-    if (blockedKeys.has(item.key)) {
+    if (blockedKeys.has(item.key) || blockedPostings.some((posting) => sameJobPosting(posting, item))) {
       removedBecauseTracked += 1;
       return false;
     }
-    if (seenPendingKeys.has(item.key)) {
+    if (seenPendingKeys.has(item.key) || seenPendingPostings.some((posting) => sameJobPosting(posting, item))) {
       removedBecauseDuplicatePending += 1;
       return false;
     }
     seenPendingKeys.add(item.key);
+    seenPendingPostings.push(item);
     return true;
   });
 
@@ -388,9 +392,19 @@ function buildReportLink(reportNumber, reportPath) {
 function ensureApplicationsFile(ws, relPath) {
   const existing = ws.read(relPath);
   if (existing != null) return existing;
-  const bootstrap = '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n';
+  const bootstrap = '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes | Job URL |\n|---|------|---------|------|-------|--------|-----|--------|-------|---------|\n';
   ws.write(relPath, bootstrap);
   return bootstrap;
+}
+
+function ensureJobUrlColumn(content) {
+  const legacyHeader = '| # | Date | Company | Role | Score | Status | PDF | Report | Notes |';
+  const legacySeparator = '|---|------|---------|------|-------|--------|-----|--------|-------|';
+  return String(content || '').split('\n').map((line) => {
+    if (line.trim() === legacyHeader) return `${legacyHeader} Job URL |`;
+    if (line.trim() === legacySeparator) return `${legacySeparator}---------|`;
+    return line;
+  }).join('\n');
 }
 
 function markPipelineDone(ws, url) {
@@ -420,7 +434,7 @@ export function markPipelineTailored(root, {
   if (url) markPipelineDone(ws, url);
 
   const appsRelPath = ws.exists('data/applications.md') ? 'data/applications.md' : 'applications.md';
-  const appsContent = ensureApplicationsFile(ws, appsRelPath);
+  const appsContent = ensureJobUrlColumn(ensureApplicationsFile(ws, appsRelPath));
   const lines = appsContent.split('\n');
   const today = new Date().toISOString().slice(0, 10);
   const normalizedKey = canonicalCompanyRoleKey(company, role);
@@ -434,7 +448,9 @@ export function markPipelineTailored(root, {
     if (parts.length < 8) continue;
     const rowNum = parseInt(parts[0], 10);
     if (Number.isFinite(rowNum)) nextNum = Math.max(nextNum, rowNum + 1);
-    if (canonicalCompanyRoleKey(parts[2], parts[3]) !== normalizedKey) continue;
+    const existingPosting = { company: parts[2], role: parts[3], jobUrl: parts[9] || '' };
+    if (canonicalCompanyRoleKey(parts[2], parts[3]) !== normalizedKey
+      && !sameJobPosting(existingPosting, { url, company, role })) continue;
 
     parts[1] = parts[1] || today;
     parts[2] = company;
@@ -445,8 +461,9 @@ export function markPipelineTailored(root, {
     parts[6] = hasPdf ? '✅' : (parts[6] || '❌');
     parts[7] = reportCell || parts[7] || '';
     parts[8] = parts[8] || '';
+    parts[9] = url || parts[9] || '';
     const finalRowId = parts[0] || rowNum || nextNum;
-    lines[i] = `| ${finalRowId} | ${parts[1]} | ${parts[2]} | ${parts[3]} | ${parts[4]} | ${parts[5]} | ${parts[6]} | ${parts[7]} | ${parts[8]} |`;
+    lines[i] = `| ${finalRowId} | ${parts[1]} | ${parts[2]} | ${parts[3]} | ${parts[4]} | ${parts[5]} | ${parts[6]} | ${parts[7]} | ${parts[8]} | ${parts[9]} |`;
     ws.write(appsRelPath, lines.join('\n'));
     if (!existingStatus || /tailor|evaluat|hold|monitor|verificar|condicional/i.test(existingStatus)) {
       appendApplicationEvent(root, {
@@ -459,7 +476,7 @@ export function markPipelineTailored(root, {
     return { success: true, updated: true, num: rowNum || nextNum };
   }
 
-  const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | ${scoreRaw} | Tailored | ${hasPdf ? '✅' : '❌'} | ${reportCell} | |`;
+  const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | ${scoreRaw} | Tailored | ${hasPdf ? '✅' : '❌'} | ${reportCell} | | ${url || ''} |`;
   ws.write(appsRelPath, appsContent.trimEnd() + '\n' + newRow + '\n');
   appendApplicationEvent(root, {
     trackerRowId: nextNum,
@@ -557,13 +574,12 @@ export function addPendingItem(root, {
     content = '# Pipeline\n\n## Pendientes\n\n## Procesadas\n';
   }
 
-  const duplicateUrl = content.split('\n').some((line) => parsePipelineIdentity(line)?.url === url);
+  const candidate = { url, company, role };
+  const existingItems = content.split('\n').map((line) => parsePipelineIdentity(line)).filter(Boolean);
+  const duplicateUrl = existingItems.some((item) => sameJobPosting(item, candidate));
   if (duplicateUrl) return { added: false, duplicate: true };
   const candidateKey = canonicalCompanyRoleKey(company, role);
-  const duplicateRole = content.split('\n').some((line) => {
-    const item = parsePipelineIdentity(line);
-    return item?.key === candidateKey;
-  });
+  const duplicateRole = existingItems.some((item) => item.key === candidateKey);
   if (duplicateRole) return { added: false, duplicate: true };
 
   const lines = content.split('\n');
@@ -828,23 +844,40 @@ export function markPipelineApplied(root, url, company, role) {
   const existingKey = canonicalCompanyRoleKey(company, role);
   const existing = parseApplications(root).find(app =>
     canonicalCompanyRoleKey(app.company, app.role) === existingKey
+      || sameJobPosting(app, { url, company, role })
   );
   if (existing) {
     updateApplicationStatus(root, existing.reportNumber, existing.num, 'Applied', existing.trackerRowId);
+    if (url && existing.jobUrl !== url) {
+      const appsRelPath = ws.exists('data/applications.md') ? 'data/applications.md' : 'applications.md';
+      const content = ensureJobUrlColumn(ensureApplicationsFile(ws, appsRelPath));
+      const lines = content.split('\n');
+      const dataLines = lines
+        .map((line, index) => ({ line, index }))
+        .filter(({ line }) => line.startsWith('|') && !line.startsWith('| #') && !line.startsWith('|---'));
+      const target = dataLines[existing.num - 1]?.index ?? -1;
+      if (target >= 0) {
+        const parts = lines[target].replace(/^\|/, '').replace(/\|$/, '').split('|').map((field) => field.trim());
+        while (parts.length < 10) parts.push('');
+        parts[9] = url;
+        lines[target] = `| ${parts.join(' | ')} |`;
+        ws.write(appsRelPath, lines.join('\n'));
+      }
+    }
     return;
   }
 
   // Add to applications.md
   const today = new Date().toISOString().slice(0, 10);
   const appsRelPath = ws.exists('data/applications.md') ? 'data/applications.md' : 'applications.md';
-  const appsContent = ensureApplicationsFile(ws, appsRelPath);
+  const appsContent = ensureJobUrlColumn(ensureApplicationsFile(ws, appsRelPath));
   const rows = appsContent.split('\n').filter(l => l.startsWith('|') && !l.startsWith('| #') && !l.startsWith('|---'));
   const nextNum = rows.reduce((max, line) => {
     const rowId = parseInt(line.split('|')[1]?.trim(), 10);
     return Number.isFinite(rowId) ? Math.max(max, rowId) : max;
   }, 0) + 1;
 
-  const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | | Applied | ❌ | | |`;
+  const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | | Applied | ❌ | | | ${url || ''} |`;
   ws.write(appsRelPath, appsContent.trimEnd() + '\n' + newRow + '\n');
   appendApplicationEvent(root, {
     trackerRowId: nextNum,
