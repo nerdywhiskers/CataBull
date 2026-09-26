@@ -19,7 +19,7 @@ import { join, basename, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { defaultWorkspace } from '../lib/workspace.mjs';
 import { execFileSync } from 'child_process';
-import { canonicalCompanyName, canonicalCompanyRoleKey } from '../lib/role-identity.mjs';
+import { canonicalCompanyName, canonicalCompanyRoleKey, sameJobPosting } from '../lib/role-identity.mjs';
 
 // Data root = the user's workspace. CATABULL_WORKSPACE_ROOT (set by the CLI and
 // the dashboard when it spawns scripts) wins; otherwise fall back to the package
@@ -96,8 +96,21 @@ function parseAppLine(line) {
   return {
     num, date: parts[2], company: parts[3], role: parts[4],
     score: parts[5], status: parts[6], pdf: parts[7], report: parts[8],
-    notes: parts[9] || '', raw: line,
+    notes: parts[9] || '', jobUrl: parts[10] || '', raw: line,
   };
+}
+
+function reportJobUrl(reportCell) {
+  const direct = String(reportCell || '').match(/https?:\/\/[^\s)]+/);
+  if (direct) return direct[0];
+  const link = String(reportCell || '').match(/\((reports\/[^)]+\.md)\)/);
+  if (!link || link[1].includes('..')) return '';
+  try {
+    const report = readFileSync(join(CATA_BULL_ROOT, link[1]), 'utf8');
+    return report.match(/^\*\*URL:\*\*\s*(https?:\/\/\S+)/m)?.[1]?.replace(/[),.]+$/, '') || '';
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -191,7 +204,15 @@ if (!existsSync(APPS_FILE)) {
   process.exit(0);
 }
 const appContent = readFileSync(APPS_FILE, 'utf-8');
-const appLines = appContent.split('\n');
+const appLines = appContent.split('\n').map((line) => {
+  if (line.trim() === '| # | Date | Company | Role | Score | Status | PDF | Report | Notes |') {
+    return '| # | Date | Company | Role | Score | Status | PDF | Report | Notes | Job URL |';
+  }
+  if (line.trim() === '|---|------|---------|------|-------|--------|-----|--------|-------|') {
+    return '|---|------|---------|------|-------|--------|-----|--------|-------|---------|';
+  }
+  return line;
+});
 const existingApps = [];
 let maxNum = 0;
 
@@ -199,6 +220,7 @@ for (const line of appLines) {
   if (line.startsWith('|') && !line.includes('---') && !line.includes('Empresa')) {
     const app = parseAppLine(line);
     if (app) {
+      app.jobUrl ||= reportJobUrl(app.report);
       existingApps.push(app);
       if (app.num > maxNum) maxNum = app.num;
     }
@@ -237,15 +259,18 @@ for (const file of tsvFiles) {
   const content = readFileSync(join(ADDITIONS_DIR, file), 'utf-8').trim();
   const addition = parseTsvContent(content, file);
   if (!addition) { skipped++; continue; }
+  addition.jobUrl ||= reportJobUrl(addition.report);
 
   // Role identity is company + role. Report numbers and requested row numbers
   // are metadata and may legitimately collide with a different role.
   let duplicate = null;
 
+  duplicate = existingApps.find(app => sameJobPosting(app, addition));
+
   // Canonical company + role identity handles punctuation, suffixes, and
   // exact single-word titles before the legacy fuzzy fallback.
   const additionKey = canonicalCompanyRoleKey(addition.company, addition.role);
-  duplicate = existingApps.find(app => canonicalCompanyRoleKey(app.company, app.role) === additionKey);
+  duplicate ||= existingApps.find(app => canonicalCompanyRoleKey(app.company, app.role) === additionKey);
 
   if (!duplicate) {
     // Legacy fuzzy fallback for small title variations.
@@ -262,7 +287,7 @@ for (const file of tsvFiles) {
 
     if (newScore > oldScore) {
       console.log(`🔄 Update: #${duplicate.num} ${addition.company} — ${addition.role} (${oldScore}→${newScore})`);
-      const updatedLine = `| ${duplicate.num} | ${addition.date} | ${addition.company} | ${addition.role} | ${addition.score} | ${duplicate.status} | ${duplicate.pdf} | ${addition.report} | Re-eval ${addition.date} (${oldScore}→${newScore}). ${addition.notes} |`;
+      const updatedLine = `| ${duplicate.num} | ${addition.date} | ${addition.company} | ${addition.role} | ${addition.score} | ${duplicate.status} | ${duplicate.pdf} | ${addition.report} | Re-eval ${addition.date} (${oldScore}→${newScore}). ${addition.notes} | ${addition.jobUrl || duplicate.jobUrl || ''} |`;
       const lineIdx = appLines.indexOf(duplicate.raw);
       if (lineIdx >= 0) {
         appLines[lineIdx] = updatedLine;
@@ -284,7 +309,7 @@ for (const file of tsvFiles) {
     const entryNum = addition.num > maxNum ? addition.num : ++maxNum;
     if (addition.num > maxNum) maxNum = addition.num;
 
-    const newLine = `| ${entryNum} | ${addition.date} | ${addition.company} | ${addition.role} | ${addition.score} | ${addition.status} | ${addition.pdf} | ${addition.report} | ${addition.notes} |`;
+    const newLine = `| ${entryNum} | ${addition.date} | ${addition.company} | ${addition.role} | ${addition.score} | ${addition.status} | ${addition.pdf} | ${addition.report} | ${addition.notes} | ${addition.jobUrl || ''} |`;
     newLines.push(newLine);
     existingApps.push({ ...addition, num: entryNum, raw: newLine });
     added++;

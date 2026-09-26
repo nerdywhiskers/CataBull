@@ -19,12 +19,12 @@ const root = mkdtempSync(join(tmpdir(), 'catabull-applications-read-test-'));
 const server = Fastify();
 try {
   mkdirSync(join(root, 'data'), { recursive: true });
-  writeFileSync(join(root, 'data', 'applications.md'), '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-08-05 | Acme | Designer | 4.0/5 | Tailored | ❌ | | |\n');
+  writeFileSync(join(root, 'data', 'applications.md'), '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes | Job URL |\n|---|------|---------|------|-------|--------|-----|--------|-------|---------|\n| 1 | 2026-08-05 | Acme | Designer | 4.0/5 | Tailored | ❌ | | | https://www.linkedin.com/comm/jobs/view/4442838957/?utm_source=feed |\n| 2 | 2026-08-05 | Acme, Inc. | Head of AI Workflows / Lead Architect | 4.2/5 | Applied | ❌ | | | https://provider-a.example/jobs/abc |\n');
   const pipelinePath = join(root, 'data', 'pipeline.md');
-  const originalPipeline = '# Pipeline\n\n- [ ] https://jobs.test/acme | Acme | Designer\n';
+  const originalPipeline = '# Pipeline\n\n- [ ] https://jobs.test/acme | Acme | Designer\n- [ ] https://linkedin.com/jobs/view/4442838957/ | Wrong Provider Label | Creative Director\n';
   writeFileSync(pipelinePath, originalPipeline);
   const discoverPath = join(root, 'data', 'discover.md');
-  writeFileSync(discoverPath, '# Discover\n\n- [ ] https://jobs.test/new-role | NewCo | Product Designer | posted:2026-08-06 | loc:Remote | match:high | llm:4.0 | why:Exact profile fit | signals:portfolio,leadership\n- [ ] https://jobs.test/new-role-mirror | NewCo, Inc. | Product Designer\n- [ ] https://jobs.test/acme-mirror | Acme, Inc. | Designer\n');
+  writeFileSync(discoverPath, '# Discover\n\n- [ ] https://jobs.test/new-role | NewCo | Product Designer | posted:2026-08-06 | loc:Remote | match:high | llm:4.0 | why:Exact profile fit | signals:portfolio,leadership\n- [ ] https://jobs.test/new-role-mirror | NewCo, Inc. | Product Designer\n- [ ] https://jobs.test/acme-mirror | Acme, Inc. | Designer\n- [ ] https://provider-b.example/roles/xyz | Acme | Head of AI Workflows\n');
 
   server.decorate('cataBullRoot', root);
   await server.register(applicationsRoute);
