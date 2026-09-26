@@ -38,8 +38,6 @@ const {
   collectIndustries,
   areAllDiscoverItemsSelected,
   setDiscoverSelectionForItems,
-  DISCOVER_SORT_MODES,
-  sortDiscoverItems,
   selectionForDragRect,
 } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'lib', 'discover-grouping.mjs')).href
@@ -140,6 +138,17 @@ const safeResolver = buildDiscoverFilter({
 });
 assert(safeResolver(postings[0]) === false, 'null resolveIndustries → no industry match');
 
+// Location and posted-date filters mirror the Pipeline filter popover.
+const remoteOnly = buildDiscoverFilter({ location: 'remote' });
+assert(remoteOnly({ company: 'A', role: 'Designer', relevance: 4, location: 'Remote — US' }), 'location filter is a case-insensitive substring match');
+assert(!remoteOnly({ company: 'B', role: 'Designer', relevance: 4, location: 'Austin' }), 'location filter excludes other locations');
+assert(!remoteOnly({ company: 'C', role: 'Designer', relevance: 4 }), 'location filter excludes postings without location metadata');
+
+const last7Days = buildDiscoverFilter({ dateRange: '7d', now: new Date('2026-09-26T12:00:00Z') });
+assert(last7Days({ company: 'A', role: 'Designer', relevance: 4, postedAt: '2026-09-20' }), 'posted window includes recent roles');
+assert(!last7Days({ company: 'B', role: 'Designer', relevance: 4, postedAt: '2026-09-18' }), 'posted window excludes older roles');
+assert(!last7Days({ company: 'C', role: 'Designer', relevance: 4 }), 'posted window excludes roles without posted dates');
+
 // ── 2. groupPostingsByCompany ─────────────────────────────────────────
 
 console.log('\n2. groupPostingsByCompany');
@@ -233,25 +242,9 @@ const deselectedVisible = setDiscoverSelectionForItems(selectedVisible, visible,
 assert(!deselectedVisible.has('a') && !deselectedVisible.has('b'), 'deselect-all removes filtered roles');
 assert(deselectedVisible.has('hidden'), 'deselect-all preserves hidden selections');
 
-// ── 6. sorting ──────────────────────────────────────────────────────
+// ── 6. drag-selection geometry ──────────────────────────────────────
 
-console.log('\n6. sorting');
-
-const sortable = [
-  { url: 'old-z', relevance: 5, postedAt: '2026-01-01', location: 'Zurich' },
-  { url: 'new-a', relevance: 3, postedAt: '2026-08-01', location: 'Austin' },
-  { url: 'missing', relevance: 4, postedAt: '', location: '' },
-];
-assert(DISCOVER_SORT_MODES.join(',') === 'relevance,date-desc,date-asc,location-asc,location-desc', 'Discover exposes match, date, and location sort modes');
-assert(sortDiscoverItems(sortable, 'date-desc').map((p) => p.url).join(',') === 'new-a,old-z,missing', 'newest sort puts missing dates last');
-assert(sortDiscoverItems(sortable, 'date-asc').map((p) => p.url).join(',') === 'old-z,new-a,missing', 'oldest sort puts missing dates last');
-assert(sortDiscoverItems(sortable, 'location-asc').map((p) => p.url).join(',') === 'new-a,old-z,missing', 'location A-Z puts blank locations last');
-assert(sortDiscoverItems(sortable, 'location-desc').map((p) => p.url).join(',') === 'old-z,new-a,missing', 'location Z-A puts blank locations last');
-assert(sortable[0].url === 'old-z', 'sorting does not mutate input');
-
-// ── 7. drag-selection geometry ──────────────────────────────────────
-
-console.log('\n7. drag-selection geometry');
+console.log('\n6. drag-selection geometry');
 
 const dragCards = [
   { url: 'a', rect: { left: 0, top: 0, right: 100, bottom: 100 } },
@@ -275,7 +268,10 @@ assert(discoverViewSource.includes('discover-list'), 'Discover implements list r
 assert(discoverViewSource.includes('discover-select-all'), 'Discover exposes select-all in card and list views');
 assert(discoverViewSource.includes('deleteDiscovery'), 'Discover exposes persistent deletion actions');
 assert(discoverViewSource.includes('addDiscoveriesToPipeline'), 'Discover exposes bulk pipeline promotion');
-assert(discoverViewSource.includes('discover-sort'), 'Discover exposes date and location sorting');
+assert(discoverViewSource.includes('discover-filter-btn'), 'Discover exposes a Pipeline-style filter button');
+assert(discoverViewSource.includes('discover-filter-popover'), 'Discover filters open in a popover');
+assert(discoverViewSource.includes('Filter by industry, location, posted date'), 'Discover filter button explains its filter dimensions');
+assert(!discoverViewSource.includes('id="discover-sort"'), 'Discover no longer exposes the incorrect sort dropdown');
 assert(discoverViewSource.includes('discover-drag-marquee'), 'Discover card view exposes drag-selection marquee');
 assert(discoverViewSource.includes('&#x2197;'), 'Discover list uses the Pipeline arrow icon for posting links');
 assert(!discoverViewSource.includes('checkLivenessAll'), 'Discover refresh cannot mutate Pipeline liveness state');
