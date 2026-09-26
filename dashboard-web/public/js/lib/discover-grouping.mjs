@@ -7,7 +7,6 @@
  */
 
 export const DISCOVER_VIEW_MODES = Object.freeze(['cards', 'list']);
-export const DISCOVER_SORT_MODES = Object.freeze(['relevance', 'date-desc', 'date-asc', 'location-asc', 'location-desc']);
 
 /** Build the predicate used to filter pending postings on the Discover tab. */
 export function buildDiscoverFilter({
@@ -16,11 +15,20 @@ export function buildDiscoverFilter({
   industries = null,    // Set | null
   company = '',         // free text, case-insensitive substring
   search = '',          // free text, matches company OR role
+  location = '',        // free text, case-insensitive substring
+  dateRange = 'any',    // any | 24h | 7d | 30d
+  now = new Date(),
   resolveIndustries = () => [],
 } = {}) {
   const wantsIndustry = industries instanceof Set && industries.size > 0;
   const c = (company || '').toLowerCase();
   const q = (search || '').toLowerCase();
+  const loc = String(location || '').trim().toLowerCase();
+  const days = dateRange === '24h' ? 1 : dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 0;
+  const nowDate = new Date(now);
+  const cutoff = days > 0 && Number.isFinite(nowDate.getTime())
+    ? new Date(nowDate.getTime() - days * 86_400_000).toISOString().slice(0, 10)
+    : '';
 
   return (posting) => {
     if (!posting) return false;
@@ -38,6 +46,8 @@ export function buildDiscoverFilter({
       const hay = `${posting.company || ''} ${posting.role || ''}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
+    if (loc && !String(posting.location || '').toLowerCase().includes(loc)) return false;
+    if (cutoff && (!posting.postedAt || posting.postedAt < cutoff)) return false;
     return true;
   };
 }
@@ -74,33 +84,6 @@ export function sortByRelevance(items) {
   return [...(items || [])].sort((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0));
 }
 
-export function sortDiscoverItems(items, mode = 'relevance') {
-  const selectedMode = DISCOVER_SORT_MODES.includes(mode) ? mode : 'relevance';
-  const decorated = [...(items || [])].map((item, index) => ({ item, index }));
-  const compareMissingLast = (a, b, direction = 1) => {
-    const aMissing = a == null || a === '' || Number.isNaN(a);
-    const bMissing = b == null || b === '' || Number.isNaN(b);
-    if (aMissing !== bMissing) return aMissing ? 1 : -1;
-    if (aMissing) return 0;
-    return a < b ? -direction : a > b ? direction : 0;
-  };
-  decorated.sort((a, b) => {
-    let result = 0;
-    if (selectedMode === 'date-desc' || selectedMode === 'date-asc') {
-      const aDate = Date.parse(a.item?.postedAt || '');
-      const bDate = Date.parse(b.item?.postedAt || '');
-      result = compareMissingLast(aDate, bDate, selectedMode === 'date-desc' ? -1 : 1);
-    } else if (selectedMode === 'location-asc' || selectedMode === 'location-desc') {
-      const aLocation = String(a.item?.location || '').trim().toLocaleLowerCase();
-      const bLocation = String(b.item?.location || '').trim().toLocaleLowerCase();
-      result = compareMissingLast(aLocation, bLocation, selectedMode === 'location-desc' ? -1 : 1);
-    } else {
-      result = (b.item?.relevance ?? 0) - (a.item?.relevance ?? 0);
-    }
-    return result || a.index - b.index;
-  });
-  return decorated.map(({ item }) => item);
-}
 
 /** Collect the set of industries present in a portals.yml tracked_companies list. */
 export function collectIndustries(trackedCompanies) {

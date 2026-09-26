@@ -1866,7 +1866,9 @@
   background: var(--mantle);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  position: relative;
 }
+.discover-toolbar.has-popover { z-index: 100; }
 .discover-toolbar-row {
   display: flex;
   align-items: center;
@@ -1912,14 +1914,7 @@
 .discover-selection-bar label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
 .discover-selection-bar .btn:first-of-type { margin-left: auto; }
 .discover-card-head > .discover-check { flex: 0 0 auto; margin-top: 4px; position: relative; z-index: 2; }
-.discover-sort-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--subtext);
-  font-size: 12px;
-}
-.discover-sort-control .form-select { min-width: 148px; min-height: 30px; padding: 4px 28px 4px 8px; }
+.discover-filter-wrap { position: relative; flex: 0 0 auto; }
 .pipeline-score-slider {
   flex-wrap: nowrap;
 }

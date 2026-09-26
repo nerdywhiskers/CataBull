@@ -30,13 +30,35 @@ import {
 } from '../lib/pending-contextual-scoring.mjs';
 import {
   buildDiscoverFilter,
+  sortByRelevance,
   collectIndustries,
   areAllDiscoverItemsSelected,
   setDiscoverSelectionForItems,
-  DISCOVER_SORT_MODES,
-  sortDiscoverItems,
   selectionForDragRect,
 } from '../lib/discover-grouping.mjs';
+
+const DISCOVER_FILTER_KEY = 'catabull-discover-filter';
+const DATE_RANGE_OPTIONS = [
+  { value: 'any', label: 'Any time' },
+  { value: '24h', label: 'Last 24 hours' },
+  { value: '7d', label: 'Last 7 days' },
+  { value: '30d', label: 'Last 30 days' },
+];
+
+function loadDiscoverFilters() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DISCOVER_FILTER_KEY) || '{}');
+    return {
+      industries: new Set(Array.isArray(parsed.industries) ? parsed.industries : []),
+      location: typeof parsed.location === 'string' ? parsed.location : '',
+      dateRange: DATE_RANGE_OPTIONS.some((option) => option.value === parsed.dateRange) ? parsed.dateRange : 'any',
+    };
+  } catch {
+    return { industries: new Set(), location: '', dateRange: 'any' };
+  }
+}
+
+const savedFilters = loadDiscoverFilters();
 
 // Cached state — refreshed on render or when actions mutate.
 let pending = [];
@@ -45,7 +67,9 @@ let scanStatus = null;
 let scanProgress = { visible: false };
 let minScore = 2.5;     // default threshold; matches the scan relevance default
 let exactScore = null;
-let industryFilter = new Set();   // empty = no filter
+let industryFilter = savedFilters.industries;   // empty = no filter
+let locationFilter = savedFilters.location;
+let dateRangeFilter = savedFilters.dateRange;
 let companyFilter = '';          // free-text
 let searchQuery = '';
 let viewMode = localStorage.getItem('catabull-discover-view') === 'list' ? 'list' : 'cards';
@@ -54,9 +78,8 @@ let contextualScoringRun = 0;
 let contextualScoringActive = false;
 let contextualScoringError = '';
 let selected = new Set();
-let sortMode = DISCOVER_SORT_MODES.includes(localStorage.getItem('catabull-discover-sort'))
-  ? localStorage.getItem('catabull-discover-sort')
-  : 'relevance';
+let filterPopoverOpen = false;
+let filterOutsideHandler = null;
 let suppressCardClickUntil = 0;
 
 // Scan controls moved here from the Portals page (2026-05-16). The
@@ -205,6 +228,8 @@ function applyFilters(items) {
     industries: industryFilter,
     company: companyFilter,
     search: searchQuery,
+    location: locationFilter,
+    dateRange: dateRangeFilter,
     resolveIndustries: postingIndustries,
   });
   return items.filter(predicate);
@@ -212,6 +237,24 @@ function applyFilters(items) {
 
 function uniqueIndustries() {
   return collectIndustries(portals?.tracked_companies);
+}
+
+function saveDiscoverFilters() {
+  try {
+    localStorage.setItem(DISCOVER_FILTER_KEY, JSON.stringify({
+      industries: [...industryFilter],
+      location: locationFilter,
+      dateRange: dateRangeFilter,
+    }));
+  } catch { /* localStorage can be disabled */ }
+}
+
+function activeDiscoverFilterCount() {
+  let count = 0;
+  if (industryFilter.size > 0) count++;
+  if (locationFilter.trim()) count++;
+  if (dateRangeFilter !== 'any') count++;
+  return count;
 }
 
 function renderScanSchedule() {
@@ -407,34 +450,76 @@ function renderHeader() {
   `;
 }
 
-function renderTopBar() {
-  const industries = uniqueIndustries();
-  const industryChips = industries.map((i) => {
-    const active = industryFilter.has(i);
-    return `<button class="discover-chip${active ? ' active' : ''}" data-industry="${esc(i)}" type="button">${esc(i)}</button>`;
-  }).join('');
+function renderDiscoverFilterButton() {
+  const count = activeDiscoverFilterCount();
+  const badge = count > 0 ? `<span class="pipeline-filter-badge">${count}</span>` : '';
+  return `
+    <button class="btn-icon pipeline-filter-btn${count > 0 ? ' is-active' : ''}${filterPopoverOpen ? ' is-open' : ''}" id="discover-filter-btn" type="button" aria-label="Filter Discover roles" aria-expanded="${filterPopoverOpen ? 'true' : 'false'}" title="Filter by industry, location, posted date">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M1.5 2h11l-4 5v5l-3-1.5V7l-4-5z"/>
+      </svg>
+      ${badge}
+    </button>
+  `;
+}
 
+function renderDiscoverFilterPopover() {
+  const industries = uniqueIndustries().map((industry) => {
+    const active = industryFilter.has(industry);
+    return `<button class="pipeline-filter-chip${active ? ' is-active' : ''}" data-discover-industry="${esc(industry)}" type="button">${esc(industry)}</button>`;
+  }).join('');
+  const dateOptions = DATE_RANGE_OPTIONS.map((option) =>
+    `<option value="${option.value}"${option.value === dateRangeFilter ? ' selected' : ''}>${option.label}</option>`
+  ).join('');
+  return `
+    <div class="pipeline-filter-popover discover-filter-popover" role="dialog" aria-label="Filter Discover roles">
+      <div class="pipeline-filter-section">
+        <div class="pipeline-filter-section-head">
+          <span class="pipeline-filter-section-title">Industry</span>
+          ${industryFilter.size ? `<button class="pipeline-filter-clear" type="button" data-discover-clear="industries">Clear (${industryFilter.size})</button>` : ''}
+        </div>
+        <div class="pipeline-filter-chips">${industries || '<span class="pipeline-filter-hint">No tracked industries.</span>'}</div>
+      </div>
+      <div class="pipeline-filter-section">
+        <div class="pipeline-filter-section-head">
+          <span class="pipeline-filter-section-title">Location</span>
+          ${locationFilter ? '<button class="pipeline-filter-clear" type="button" data-discover-clear="location">Clear</button>' : ''}
+        </div>
+        <input type="text" class="form-input pipeline-filter-location" id="discover-filter-location-input" placeholder="e.g. Remote, Los Angeles, US" value="${esc(locationFilter)}" />
+        <p class="pipeline-filter-hint">Substring match. Roles without a location won't appear when this is set.</p>
+      </div>
+      <div class="pipeline-filter-section">
+        <div class="pipeline-filter-section-head">
+          <span class="pipeline-filter-section-title">Posted</span>
+          ${dateRangeFilter !== 'any' ? '<button class="pipeline-filter-clear" type="button" data-discover-clear="date">Clear</button>' : ''}
+        </div>
+        <select class="form-select pipeline-filter-date" id="discover-filter-date-select">${dateOptions}</select>
+        <p class="pipeline-filter-hint">Roles without a posted date won't appear when a window is set.</p>
+      </div>
+      <div class="pipeline-filter-footer">
+        <button class="btn btn-ghost btn-sm" type="button" id="discover-filter-reset">Reset all</button>
+        <button class="btn btn-sm btn-primary" type="button" id="discover-filter-close">Done</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderTopBar() {
   return `
     ${renderHeader()}
     ${renderScanSchedule()}
     <div class="scan-progress-slot">${renderScanProgress(scanProgress)}</div>
 
-    <div class="discover-toolbar">
+    <div class="discover-toolbar${filterPopoverOpen ? ' has-popover' : ''}">
       <div class="discover-toolbar-row">
         <div class="discover-group-toggle" aria-label="Discover view">
           <button class="discover-toggle-btn${viewMode === 'cards' ? ' active' : ''}" data-view="cards" type="button">Cards</button>
           <button class="discover-toggle-btn${viewMode === 'list' ? ' active' : ''}" data-view="list" type="button">List</button>
         </div>
-        <label class="discover-sort-control">
-          <span>Sort</span>
-          <select class="form-select" id="discover-sort">
-            <option value="relevance"${sortMode === 'relevance' ? ' selected' : ''}>Best match</option>
-            <option value="date-desc"${sortMode === 'date-desc' ? ' selected' : ''}>Posted: newest</option>
-            <option value="date-asc"${sortMode === 'date-asc' ? ' selected' : ''}>Posted: oldest</option>
-            <option value="location-asc"${sortMode === 'location-asc' ? ' selected' : ''}>Location: A–Z</option>
-            <option value="location-desc"${sortMode === 'location-desc' ? ' selected' : ''}>Location: Z–A</option>
-          </select>
-        </label>
+        <div class="discover-filter-wrap">
+          ${renderDiscoverFilterButton()}
+          ${filterPopoverOpen ? renderDiscoverFilterPopover() : ''}
+        </div>
         <label class="discover-score-slider">
           <span>Min score: <strong id="discover-min-label">${minScore.toFixed(1)}</strong></span>
           <input type="range" min="0" max="5" step="0.5" value="${minScore}" id="discover-min-input" />
@@ -444,13 +529,6 @@ function renderTopBar() {
           <input class="form-input" id="discover-exact-input" type="number" min="0" max="5" step="0.1" placeholder="Any" value="${exactScore == null ? '' : exactScore.toFixed(1)}" />
         </label>
       </div>
-      ${industries.length > 0 ? `
-        <div class="discover-chips">
-          <span class="discover-chip-label">Industry:</span>
-          ${industryChips}
-          ${industryFilter.size > 0 ? '<button class="discover-chip-clear" id="discover-clear-industry" type="button">Clear</button>' : ''}
-        </div>
-      ` : ''}
     </div>
   `;
 }
@@ -491,7 +569,7 @@ function renderCard(p) {
 }
 
 function renderGroups(filtered) {
-  const sorted = sortDiscoverItems(filtered, sortMode);
+  const sorted = sortByRelevance(filtered);
   const selectionBar = `
     <div class="discover-selection-bar">
       <label><input type="checkbox" id="discover-select-all" ${areAllDiscoverItemsSelected(selected, sorted) ? 'checked' : ''}> Select all shown</label>
@@ -520,7 +598,7 @@ function renderEmptyState() {
   return `
     <div class="empty-state">
       <h3>No matches with current filters</h3>
-      <p>Lower the minimum score, clear industry filters, or change your search keywords.</p>
+      <p>Lower the minimum score, clear filters, or change your search keywords.</p>
     </div>
   `;
 }
@@ -543,6 +621,86 @@ function rerender(container) {
   container.scrollTop = prevScroll;
 }
 
+function bindDiscoverFilter(container) {
+  if (filterOutsideHandler) {
+    document.removeEventListener('click', filterOutsideHandler, true);
+    filterOutsideHandler = null;
+  }
+
+  container.querySelector('#discover-filter-btn')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    filterPopoverOpen = !filterPopoverOpen;
+    rerender(container);
+  });
+  if (!filterPopoverOpen) return;
+
+  filterOutsideHandler = (event) => {
+    if (event.target.closest('.discover-filter-wrap')) return;
+    filterPopoverOpen = false;
+    rerender(container);
+  };
+  document.addEventListener('click', filterOutsideHandler, true);
+
+  container.querySelectorAll('[data-discover-industry]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const industry = button.dataset.discoverIndustry;
+      if (industryFilter.has(industry)) industryFilter.delete(industry);
+      else industryFilter.add(industry);
+      saveDiscoverFilters();
+      rerender(container);
+    });
+  });
+
+  const locationInput = container.querySelector('#discover-filter-location-input');
+  if (locationInput) {
+    let debounceTimer;
+    locationInput.addEventListener('input', (event) => {
+      clearTimeout(debounceTimer);
+      const value = event.target.value;
+      debounceTimer = setTimeout(() => {
+        locationFilter = value;
+        saveDiscoverFilters();
+        preserveFocus(container, () => rerender(container));
+      }, 220);
+    });
+  }
+
+  container.querySelector('#discover-filter-date-select')?.addEventListener('change', (event) => {
+    dateRangeFilter = DATE_RANGE_OPTIONS.some((option) => option.value === event.target.value)
+      ? event.target.value
+      : 'any';
+    saveDiscoverFilters();
+    rerender(container);
+  });
+
+  container.querySelectorAll('[data-discover-clear]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (button.dataset.discoverClear === 'industries') industryFilter = new Set();
+      if (button.dataset.discoverClear === 'location') locationFilter = '';
+      if (button.dataset.discoverClear === 'date') dateRangeFilter = 'any';
+      saveDiscoverFilters();
+      rerender(container);
+    });
+  });
+
+  container.querySelector('#discover-filter-reset')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    industryFilter = new Set();
+    locationFilter = '';
+    dateRangeFilter = 'any';
+    saveDiscoverFilters();
+    rerender(container);
+  });
+
+  container.querySelector('#discover-filter-close')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    filterPopoverOpen = false;
+    rerender(container);
+  });
+}
+
 function bindEvents(container) {
   container.querySelector('#discover-refresh-btn')?.addEventListener('click', async (e) => {
     e.currentTarget.disabled = true;
@@ -556,6 +714,7 @@ function bindEvents(container) {
   });
 
   bindScanControls(container);
+  bindDiscoverFilter(container);
   container.querySelector('#search-keywords-btn')?.addEventListener('click', () => openSearchKeywordsModal(container));
   container.querySelector('#contextual-scoring-toggle')?.addEventListener('change', async (e) => {
     const enabled = Boolean(e.target.checked);
@@ -605,15 +764,6 @@ function bindEvents(container) {
     }
   });
 
-  container.querySelector('#discover-sort')?.addEventListener('change', (event) => {
-    sortMode = DISCOVER_SORT_MODES.includes(event.target.value) ? event.target.value : 'relevance';
-    localStorage.setItem('catabull-discover-sort', sortMode);
-    const body = container.querySelector('.discover-body');
-    if (body) {
-      body.innerHTML = renderBody();
-      bindCardEvents(container);
-    }
-  });
 
   container.querySelectorAll('.discover-toggle-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -623,19 +773,6 @@ function bindEvents(container) {
     });
   });
 
-  container.querySelectorAll('.discover-chip').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const ind = btn.dataset.industry;
-      if (industryFilter.has(ind)) industryFilter.delete(ind);
-      else industryFilter.add(ind);
-      rerender(container);
-    });
-  });
-
-  container.querySelector('#discover-clear-industry')?.addEventListener('click', () => {
-    industryFilter.clear();
-    rerender(container);
-  });
 
   bindCardEvents(container);
 }
@@ -910,7 +1047,7 @@ function bindCardDragSelection(container, filtered) {
 }
 
 function bindCardEvents(container) {
-  const filtered = sortDiscoverItems(applyFilters(pending), sortMode);
+  const filtered = sortByRelevance(applyFilters(pending));
   const selectAll = container.querySelector('#discover-select-all');
   if (selectAll) {
     selectAll.onchange = () => {
