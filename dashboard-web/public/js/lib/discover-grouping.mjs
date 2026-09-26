@@ -84,3 +84,19 @@ export function collectIndustries(trackedCompanies) {
   }
   return [...set].sort();
 }
+
+export function areAllDiscoverItemsSelected(selectedUrls, items = []) {
+  if (!items.length) return false;
+  const selected = selectedUrls instanceof Set ? selectedUrls : new Set(selectedUrls || []);
+  return items.every((item) => item?.url && selected.has(item.url));
+}
+
+export function setDiscoverSelectionForItems(selectedUrls, items = [], checked = false) {
+  const next = selectedUrls instanceof Set ? new Set(selectedUrls) : new Set(selectedUrls || []);
+  for (const item of items) {
+    if (!item?.url) continue;
+    if (checked) next.add(item.url);
+    else next.delete(item.url);
+  }
+  return next;
+}

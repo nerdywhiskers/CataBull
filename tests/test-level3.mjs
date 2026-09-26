@@ -167,6 +167,18 @@ const preSeenResult = await runLevel3({
 const stillSeesJob100 = preSeenResult.added.some((a) => a.url === 'https://linkedin.com/jobs/100');
 assert(!stillSeesJob100, 'pre-seen URL excluded');
 
+const deletedVariantResult = await runLevel3({
+  searchQueries: [{ name: 'Other board', query: 'staff backend engineer', enabled: true }],
+  titleFilter: TITLE_FILTER,
+  blockedPostings: [{ url: 'https://old-board.test/jobs/1', company: 'Acme', role: 'Staff Backend Engineer' }],
+  webSearch: async () => [
+    { url: 'https://new-board.test/jobs/2', title: 'Senior Staff Backend Engineer at Acme', snippet: '' },
+  ],
+  livenessCheck: stubLive,
+});
+assert(deletedVariantResult.added.length === 0, 'deleted role blocks near-title variants from another provider');
+assert(deletedVariantResult.skipped.dup === 1, 'deleted near-title variant counts as a duplicate');
+
 // ── 7. runLevel3 — totalCap ────────────────────────────────────────
 
 console.log('\n7. totalCap caps total added');

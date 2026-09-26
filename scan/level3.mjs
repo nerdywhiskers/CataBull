@@ -15,7 +15,7 @@
 import { buildTitleClassifier } from '../lib/title-filter.mjs';
 import { searchWeb } from './websearch.mjs';
 import { isActiveLiveness } from '../lib/job-board-liveness.mjs';
-import { canonicalCompanyRoleKey, canonicalJobUrlKey } from '../lib/role-identity.mjs';
+import { canonicalCompanyRoleKey, canonicalJobUrlKey, sameJobPosting } from '../lib/role-identity.mjs';
 
 const LIVENESS_CONCURRENCY = 1;   // Playwright is single-threaded per browser
 const SEARCH_CONCURRENCY = 3;     // Rate-limit-friendly across providers
@@ -172,6 +172,7 @@ export async function runLevel3({
   titleFilter,
   seenUrls = new Set(),
   seenCompanyRoles = new Set(),
+  blockedPostings = [],
   onProgress = () => {},
   webSearch = searchWeb,
   livenessCheck,
@@ -284,7 +285,8 @@ export async function runLevel3({
       const company = cand.companyHint || extractCompany({ title: cand.searchTitle, url: cand.url });
       const role = extractRole(cand.searchTitle);
       const companyRoleKey = canonicalCompanyRoleKey(company, role);
-      if (seenCompanyRoles.has(companyRoleKey)) {
+      const posting = { url: cand.url, company, role };
+      if (seenCompanyRoles.has(companyRoleKey) || blockedPostings.some((existing) => sameJobPosting(existing, posting))) {
         skipped.dup++;
         continue;
       }
@@ -312,7 +314,8 @@ export async function runLevel3({
       const company = cand.companyHint || extractCompany({ title: cand.searchTitle, url: cand.url });
       const role = extractRole(cand.searchTitle);
       const companyRoleKey = canonicalCompanyRoleKey(company, role);
-      if (seenCompanyRoles.has(companyRoleKey)) {
+      const posting = { url: cand.url, company, role };
+      if (seenCompanyRoles.has(companyRoleKey) || blockedPostings.some((existing) => sameJobPosting(existing, posting))) {
         skipped.dup++;
         continue;
       }

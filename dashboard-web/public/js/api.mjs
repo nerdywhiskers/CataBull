@@ -98,6 +98,7 @@ export const api = {
   addPending: ({ url, company, role, postedAt, location } = {}) =>
     request('/pipeline/add', { method: 'POST', body: { url, company, role, postedAt, location } }),
   addDiscoveryToPipeline: (url) => request('/discover/add-to-pipeline', { method: 'POST', body: { url } }),
+  deleteDiscovery: (urls) => request('/discover/delete', { method: 'POST', body: { urls } }),
 
   // Reports
   getReports: () => request('/reports'),

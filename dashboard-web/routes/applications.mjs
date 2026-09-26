@@ -1,5 +1,5 @@
 import { parseApplications, loadReportSummary, parsePipeline, parseDiscovery } from '../lib/parsers.mjs';
-import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, addPendingItem, updatePendingItem, updatePendingContextualScores, updateDiscoveryContextualScores, promoteDiscoveryItem, canonicalCompanyRoleKey, enforcePipelineConsistency } from '../lib/writers.mjs';
+import { updateApplicationStatus, skipPipelineItem, unskipPipelineItem, markPipelineApplied, deleteAllPending, deletePendingByUrl, deleteDiscoveryByUrl, addPendingItem, updatePendingItem, updatePendingContextualScores, updateDiscoveryContextualScores, promoteDiscoveryItem, canonicalCompanyRoleKey, enforcePipelineConsistency } from '../lib/writers.mjs';
 import { readProfile, readProfileMarkdown, readPortals } from '../lib/writers.mjs';
 import { scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../lib/relevance.mjs';
 import { enrichJobUrl } from '../lib/job-url-metadata.mjs';
@@ -88,7 +88,19 @@ export default async function (app) {
       ...pipelineItems.map((item) => canonicalCompanyRoleKey(item.company, item.role)),
     ]);
     const seenKeys = new Set();
-    const blockedPostings = [...apps, ...pipelineItems];
+    const deletedDiscoveries = [];
+    const scanHistoryPath = join(root, 'data', 'scan-history.tsv');
+    if (existsSync(scanHistoryPath)) {
+      for (const line of readFileSync(scanHistoryPath, 'utf-8').split(/\r?\n/).slice(1)) {
+        const fields = line.split('\t');
+        if (fields[5] === 'deleted') deletedDiscoveries.push({ url: fields[0], role: fields[3], company: fields[4] });
+      }
+    }
+    for (const item of deletedDiscoveries) {
+      blockedUrls.add(canonicalJobUrlKey(item.url));
+      blockedKeys.add(canonicalCompanyRoleKey(item.company, item.role));
+    }
+    const blockedPostings = [...apps, ...pipelineItems, ...deletedDiscoveries];
     const seenPostings = [];
     const discover = rawDiscover.filter((item) => {
       const key = canonicalCompanyRoleKey(item.company, item.role);
@@ -278,6 +290,15 @@ export default async function (app) {
     if (!result.success) return reply.code(404).send({ error: result.error || 'Discovery item not found' });
     enforcePipelineConsistency(root);
     return result;
+  });
+
+  app.post('/discover/delete', async (req, reply) => {
+    const { urls } = req.body || {};
+    if (!Array.isArray(urls) || !urls.length) {
+      return reply.code(400).send({ error: 'urls must be a non-empty array' });
+    }
+    const removed = deleteDiscoveryByUrl(root, urls);
+    return { success: true, removed };
   });
 
   app.patch('/pipeline/item', async (req, reply) => {

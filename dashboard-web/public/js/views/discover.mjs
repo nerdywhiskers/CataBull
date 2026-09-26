@@ -32,6 +32,8 @@ import {
   buildDiscoverFilter,
   sortByRelevance,
   collectIndustries,
+  areAllDiscoverItemsSelected,
+  setDiscoverSelectionForItems,
 } from '../lib/discover-grouping.mjs';
 
 // Cached state — refreshed on render or when actions mutate.
@@ -49,6 +51,7 @@ let activeContainer = null;
 let contextualScoringRun = 0;
 let contextualScoringActive = false;
 let contextualScoringError = '';
+let selected = new Set();
 
 // Scan controls moved here from the Portals page (2026-05-16). The
 // `catabull-scan-limit` localStorage key stays shared with portals.mjs
@@ -448,6 +451,7 @@ function renderCard(p) {
   return `
     <article class="discover-card${skipped ? ' is-skipped' : ''}" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" role="button" tabindex="0" aria-label="View match details for ${esc(p.role)} at ${esc(p.company)}">
       <header class="discover-card-head">
+        <input type="checkbox" class="discover-check" data-url="${esc(p.url)}" ${selected.has(p.url) ? 'checked' : ''} aria-label="Select ${esc(p.role)} at ${esc(p.company)}" data-card-stop>
         <div class="discover-card-title">
           <span class="discover-card-company">${esc(p.company)}</span>
           <span class="discover-card-role">${esc(p.role)}</span>
@@ -463,6 +467,7 @@ function renderCard(p) {
       </div>
       <div class="discover-card-actions">
         <a class="btn btn-ghost btn-sm" href="${esc(p.url)}" target="_blank" rel="noreferrer" data-card-stop>Open</a>
+        <button class="btn btn-ghost btn-sm discover-delete" type="button" data-card-stop>Delete</button>
         <button class="btn btn-sm btn-primary discover-add" type="button" data-card-stop>Add to pipeline</button>
       </div>
     </article>
@@ -471,11 +476,18 @@ function renderCard(p) {
 
 function renderGroups(filtered) {
   const sorted = sortByRelevance(filtered);
-  if (viewMode === 'cards') return `<div class="discover-grid">${sorted.map(renderCard).join('')}</div>`;
-  return `<div class="table-scroll"><table class="data-table discover-list"><thead><tr><th>Company</th><th>Role</th><th>Score</th><th>Posted</th><th>Location</th><th>Actions</th></tr></thead><tbody>${sorted.map((p) => `
+  const selectionBar = `
+    <div class="discover-selection-bar">
+      <label><input type="checkbox" id="discover-select-all" ${areAllDiscoverItemsSelected(selected, sorted) ? 'checked' : ''}> Select all shown</label>
+      <span>${selected.size} selected</span>
+      <button class="btn btn-sm btn-danger" id="discover-delete-selected" type="button" ${selected.size ? '' : 'disabled'}>Delete selected</button>
+    </div>`;
+  if (viewMode === 'cards') return `${selectionBar}<div class="discover-grid">${sorted.map(renderCard).join('')}</div>`;
+  return `${selectionBar}<div class="table-scroll"><table class="data-table discover-list"><thead><tr><th class="col-check"><span class="sr-only">Select</span></th><th>Company</th><th>Role</th><th>Score</th><th>Posted</th><th>Location</th><th>Actions</th></tr></thead><tbody>${sorted.map((p) => `
     <tr data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}">
+      <td class="col-check"><input type="checkbox" class="discover-check" data-url="${esc(p.url)}" ${selected.has(p.url) ? 'checked' : ''} aria-label="Select ${esc(p.role)} at ${esc(p.company)}" data-card-stop></td>
       <td>${esc(p.company)}</td><td>${esc(p.role)}</td><td>${scoreValue(p).toFixed(1)}</td><td>${esc(p.postedAt || '—')}</td><td>${esc(p.location || '—')}</td>
-      <td class="cell-actions"><a class="btn btn-ghost btn-sm" href="${esc(p.url)}" target="_blank" rel="noreferrer" data-card-stop>Open</a><button class="btn btn-sm btn-primary discover-add" type="button">Add to pipeline</button></td>
+      <td class="cell-actions"><a class="btn btn-ghost btn-sm" href="${esc(p.url)}" target="_blank" rel="noreferrer" title="Open posting" data-card-stop>&#x2197;</a><button class="btn btn-ghost btn-sm discover-delete" type="button" data-card-stop>Delete</button><button class="btn btn-sm btn-primary discover-add" type="button" data-card-stop>Add to pipeline</button></td>
     </tr>`).join('')}</tbody></table></div>`;
 }
 
@@ -740,7 +752,57 @@ function bindScanControls(container) {
 // Card-only handlers, separated from bindEvents so the slider's live-drag
 // path (which only repaints `.discover-body`) can re-attach them without
 // touching the toolbar inputs that would otherwise lose focus mid-drag.
+async function confirmDeleteDiscovery(container, urls) {
+  if (!urls.length) return false;
+  const ok = await confirmModal({
+    title: `Delete ${urls.length === 1 ? 'role' : `${urls.length} roles`}?`,
+    body: '<p>This deletes every selected role, including selections hidden by current filters. Deleted roles stay excluded from future scans.</p>',
+    confirmText: 'Delete',
+    danger: true,
+  });
+  if (!ok) return false;
+  try {
+    const result = await api.deleteDiscovery(urls);
+    urls.forEach((url) => selected.delete(url));
+    toast(`Deleted ${result.removed} role${result.removed === 1 ? '' : 's'}`);
+    await loadData();
+    rerender(container);
+    return true;
+  } catch (err) {
+    toast(`Delete failed: ${err.message}`, 'error');
+    return false;
+  }
+}
+
 function bindCardEvents(container) {
+  const filtered = sortByRelevance(applyFilters(pending));
+  const selectAll = container.querySelector('#discover-select-all');
+  if (selectAll) {
+    selectAll.onchange = () => {
+      selected = setDiscoverSelectionForItems(selected, filtered, selectAll.checked);
+      const body = container.querySelector('.discover-body');
+      if (body) {
+        body.innerHTML = renderBody();
+        bindCardEvents(container);
+      }
+    };
+  }
+  container.querySelector('#discover-delete-selected')?.addEventListener('click', () => {
+    confirmDeleteDiscovery(container, [...selected]);
+  });
+  container.querySelectorAll('.discover-check').forEach((checkbox) => {
+    checkbox.addEventListener('change', (event) => {
+      event.stopPropagation();
+      if (checkbox.checked) selected.add(checkbox.dataset.url);
+      else selected.delete(checkbox.dataset.url);
+      const body = container.querySelector('.discover-body');
+      if (body) {
+        body.innerHTML = renderBody();
+        bindCardEvents(container);
+      }
+    });
+  });
+
   container.querySelectorAll('.discover-card, .discover-list tbody tr').forEach((card) => {
     const url = card.dataset.url;
     const company = card.dataset.company;
@@ -765,10 +827,16 @@ function bindCardEvents(container) {
       }
     });
 
+    card.querySelector('.discover-delete')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      confirmDeleteDiscovery(container, [url]);
+    });
+
     card.querySelector('.discover-add')?.addEventListener('click', async (e) => {
       e.stopPropagation();
       try {
         await api.addDiscoveryToPipeline(url);
+        selected.delete(url);
         toast(`${role} added to pipeline`);
         await loadData();
         rerender(container);
@@ -789,6 +857,8 @@ async function loadData() {
     ]);
     const nextPending = Array.isArray(appsResp.discover) ? appsResp.discover : [];
     pending = mergePendingContextualState(nextPending, pending);
+    const availableUrls = new Set(pending.map((item) => item.url));
+    selected = new Set([...selected].filter((url) => availableUrls.has(url)));
     portals = portalsResp?.portals || portalsResp || null;
     scanStatus = statusResp || null;
   } catch (err) {
