@@ -292,6 +292,27 @@ export default async function (app) {
     return result;
   });
 
+  app.post('/discover/add-to-pipeline/bulk', async (req, reply) => {
+    const urls = [...new Set((Array.isArray(req.body?.urls) ? req.body.urls : [])
+      .map((url) => String(url || '').trim())
+      .filter(Boolean))];
+    if (!urls.length) return reply.code(400).send({ error: 'urls must be a non-empty array' });
+
+    const results = [];
+    for (const url of urls) {
+      const result = promoteDiscoveryItem(root, url);
+      results.push({ url, ...result });
+    }
+    enforcePipelineConsistency(root);
+    return {
+      success: results.some((result) => result.success),
+      requested: urls.length,
+      promoted: results.filter((result) => result.success).length,
+      failed: results.filter((result) => !result.success).length,
+      results,
+    };
+  });
+
   app.post('/discover/delete', async (req, reply) => {
     const { urls } = req.body || {};
     if (!Array.isArray(urls) || !urls.length) {
