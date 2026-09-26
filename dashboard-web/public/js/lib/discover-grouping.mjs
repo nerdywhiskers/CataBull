@@ -7,6 +7,7 @@
  */
 
 export const DISCOVER_VIEW_MODES = Object.freeze(['cards', 'list']);
+export const DISCOVER_SORT_MODES = Object.freeze(['relevance', 'date-desc', 'date-asc', 'location-asc', 'location-desc']);
 
 /** Build the predicate used to filter pending postings on the Discover tab. */
 export function buildDiscoverFilter({
@@ -73,6 +74,34 @@ export function sortByRelevance(items) {
   return [...(items || [])].sort((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0));
 }
 
+export function sortDiscoverItems(items, mode = 'relevance') {
+  const selectedMode = DISCOVER_SORT_MODES.includes(mode) ? mode : 'relevance';
+  const decorated = [...(items || [])].map((item, index) => ({ item, index }));
+  const compareMissingLast = (a, b, direction = 1) => {
+    const aMissing = a == null || a === '' || Number.isNaN(a);
+    const bMissing = b == null || b === '' || Number.isNaN(b);
+    if (aMissing !== bMissing) return aMissing ? 1 : -1;
+    if (aMissing) return 0;
+    return a < b ? -direction : a > b ? direction : 0;
+  };
+  decorated.sort((a, b) => {
+    let result = 0;
+    if (selectedMode === 'date-desc' || selectedMode === 'date-asc') {
+      const aDate = Date.parse(a.item?.postedAt || '');
+      const bDate = Date.parse(b.item?.postedAt || '');
+      result = compareMissingLast(aDate, bDate, selectedMode === 'date-desc' ? -1 : 1);
+    } else if (selectedMode === 'location-asc' || selectedMode === 'location-desc') {
+      const aLocation = String(a.item?.location || '').trim().toLocaleLowerCase();
+      const bLocation = String(b.item?.location || '').trim().toLocaleLowerCase();
+      result = compareMissingLast(aLocation, bLocation, selectedMode === 'location-desc' ? -1 : 1);
+    } else {
+      result = (b.item?.relevance ?? 0) - (a.item?.relevance ?? 0);
+    }
+    return result || a.index - b.index;
+  });
+  return decorated.map(({ item }) => item);
+}
+
 /** Collect the set of industries present in a portals.yml tracked_companies list. */
 export function collectIndustries(trackedCompanies) {
   const set = new Set();
@@ -97,6 +126,21 @@ export function setDiscoverSelectionForItems(selectedUrls, items = [], checked =
     if (!item?.url) continue;
     if (checked) next.add(item.url);
     else next.delete(item.url);
+  }
+  return next;
+}
+
+export function selectionForDragRect(selectedUrls, cards = [], dragRect = {}) {
+  const next = selectedUrls instanceof Set ? new Set(selectedUrls) : new Set(selectedUrls || []);
+  const left = Math.min(Number(dragRect.left) || 0, Number(dragRect.right) || 0);
+  const right = Math.max(Number(dragRect.left) || 0, Number(dragRect.right) || 0);
+  const top = Math.min(Number(dragRect.top) || 0, Number(dragRect.bottom) || 0);
+  const bottom = Math.max(Number(dragRect.top) || 0, Number(dragRect.bottom) || 0);
+  for (const card of cards) {
+    const rect = card?.rect;
+    if (!card?.url || !rect) continue;
+    const intersects = rect.left <= right && rect.right >= left && rect.top <= bottom && rect.bottom >= top;
+    if (intersects) next.add(card.url);
   }
   return next;
 }

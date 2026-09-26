@@ -38,6 +38,9 @@ const {
   collectIndustries,
   areAllDiscoverItemsSelected,
   setDiscoverSelectionForItems,
+  DISCOVER_SORT_MODES,
+  sortDiscoverItems,
+  selectionForDragRect,
 } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'lib', 'discover-grouping.mjs')).href
 );
@@ -230,6 +233,36 @@ const deselectedVisible = setDiscoverSelectionForItems(selectedVisible, visible,
 assert(!deselectedVisible.has('a') && !deselectedVisible.has('b'), 'deselect-all removes filtered roles');
 assert(deselectedVisible.has('hidden'), 'deselect-all preserves hidden selections');
 
+// ── 6. sorting ──────────────────────────────────────────────────────
+
+console.log('\n6. sorting');
+
+const sortable = [
+  { url: 'old-z', relevance: 5, postedAt: '2026-01-01', location: 'Zurich' },
+  { url: 'new-a', relevance: 3, postedAt: '2026-08-01', location: 'Austin' },
+  { url: 'missing', relevance: 4, postedAt: '', location: '' },
+];
+assert(DISCOVER_SORT_MODES.join(',') === 'relevance,date-desc,date-asc,location-asc,location-desc', 'Discover exposes match, date, and location sort modes');
+assert(sortDiscoverItems(sortable, 'date-desc').map((p) => p.url).join(',') === 'new-a,old-z,missing', 'newest sort puts missing dates last');
+assert(sortDiscoverItems(sortable, 'date-asc').map((p) => p.url).join(',') === 'old-z,new-a,missing', 'oldest sort puts missing dates last');
+assert(sortDiscoverItems(sortable, 'location-asc').map((p) => p.url).join(',') === 'new-a,old-z,missing', 'location A-Z puts blank locations last');
+assert(sortDiscoverItems(sortable, 'location-desc').map((p) => p.url).join(',') === 'old-z,new-a,missing', 'location Z-A puts blank locations last');
+assert(sortable[0].url === 'old-z', 'sorting does not mutate input');
+
+// ── 7. drag-selection geometry ──────────────────────────────────────
+
+console.log('\n7. drag-selection geometry');
+
+const dragCards = [
+  { url: 'a', rect: { left: 0, top: 0, right: 100, bottom: 100 } },
+  { url: 'b', rect: { left: 120, top: 0, right: 220, bottom: 100 } },
+  { url: 'c', rect: { left: 240, top: 0, right: 340, bottom: 100 } },
+];
+const dragged = selectionForDragRect(new Set(['hidden']), dragCards, { left: 50, top: 10, right: 180, bottom: 90 });
+assert(dragged.has('a') && dragged.has('b'), 'drag rectangle selects every intersecting card');
+assert(!dragged.has('c'), 'drag rectangle leaves non-intersecting cards unselected');
+assert(dragged.has('hidden'), 'drag selection preserves prior selections');
+
 assert(DISCOVER_VIEW_MODES.join(',') === 'cards,list', 'Discover exposes cards and list view modes');
 
 const discoverViewSource = readFileSync(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'discover.mjs'), 'utf8');
@@ -241,6 +274,9 @@ assert(discoverViewSource.includes('Add to pipeline'), 'Discover exposes explici
 assert(discoverViewSource.includes('discover-list'), 'Discover implements list rendering alongside cards');
 assert(discoverViewSource.includes('discover-select-all'), 'Discover exposes select-all in card and list views');
 assert(discoverViewSource.includes('deleteDiscovery'), 'Discover exposes persistent deletion actions');
+assert(discoverViewSource.includes('addDiscoveriesToPipeline'), 'Discover exposes bulk pipeline promotion');
+assert(discoverViewSource.includes('discover-sort'), 'Discover exposes date and location sorting');
+assert(discoverViewSource.includes('discover-drag-marquee'), 'Discover card view exposes drag-selection marquee');
 assert(discoverViewSource.includes('&#x2197;'), 'Discover list uses the Pipeline arrow icon for posting links');
 assert(!discoverViewSource.includes('checkLivenessAll'), 'Discover refresh cannot mutate Pipeline liveness state');
 assert(discoverViewSource.includes('allowEvaluate: false'), 'Discover match details enforce the evaluation gate');

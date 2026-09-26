@@ -168,6 +168,22 @@ try {
     },
   });
   assert(badCharResponse.statusCode === 400, 'PATCH /pipeline/item rejects a newUrl containing a pipe character');
+
+  writeFileSync(discoverPath, '# Discover\n\n- [ ] https://jobs.test/bulk-one | BulkCo | Staff Designer | posted:2026-08-10 | loc:Austin\n- [ ] https://jobs.test/bulk-two | OtherCo | Design Director | posted:2026-08-11 | loc:Remote\n');
+  writeFileSync(pipelinePath, '# Pipeline\n');
+  const bulkPromoteResponse = await server.inject({
+    method: 'POST',
+    url: '/discover/add-to-pipeline/bulk',
+    payload: { urls: ['https://jobs.test/bulk-one', 'https://jobs.test/bulk-two'] },
+  });
+  assert(bulkPromoteResponse.statusCode === 200, 'bulk Discover promotion succeeds');
+  assert(bulkPromoteResponse.json().promoted === 2, 'bulk Discover promotion reports both selected roles');
+  const bulkPipeline = readFileSync(pipelinePath, 'utf8');
+  assert(bulkPipeline.includes('bulk-one') && bulkPipeline.includes('bulk-two'), 'bulk Discover promotion writes every selected role to Pipeline');
+  assert(!readFileSync(discoverPath, 'utf8').includes('bulk-one') && !readFileSync(discoverPath, 'utf8').includes('bulk-two'), 'bulk promotion removes every selected role from Discover');
+
+  const emptyBulkPromote = await server.inject({ method: 'POST', url: '/discover/add-to-pipeline/bulk', payload: { urls: [] } });
+  assert(emptyBulkPromote.statusCode === 400, 'bulk Discover promotion rejects an empty URL list');
 } finally {
   await server.close();
   rmSync(root, { recursive: true, force: true });

@@ -1910,8 +1910,16 @@
   font-size: 12px;
 }
 .discover-selection-bar label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
-.discover-selection-bar .btn { margin-left: auto; }
+.discover-selection-bar .btn:first-of-type { margin-left: auto; }
 .discover-card-head > .discover-check { flex: 0 0 auto; margin-top: 4px; position: relative; z-index: 2; }
+.discover-sort-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--subtext);
+  font-size: 12px;
+}
+.discover-sort-control .form-select { min-width: 148px; min-height: 30px; padding: 4px 28px 4px 8px; }
 .pipeline-score-slider {
   flex-wrap: nowrap;
 }
@@ -2056,6 +2064,20 @@ details[open] > .discover-group-summary::before { transform: rotate(90deg); }
     0 8px 16px -8px rgba(0, 0, 0, 0.4);
 }
 .discover-card:hover::before { opacity: 1; }
+.discover-card.is-selected {
+  border-color: var(--mauve);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--mauve) 28%, transparent), 0 18px 32px -20px rgba(0, 0, 0, 0.62);
+}
+.discover-grid.is-drag-selecting { user-select: none; cursor: crosshair; }
+.discover-drag-marquee {
+  position: fixed;
+  z-index: 500;
+  pointer-events: none;
+  border: 1px solid var(--mauve);
+  background: color-mix(in oklab, var(--mauve) 16%, transparent);
+  border-radius: 5px;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--mauve) 20%, transparent) inset;
+}
 .discover-card:focus-visible {
   outline: 2px solid var(--primary-soft);
   outline-offset: 2px;

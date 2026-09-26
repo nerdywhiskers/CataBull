@@ -30,10 +30,12 @@ import {
 } from '../lib/pending-contextual-scoring.mjs';
 import {
   buildDiscoverFilter,
-  sortByRelevance,
   collectIndustries,
   areAllDiscoverItemsSelected,
   setDiscoverSelectionForItems,
+  DISCOVER_SORT_MODES,
+  sortDiscoverItems,
+  selectionForDragRect,
 } from '../lib/discover-grouping.mjs';
 
 // Cached state — refreshed on render or when actions mutate.
@@ -52,6 +54,10 @@ let contextualScoringRun = 0;
 let contextualScoringActive = false;
 let contextualScoringError = '';
 let selected = new Set();
+let sortMode = DISCOVER_SORT_MODES.includes(localStorage.getItem('catabull-discover-sort'))
+  ? localStorage.getItem('catabull-discover-sort')
+  : 'relevance';
+let suppressCardClickUntil = 0;
 
 // Scan controls moved here from the Portals page (2026-05-16). The
 // `catabull-scan-limit` localStorage key stays shared with portals.mjs
@@ -419,6 +425,16 @@ function renderTopBar() {
           <button class="discover-toggle-btn${viewMode === 'cards' ? ' active' : ''}" data-view="cards" type="button">Cards</button>
           <button class="discover-toggle-btn${viewMode === 'list' ? ' active' : ''}" data-view="list" type="button">List</button>
         </div>
+        <label class="discover-sort-control">
+          <span>Sort</span>
+          <select class="form-select" id="discover-sort">
+            <option value="relevance"${sortMode === 'relevance' ? ' selected' : ''}>Best match</option>
+            <option value="date-desc"${sortMode === 'date-desc' ? ' selected' : ''}>Posted: newest</option>
+            <option value="date-asc"${sortMode === 'date-asc' ? ' selected' : ''}>Posted: oldest</option>
+            <option value="location-asc"${sortMode === 'location-asc' ? ' selected' : ''}>Location: A–Z</option>
+            <option value="location-desc"${sortMode === 'location-desc' ? ' selected' : ''}>Location: Z–A</option>
+          </select>
+        </label>
         <label class="discover-score-slider">
           <span>Min score: <strong id="discover-min-label">${minScore.toFixed(1)}</strong></span>
           <input type="range" min="0" max="5" step="0.5" value="${minScore}" id="discover-min-input" />
@@ -449,7 +465,7 @@ function renderCard(p) {
   const skipped = p.status === 'SKIP';
 
   return `
-    <article class="discover-card${skipped ? ' is-skipped' : ''}" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" role="button" tabindex="0" aria-label="View match details for ${esc(p.role)} at ${esc(p.company)}">
+    <article class="discover-card${skipped ? ' is-skipped' : ''}${selected.has(p.url) ? ' is-selected' : ''}" data-url="${esc(p.url)}" data-company="${esc(p.company)}" data-role="${esc(p.role)}" role="button" tabindex="0" aria-label="View match details for ${esc(p.role)} at ${esc(p.company)}">
       <header class="discover-card-head">
         <input type="checkbox" class="discover-check" data-url="${esc(p.url)}" ${selected.has(p.url) ? 'checked' : ''} aria-label="Select ${esc(p.role)} at ${esc(p.company)}" data-card-stop>
         <div class="discover-card-title">
@@ -475,11 +491,12 @@ function renderCard(p) {
 }
 
 function renderGroups(filtered) {
-  const sorted = sortByRelevance(filtered);
+  const sorted = sortDiscoverItems(filtered, sortMode);
   const selectionBar = `
     <div class="discover-selection-bar">
       <label><input type="checkbox" id="discover-select-all" ${areAllDiscoverItemsSelected(selected, sorted) ? 'checked' : ''}> Select all shown</label>
-      <span>${selected.size} selected</span>
+      <span class="discover-selected-count">${selected.size} selected</span>
+      <button class="btn btn-sm btn-primary" id="discover-add-selected" type="button" ${selected.size ? '' : 'disabled'}>Add selected to pipeline</button>
       <button class="btn btn-sm btn-danger" id="discover-delete-selected" type="button" ${selected.size ? '' : 'disabled'}>Delete selected</button>
     </div>`;
   if (viewMode === 'cards') return `${selectionBar}<div class="discover-grid">${sorted.map(renderCard).join('')}</div>`;
@@ -581,6 +598,16 @@ function bindEvents(container) {
     const value = e.target.value.trim();
     const parsed = value === '' ? null : Number.parseFloat(value);
     exactScore = Number.isFinite(parsed) && parsed >= 0 && parsed <= 5 ? parsed : null;
+    const body = container.querySelector('.discover-body');
+    if (body) {
+      body.innerHTML = renderBody();
+      bindCardEvents(container);
+    }
+  });
+
+  container.querySelector('#discover-sort')?.addEventListener('change', (event) => {
+    sortMode = DISCOVER_SORT_MODES.includes(event.target.value) ? event.target.value : 'relevance';
+    localStorage.setItem('catabull-discover-sort', sortMode);
     const body = container.querySelector('.discover-body');
     if (body) {
       body.innerHTML = renderBody();
@@ -774,8 +801,116 @@ async function confirmDeleteDiscovery(container, urls) {
   }
 }
 
+async function addSelectedDiscoveriesToPipeline(container, urls) {
+  if (!urls.length) return false;
+  const addButton = container.querySelector('#discover-add-selected');
+  if (addButton) addButton.disabled = true;
+  try {
+    const result = await api.addDiscoveriesToPipeline(urls);
+    urls.forEach((url) => selected.delete(url));
+    toast(`Added ${result.promoted} role${result.promoted === 1 ? '' : 's'} to pipeline${result.failed ? ` · ${result.failed} failed` : ''}`,
+      result.failed ? 'error' : undefined);
+    await loadData();
+    rerender(container);
+    window.dispatchEvent(new CustomEvent('catabull:data-maybe-changed'));
+    return result.failed === 0;
+  } catch (err) {
+    toast(`Add failed: ${err.message}`, 'error');
+    if (addButton?.isConnected) addButton.disabled = false;
+    return false;
+  }
+}
+
+function syncDiscoverSelectionUi(container, filtered) {
+  container.querySelectorAll('.discover-card').forEach((card) => {
+    card.classList.toggle('is-selected', selected.has(card.dataset.url));
+  });
+  container.querySelectorAll('.discover-check').forEach((checkbox) => {
+    checkbox.checked = selected.has(checkbox.dataset.url);
+  });
+  const selectAll = container.querySelector('#discover-select-all');
+  if (selectAll) selectAll.checked = areAllDiscoverItemsSelected(selected, filtered);
+  const count = container.querySelector('.discover-selected-count');
+  if (count) count.textContent = `${selected.size} selected`;
+  const addButton = container.querySelector('#discover-add-selected');
+  const deleteButton = container.querySelector('#discover-delete-selected');
+  if (addButton) addButton.disabled = selected.size === 0;
+  if (deleteButton) deleteButton.disabled = selected.size === 0;
+}
+
+function bindCardDragSelection(container, filtered) {
+  if (viewMode !== 'cards') return;
+  const grid = container.querySelector('.discover-grid');
+  if (!grid) return;
+  let drag = null;
+
+  const finish = (event) => {
+    if (!drag) return;
+    if (drag.active) suppressCardClickUntil = Date.now() + 150;
+    drag.marquee?.remove();
+    grid.classList.remove('is-drag-selecting');
+    if (grid.hasPointerCapture?.(event.pointerId)) grid.releasePointerCapture(event.pointerId);
+    window.removeEventListener('pointerup', finish);
+    window.removeEventListener('pointercancel', finish);
+    drag = null;
+  };
+
+  grid.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || event.target.closest('[data-card-stop], button, a, input, select, textarea')) return;
+    drag = {
+      startX: event.clientX,
+      startY: event.clientY,
+      baseSelection: new Set(selected),
+      cards: [...grid.querySelectorAll('.discover-card')].map((card) => ({
+        url: card.dataset.url,
+        rect: card.getBoundingClientRect(),
+      })),
+      active: false,
+      marquee: null,
+    };
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+  });
+
+  grid.addEventListener('pointermove', (event) => {
+    if (!drag) return;
+    if ((event.buttons & 1) === 0) {
+      finish(event);
+      return;
+    }
+    const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+    if (!drag.active && distance < 6) return;
+    if (!drag.active) {
+      drag.active = true;
+      drag.marquee = document.createElement('div');
+      drag.marquee.className = 'discover-drag-marquee';
+      document.body.appendChild(drag.marquee);
+      grid.classList.add('is-drag-selecting');
+      grid.setPointerCapture?.(event.pointerId);
+    }
+    event.preventDefault();
+    const rect = {
+      left: Math.min(drag.startX, event.clientX),
+      top: Math.min(drag.startY, event.clientY),
+      right: Math.max(drag.startX, event.clientX),
+      bottom: Math.max(drag.startY, event.clientY),
+    };
+    Object.assign(drag.marquee.style, {
+      left: `${rect.left}px`,
+      top: `${rect.top}px`,
+      width: `${rect.right - rect.left}px`,
+      height: `${rect.bottom - rect.top}px`,
+    });
+    selected = selectionForDragRect(drag.baseSelection, drag.cards, rect);
+    syncDiscoverSelectionUi(container, filtered);
+  });
+
+  grid.addEventListener('pointerup', finish);
+  grid.addEventListener('pointercancel', finish);
+}
+
 function bindCardEvents(container) {
-  const filtered = sortByRelevance(applyFilters(pending));
+  const filtered = sortDiscoverItems(applyFilters(pending), sortMode);
   const selectAll = container.querySelector('#discover-select-all');
   if (selectAll) {
     selectAll.onchange = () => {
@@ -787,6 +922,9 @@ function bindCardEvents(container) {
       }
     };
   }
+  container.querySelector('#discover-add-selected')?.addEventListener('click', () => {
+    addSelectedDiscoveriesToPipeline(container, [...selected]);
+  });
   container.querySelector('#discover-delete-selected')?.addEventListener('click', () => {
     confirmDeleteDiscovery(container, [...selected]);
   });
@@ -803,6 +941,8 @@ function bindCardEvents(container) {
     });
   });
 
+  bindCardDragSelection(container, filtered);
+
   container.querySelectorAll('.discover-card, .discover-list tbody tr').forEach((card) => {
     const url = card.dataset.url;
     const company = card.dataset.company;
@@ -816,6 +956,7 @@ function bindCardEvents(container) {
       openScoreModal(posting, { kind: 'pending', allowEvaluate: false });
     };
     card.addEventListener('click', (e) => {
+      if (Date.now() < suppressCardClickUntil) return;
       if (e.target.closest('[data-card-stop]')) return;
       openMatchModal();
     });
