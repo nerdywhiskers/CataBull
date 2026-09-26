@@ -76,5 +76,28 @@ assert(result.skipped.expired === 1, 'expired liveness results are dropped');
 assert(events.some((payload) => payload.stage === 'l4:provider:skip' && payload.provider === 'jobspy'), 'jobspy skip event emitted without killing run');
 assert(events.some((payload) => payload.stage === 'l4:provider:done' && payload.provider === 'remotive'), 'provider completion event emitted');
 
+const blockedVariantResult = await runLevel4({
+  root: process.cwd(),
+  portals: {
+    title_filter: { positive: ['engineer'], negative: [] },
+    market: { providers: ['remotive'], provider_limits: { remotive: 10 } },
+  },
+  remainingCap: 10,
+  seenUrls: new Set(),
+  seenCompanyRoles: new Set(),
+  blockedPostings: [{ url: 'https://old-board.test/jobs/1', company: 'Acme', role: 'Staff Platform Engineer' }],
+  livenessCheck: async () => ({ result: 'active', reason: 'apply button visible' }),
+  send,
+  getMarketProviderImpl: () => ({
+    name: 'remotive',
+    async fetch() {
+      return { jobs: [{ url: 'https://new-board.test/jobs/2', title: 'Senior Staff Platform Engineer', company: 'Acme', source: 'market:remotive' }] };
+    },
+  }),
+  listMarketProvidersImpl: () => [{ name: 'remotive' }],
+});
+assert(blockedVariantResult.added.length === 0, 'Level 4 suppresses a deleted near-title variant from another provider');
+assert(blockedVariantResult.skipped.dup === 1, 'Level 4 deleted near-title variant counts as duplicate');
+
 console.log(`\nPassed: ${passed}/${total}`);
 if (failed > 0) process.exit(1);

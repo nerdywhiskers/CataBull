@@ -25,6 +25,8 @@ try {
   writeFileSync(pipelinePath, originalPipeline);
   const discoverPath = join(root, 'data', 'discover.md');
   writeFileSync(discoverPath, '# Discover\n\n- [ ] https://jobs.test/new-role | NewCo | Product Designer | posted:2026-08-06 | loc:Remote | match:high | llm:4.0 | why:Exact profile fit | signals:portfolio,leadership\n- [ ] https://jobs.test/new-role-mirror | NewCo, Inc. | Product Designer\n- [ ] https://jobs.test/acme-mirror | Acme, Inc. | Designer\n- [ ] https://provider-b.example/roles/xyz | Acme | Head of AI Workflows\n');
+  const scanHistoryPath = join(root, 'data', 'scan-history.tsv');
+  writeFileSync(scanHistoryPath, 'url\tfirst_seen\tportal\ttitle\tcompany\tstatus\nhttps://jobs.test/new-role\t2026-08-06\ttest\tProduct Designer\tNewCo\tadded\n');
 
   server.decorate('cataBullRoot', root);
   await server.register(applicationsRoute);
@@ -37,6 +39,27 @@ try {
   assert(body.discover[0].url === 'https://jobs.test/new-role', 'GET preserves first discovery and its stable URL');
   assert(readFileSync(pipelinePath, 'utf8') === originalPipeline, 'GET does not rewrite pipeline state');
   assert(readFileSync(discoverPath, 'utf8').includes('new-role-mirror'), 'GET does not destructively rewrite duplicate discovery rows');
+
+  const deleteResponse = await server.inject({
+    method: 'POST',
+    url: '/discover/delete',
+    payload: { urls: ['https://jobs.test/new-role'] },
+  });
+  assert(deleteResponse.statusCode === 200, 'POST /discover/delete succeeds');
+  assert(deleteResponse.json().removed === 2, 'delete removes selected discovery and canonical mirrors');
+  assert(!readFileSync(discoverPath, 'utf8').includes('Product Designer'), 'deleted discovery roles leave the inbox');
+  const deletedHistory = readFileSync(scanHistoryPath, 'utf8');
+  assert(deletedHistory.includes('https://jobs.test/new-role\t2026-08-06\ttest\tProduct Designer\tNewCo\tdeleted'), 'delete marks existing scan history as deleted');
+  assert(deletedHistory.includes('https://jobs.test/new-role-mirror'), 'delete records canonical mirrors in scan history');
+
+  const emptyDeleteResponse = await server.inject({ method: 'POST', url: '/discover/delete', payload: { urls: [] } });
+  assert(emptyDeleteResponse.statusCode === 400, 'discover delete rejects an empty URL list');
+
+  writeFileSync(discoverPath, '# Discover\n\n- [ ] https://jobs.test/new-role | NewCo | Product Designer\n');
+  const afterDeleteResponse = await server.inject({ method: 'GET', url: '/applications' });
+  assert(afterDeleteResponse.json().discoverTotal === 0, 'deleted role stays hidden if stale scan output re-adds it');
+
+  writeFileSync(discoverPath, '# Discover\n\n- [ ] https://jobs.test/new-role | NewCo | Product Designer | posted:2026-08-06 | loc:Remote | match:high | llm:4.0 | why:Exact profile fit | signals:portfolio,leadership\n- [ ] https://jobs.test/new-role-mirror | NewCo, Inc. | Product Designer\n- [ ] https://jobs.test/acme-mirror | Acme, Inc. | Designer\n- [ ] https://provider-b.example/roles/xyz | Acme | Head of AI Workflows\n');
 
   const promoteResponse = await server.inject({
     method: 'POST',

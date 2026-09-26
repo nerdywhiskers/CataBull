@@ -1897,6 +1897,21 @@
 }
 .discover-list td:last-child { white-space: nowrap; }
 .discover-list .cell-actions { display: flex; gap: 6px; align-items: center; }
+.discover-selection-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--mantle);
+  color: var(--subtext);
+  font-size: 12px;
+}
+.discover-selection-bar label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.discover-selection-bar .btn { margin-left: auto; }
+.discover-card-head > .discover-check { flex: 0 0 auto; margin-top: 4px; position: relative; z-index: 2; }
 .pipeline-score-slider {
   flex-wrap: nowrap;
 }

@@ -10,7 +10,7 @@
  */
 
 import { asWorkspace } from '../../lib/workspace.mjs';
-import { canonicalCompanyRoleKey, sameJobPosting } from '../../lib/role-identity.mjs';
+import { canonicalCompanyRoleKey, canonicalJobUrlKey, sameJobPosting } from '../../lib/role-identity.mjs';
 // Cyclic import is fine: parsers.mjs imports `applicationsPath` from this
 // file but only at function call time (not module top), and we import
 // `parseApplications` the same way. ESM resolves both bindings before
@@ -635,6 +635,61 @@ function removeDiscoveryRole(ws, company, role) {
   });
   if (removed) ws.write('data/discover.md', kept.join('\n'));
   return removed;
+}
+
+function markDiscoveriesDeleted(ws, removedItems) {
+  if (!removedItems.length) return;
+  const relPath = 'data/scan-history.tsv';
+  const header = 'url\tfirst_seen\tportal\ttitle\tcompany\tstatus';
+  const existing = ws.read(relPath);
+  const lines = existing == null ? [header] : existing.trimEnd().split(/\r?\n/);
+  if (!lines.length || !lines[0].startsWith('url\t')) lines.unshift(header);
+
+  const recordedUrls = new Set();
+  for (let i = 1; i < lines.length; i++) {
+    const fields = lines[i].split('\t');
+    if (fields.length < 5) continue;
+    const historyItem = { url: fields[0], role: fields[3], company: fields[4] };
+    const historyKey = canonicalCompanyRoleKey(historyItem.company, historyItem.role);
+    if (!removedItems.some((item) => canonicalCompanyRoleKey(item.company, item.role) === historyKey || sameJobPosting(historyItem, item))) continue;
+    fields[5] = 'deleted';
+    lines[i] = fields.join('\t');
+    recordedUrls.add(canonicalJobUrlKey(fields[0]));
+  }
+
+  const date = new Date().toISOString().slice(0, 10);
+  for (const item of removedItems) {
+    const urlKey = canonicalJobUrlKey(item.url);
+    if (!urlKey || recordedUrls.has(urlKey)) continue;
+    const clean = (value) => String(value || '').replace(/[\t\r\n]+/g, ' ').trim();
+    lines.push([clean(item.url), date, 'discover', clean(item.role), clean(item.company), 'deleted'].join('\t'));
+    recordedUrls.add(urlKey);
+  }
+  ws.write(relPath, `${lines.join('\n')}\n`);
+}
+
+/** Delete selected Discover roles, canonical mirrors included, and tombstone them for future scans. */
+export function deleteDiscoveryByUrl(root, urls = []) {
+  const requested = new Set(urls.map((url) => String(url || '').trim()).filter(Boolean));
+  if (!requested.size) return 0;
+  const ws = asWorkspace(root);
+  const content = ws.read('data/discover.md');
+  if (content == null) return 0;
+  const selected = parseDiscovery(root).filter((item) => requested.has(item.url));
+  if (!selected.length) return 0;
+
+  const removedItems = [];
+  const kept = content.split('\n').filter((line) => {
+    const item = parsePipelineIdentity(line);
+    if (!item || !selected.some((target) => item.key === canonicalCompanyRoleKey(target.company, target.role) || sameJobPosting(item, target))) return true;
+    removedItems.push(item);
+    return false;
+  });
+  if (removedItems.length) {
+    ws.write('data/discover.md', kept.join('\n'));
+    markDiscoveriesDeleted(ws, removedItems);
+  }
+  return removedItems.length;
 }
 
 /** Promote one discovery into Pipeline and remove every canonical mirror. */

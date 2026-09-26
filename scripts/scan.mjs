@@ -198,7 +198,8 @@ function loadSeenUrls() {
   if (existsSync(SCAN_HISTORY_PATH)) {
     const lines = readFileSync(SCAN_HISTORY_PATH, 'utf-8').split('\n');
     for (const line of lines.slice(1)) { // skip header
-      const url = line.split('\t')[0];
+      const fields = line.split('\t');
+      const url = fields[0];
       if (url) add(url);
     }
   }
@@ -232,6 +233,14 @@ function loadSeenUrls() {
 
 function loadSeenCompanyRoles() {
   const seen = new Set();
+  if (existsSync(SCAN_HISTORY_PATH)) {
+    for (const line of readFileSync(SCAN_HISTORY_PATH, 'utf-8').split('\n').slice(1)) {
+      const fields = line.split('\t');
+      if (fields[5] === 'deleted' && fields[3] && fields[4]) {
+        seen.add(canonicalCompanyRoleKey(fields[4], fields[3]));
+      }
+    }
+  }
   const collectTable = (path) => {
     if (!existsSync(path)) return;
     const text = readFileSync(path, 'utf-8');
@@ -256,6 +265,14 @@ function loadSeenCompanyRoles() {
 
 function loadSeenPostings() {
   const seen = [];
+  if (existsSync(SCAN_HISTORY_PATH)) {
+    for (const line of readFileSync(SCAN_HISTORY_PATH, 'utf8').split('\n').slice(1)) {
+      const fields = line.split('\t');
+      if (fields[5] === 'deleted' && fields[0] && fields[3] && fields[4]) {
+        seen.push({ url: fields[0], role: fields[3], company: fields[4] });
+      }
+    }
+  }
   const collectQueue = (path) => {
     if (!existsSync(path)) return;
     for (const line of readFileSync(path, 'utf8').split('\n')) {

@@ -32,7 +32,7 @@ import { launchChromiumWithRetry } from '../../lib/playwright-launch.mjs';
 import { createLineBuffer, parseProgressLine } from '../../lib/scan-progress-stream.mjs';
 import { buildTitleClassifier } from '../../lib/title-filter.mjs';
 import { loadEnvFile } from '../../lib/load-env.mjs';
-import { canonicalCompanyRoleKey } from '../../lib/role-identity.mjs';
+import { canonicalCompanyRoleKey, sameJobPosting } from '../../lib/role-identity.mjs';
 import { DEFAULT_MIN_RELEVANCE, hasRelevanceSignals, resolveMinRelevance, scorePostingTitle, rationaleSummary, relevanceInputsFrom } from '../../lib/relevance.mjs';
 import { readProfile } from '../lib/writers.mjs';
 import { finishScanRun, startScanRun, updateScanRun } from '../lib/scan-run-state.mjs';
@@ -146,7 +146,7 @@ export default async function (app) {
 
       send('progress', { stage: 'l3:start', enabled_queries: enabledQueries.length });
 
-      const { seenUrls, seenCompanyRoles } = loadDedupSets({
+      const { seenUrls, seenCompanyRoles, blockedPostings } = loadDedupSets({
         root,
         addedNow: quickResult.addedItems || [],
       });
@@ -170,6 +170,7 @@ export default async function (app) {
           titleFilter: portals.title_filter,
           seenUrls,
           seenCompanyRoles,
+          blockedPostings,
           totalCap: remainingAfterQuick,
           onProgress: (p) => send('progress', { stage: `l3:${p.stage}`, ...p }),
           webSearch: searchWeb,
@@ -208,6 +209,7 @@ export default async function (app) {
           remainingCap: limit ? Math.max(0, limit - quickResult.added - level3Result.added.length) : 0,
           seenUrls,
           seenCompanyRoles,
+          blockedPostings,
           livenessCheck,
           send,
         });
@@ -395,13 +397,19 @@ function readPortals(root) {
 function loadDedupSets({ root, addedNow = [] }) {
   const seenUrls = new Set();
   const seenCompanyRoles = new Set();
+  const blockedPostings = [];
 
   const SCAN_HISTORY_PATH = join(root, 'data', 'scan-history.tsv');
   if (existsSync(SCAN_HISTORY_PATH)) {
     const lines = readFileSync(SCAN_HISTORY_PATH, 'utf-8').split('\n');
     for (const line of lines.slice(1)) {
-      const url = line.split('\t')[0];
+      const fields = line.split('\t');
+      const url = fields[0];
       if (url) seenUrls.add(normalizeUrl(url));
+      if (fields[5] === 'deleted' && fields[3] && fields[4]) {
+        seenCompanyRoles.add(canonicalCompanyRoleKey(fields[4], fields[3]));
+        blockedPostings.push({ url: fields[0], role: fields[3], company: fields[4] });
+      }
     }
   }
 
@@ -453,7 +461,7 @@ function loadDedupSets({ root, addedNow = [] }) {
     }
   }
 
-  return { seenUrls, seenCompanyRoles };
+  return { seenUrls, seenCompanyRoles, blockedPostings };
 }
 
 // ── Writers (mirror scan.mjs so Level 3 survivors land in the same place) ──
@@ -502,6 +510,7 @@ export async function runLevel4({
   remainingCap,
   seenUrls,
   seenCompanyRoles,
+  blockedPostings = [],
   livenessCheck,
   send,
   detectRunnerImpl = detectJobSpyRunner,
@@ -579,6 +588,7 @@ export async function runLevel4({
     remainingCap,
     seenUrls,
     seenCompanyRoles,
+    blockedPostings,
     livenessCheck,
     send,
     errors,
@@ -690,7 +700,7 @@ async function collectJobSpyHits({ market, queries, send, errors, allHits, detec
   send('progress', { stage: 'l4:provider:done', provider: 'jobspy', hits: allHits.filter((job) => String(job.source || '').startsWith('jobspy:')).length });
 }
 
-async function filterLevel4Hits({ portals, hits, remainingCap, seenUrls, seenCompanyRoles, livenessCheck, send, errors }) {
+async function filterLevel4Hits({ portals, hits, remainingCap, seenUrls, seenCompanyRoles, blockedPostings = [], livenessCheck, send, errors }) {
   const classifyTitle = buildTitleClassifier(portals.title_filter);
   const skipped = zeroLevel4Skipped();
   const candidates = [];
@@ -723,7 +733,8 @@ async function filterLevel4Hits({ portals, hits, remainingCap, seenUrls, seenCom
     if (!isActiveLiveness(result)) { skipped.unverified++; continue; }
     if (seenUrls.has(candidate.normalizedUrl)) { skipped.dup++; continue; }
     const companyKey = canonicalCompanyRoleKey(candidate.company || 'unknown', candidate.title);
-    if (seenCompanyRoles.has(companyKey)) { skipped.dup++; continue; }
+    const posting = { url: candidate.url, company: candidate.company || 'unknown', role: candidate.title };
+    if (seenCompanyRoles.has(companyKey) || blockedPostings.some((existing) => sameJobPosting(existing, posting))) { skipped.dup++; continue; }
     seenCompanyRoles.add(companyKey);
     seenUrls.add(candidate.normalizedUrl);
     added.push({

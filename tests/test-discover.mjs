@@ -36,6 +36,8 @@ const {
   groupPostingsByCompany,
   sortByRelevance,
   collectIndustries,
+  areAllDiscoverItemsSelected,
+  setDiscoverSelectionForItems,
 } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'lib', 'discover-grouping.mjs')).href
 );
@@ -212,6 +214,22 @@ assert(dup.includes('fintech'), 'fintech surfaced');
 assert(collectIndustries([]).length === 0, 'empty input → []');
 assert(collectIndustries(null).length === 0, 'null input → []');
 
+// ── 5. filtered bulk selection ───────────────────────────────────────
+
+console.log('\n5. filtered bulk selection');
+
+const visible = postings.slice(0, 2);
+assert(!areAllDiscoverItemsSelected(new Set(['a']), visible), 'partial visible selection keeps select-all unchecked');
+assert(areAllDiscoverItemsSelected(new Set(['a', 'b', 'hidden']), visible), 'all visible selected ignores unrelated hidden selections');
+assert(!areAllDiscoverItemsSelected(new Set(), []), 'empty result set never reports select-all checked');
+
+const selectedVisible = setDiscoverSelectionForItems(new Set(['hidden']), visible, true);
+assert(selectedVisible.has('a') && selectedVisible.has('b'), 'select-all adds every filtered role');
+assert(selectedVisible.has('hidden'), 'select-all preserves hidden selections');
+const deselectedVisible = setDiscoverSelectionForItems(selectedVisible, visible, false);
+assert(!deselectedVisible.has('a') && !deselectedVisible.has('b'), 'deselect-all removes filtered roles');
+assert(deselectedVisible.has('hidden'), 'deselect-all preserves hidden selections');
+
 assert(DISCOVER_VIEW_MODES.join(',') === 'cards,list', 'Discover exposes cards and list view modes');
 
 const discoverViewSource = readFileSync(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'discover.mjs'), 'utf8');
@@ -221,6 +239,9 @@ const deepScanSource = readFileSync(join(ROOT, 'dashboard-web', 'routes', 'scan-
 assert(discoverViewSource.includes('appsResp.discover'), 'Discover renders the isolated discovery queue instead of pipeline pending rows');
 assert(discoverViewSource.includes('Add to pipeline'), 'Discover exposes explicit pipeline promotion in both views');
 assert(discoverViewSource.includes('discover-list'), 'Discover implements list rendering alongside cards');
+assert(discoverViewSource.includes('discover-select-all'), 'Discover exposes select-all in card and list views');
+assert(discoverViewSource.includes('deleteDiscovery'), 'Discover exposes persistent deletion actions');
+assert(discoverViewSource.includes('&#x2197;'), 'Discover list uses the Pipeline arrow icon for posting links');
 assert(!discoverViewSource.includes('checkLivenessAll'), 'Discover refresh cannot mutate Pipeline liveness state');
 assert(discoverViewSource.includes('allowEvaluate: false'), 'Discover match details enforce the evaluation gate');
 assert(scoreModalSource.includes("allowEvaluate ? `<button class=\"btn btn-secondary\" data-action=\"evaluate\""), 'score modal hides evaluation action when the gate is closed');
@@ -229,6 +250,8 @@ assert(scanSource.includes('appendToDiscovery(newOffers)'), 'Quick Scan writes n
 assert(!scanSource.includes('appendToPipeline(newOffers)'), 'Quick Scan no longer inserts scanned roles directly into Pipeline');
 assert(deepScanSource.includes('appendToDiscovery(root, level3Result.added)'), 'Deep Scan Level 3 writes new roles to Discover');
 assert(deepScanSource.includes('appendToDiscovery(root, level4Result.added)'), 'Deep Scan Level 4 writes new roles to Discover');
+assert(scanSource.includes('canonicalCompanyRoleKey(fields[4], fields[3])'), 'Quick Scan suppresses previously seen company-role pairs from scan history');
+assert(deepScanSource.includes('canonicalCompanyRoleKey(fields[4], fields[3])'), 'Deep Scan suppresses previously seen company-role pairs from scan history');
 
 // ── DONE ──────────────────────────────────────────────────────────────
 
