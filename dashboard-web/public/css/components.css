@@ -678,6 +678,9 @@
 }
 
 @media (max-width: 900px) {
+  .grid-5 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
   .grid-4 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -724,6 +727,7 @@
 }
 
 @media (max-width: 560px) {
+  .grid-5,
   .grid-4 {
     grid-template-columns: 1fr;
   }

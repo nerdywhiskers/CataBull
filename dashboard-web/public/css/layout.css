@@ -207,9 +207,11 @@ body {
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; }
+.grid-5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
 .grid-2 > *,
 .grid-3 > *,
-.grid-4 > * { min-width: 0; }
+.grid-4 > *,
+.grid-5 > * { min-width: 0; }
 
 /* ── Right rail (chat / terminal) ────────────────────────────────────── */
 .terminal-drawer {
