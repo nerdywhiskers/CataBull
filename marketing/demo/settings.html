@@ -42,129 +42,224 @@
             </header>
 
             <form class="settings-form">
-              <section class="settings-section">
-                <div class="settings-section-header">
-                  <div>
-                    <h2>API Keys</h2>
-                    <p>Leave a configured key blank to keep the current value.</p>
-                  </div>
-                </div>
-                <div class="settings-grid">
-                  <div class="settings-field settings-secret-field">
-                    <div class="settings-field-top">
-                      <label class="form-label">Brave Search API key</label>
-                      <span class="settings-status is-on">Configured from .env</span>
+              <div class="settings-column">
+                <section class="settings-section">
+                  <div class="settings-section-header">
+                    <div>
+                      <h2>API Keys</h2>
+                      <p>Leave a configured key blank to keep the current value.</p>
                     </div>
-                    <div class="settings-secret-input">
-                      <input class="form-input" type="password" placeholder="Configured, leave blank to keep" disabled>
-                      <button class="btn btn-sm btn-outline" type="button" data-noop>Clear</button>
-                    </div>
-                    <span class="settings-help">Used by Deep Scan WebSearch.</span>
                   </div>
+                  <div class="settings-grid">
+                    <div class="settings-field settings-secret-field">
+                      <div class="settings-field-top">
+                        <label class="form-label">Brave Search API key</label>
+                        <span class="settings-status is-on">Configured from .env</span>
+                      </div>
+                      <div class="settings-secret-input">
+                        <input class="form-input" type="password" placeholder="Configured, leave blank to keep" disabled>
+                        <button class="btn btn-sm btn-outline" type="button" data-noop>Clear</button>
+                      </div>
+                      <span class="settings-help">Used by Deep Scan WebSearch.</span>
+                    </div>
 
-                  <div class="settings-field settings-secret-field">
-                    <div class="settings-field-top">
-                      <label class="form-label">Serper API key</label>
-                      <span class="settings-status is-on">Configured from .env</span>
+                    <div class="settings-field settings-secret-field">
+                      <div class="settings-field-top">
+                        <label class="form-label">Serper API key</label>
+                        <span class="settings-status is-on">Configured from .env</span>
+                      </div>
+                      <div class="settings-secret-input">
+                        <input class="form-input" type="password" placeholder="Configured, leave blank to keep" disabled>
+                        <button class="btn btn-sm btn-outline" type="button" data-noop>Clear</button>
+                      </div>
+                      <span class="settings-help">Optional Google-style WebSearch backup.</span>
                     </div>
-                    <div class="settings-secret-input">
-                      <input class="form-input" type="password" placeholder="Configured, leave blank to keep" disabled>
-                      <button class="btn btn-sm btn-outline" type="button" data-noop>Clear</button>
+
+                    <div class="settings-field settings-secret-field">
+                      <div class="settings-field-top">
+                        <label class="form-label">Apollo API key</label>
+                        <span class="settings-status is-off">Not set</span>
+                      </div>
+                      <div class="settings-secret-input">
+                        <input class="form-input" type="password" placeholder="Paste key" disabled>
+                        <button class="btn btn-sm btn-outline" type="button" disabled>Clear</button>
+                      </div>
+                      <span class="settings-help">Reserved for contact discovery and outreach.</span>
                     </div>
-                    <span class="settings-help">Optional Google-style WebSearch backup.</span>
                   </div>
+                </section>
 
-                  <div class="settings-field settings-secret-field">
-                    <div class="settings-field-top">
-                      <label class="form-label">Apollo API key</label>
-                      <span class="settings-status is-off">Not set</span>
+                <section class="settings-section settings-section-compact">
+                  <div class="settings-section-header">
+                    <div>
+                      <h2>Tailnet Access</h2>
+                      <p>Share privately through Tailscale Serve.</p>
                     </div>
-                    <div class="settings-secret-input">
-                      <input class="form-input" type="password" placeholder="Paste key" disabled>
-                      <button class="btn btn-sm btn-outline" type="button" disabled>Clear</button>
+                  </div>
+                  <div class="settings-grid settings-grid-compact settings-grid-inline">
+                    <label class="settings-field">
+                      <span class="form-label">Tailscale mode</span>
+                      <select class="form-select" disabled>
+                        <option selected>Local only</option>
+                        <option>Detect only</option>
+                        <option>Share with tailnet</option>
+                      </select>
+                      <span class="settings-help">CataBull still listens on localhost.</span>
+                    </label>
+                    <div class="settings-field">
+                      <div class="settings-field-top">
+                        <span class="form-label">Tailscale status</span>
+                        <span class="settings-status is-off">Unavailable</span>
+                      </div>
+                      <span class="settings-help">Tailscale is not running on this machine.</span>
                     </div>
-                    <span class="settings-help">Reserved for contact discovery and outreach.</span>
                   </div>
-                </div>
-              </section>
+                </section>
 
-              <section class="settings-section">
-                <div class="settings-section-header">
-                  <div>
-                    <h2>Scan Defaults</h2>
-                    <p>These tune scan behavior without changing portals.yml.</p>
+                <section class="settings-section settings-section-compact">
+                  <div class="settings-section-header">
+                    <div>
+                      <h2>Global Install Workspace</h2>
+                      <p>Controls where the npm-installed catabull CLI stores and reads your data.</p>
+                    </div>
                   </div>
-                </div>
-                <div class="settings-grid">
-                  <label class="settings-field">
-                    <span class="form-label">WebSearch provider</span>
-                    <select class="form-select" disabled>
-                      <option selected>Auto</option>
-                      <option>Brave</option>
-                      <option>Serper</option>
-                      <option>Scrape fallback</option>
-                    </select>
-                    <span class="settings-help">Auto follows the provider order below.</span>
-                  </label>
-                  <label class="settings-field">
-                    <span class="form-label">Auto provider order</span>
-                    <select class="form-select" disabled>
-                      <option selected>Brave, Serper, scrape</option>
-                      <option>Serper, Brave, scrape</option>
-                    </select>
-                    <span class="settings-help">Used only when provider is Auto.</span>
-                  </label>
-                  <label class="settings-field">
-                    <span class="form-label">Deep Scan max roles</span>
-                    <input class="form-input" type="number" value="80" disabled>
-                    <span class="settings-help">Use 0 for no local limit.</span>
-                  </label>
-                  <label class="settings-field">
-                    <span class="form-label">Minimum relevance</span>
-                    <input class="form-input" type="number" value="3.0" disabled>
-                    <span class="settings-help">Filters Quick Scan, WebSearch, and JobSpy roles before they hit Pending. Use 0 to keep everything.</span>
-                  </label>
-                  <label class="settings-field">
-                    <span class="form-label">Freshness window</span>
-                    <select class="form-select" disabled>
-                      <option selected>Last 30 days</option>
-                    </select>
-                    <span class="settings-help">Roles without posted dates are kept.</span>
-                  </label>
-                </div>
-              </section>
+                  <div class="settings-grid settings-grid-compact settings-grid-inline">
+                    <label class="settings-field">
+                      <span class="form-label">Workspace preference</span>
+                      <select class="form-select" disabled>
+                        <option selected>Home workspace (~/.catabull)</option>
+                        <option>Current CataBull folder when detected</option>
+                      </select>
+                      <span class="settings-help">Default is the safe home workspace. Choosing the current folder only affects global installs and never changes which code install gets updated.</span>
+                    </label>
+                    <div class="settings-field">
+                      <div class="settings-field-top">
+                        <span class="form-label">Current workspace root</span>
+                      </div>
+                      <span class="settings-help"><code>~/.catabull</code></span>
+                    </div>
+                  </div>
+                </section>
 
-              <section class="settings-section">
-                <div class="settings-section-header">
-                  <div>
-                    <h2>Backup</h2>
-                    <p>Export or restore the user-data layer.</p>
+                <section class="settings-section settings-section-compact">
+                  <div class="settings-section-header">
+                    <div>
+                      <h2>Application Updates</h2>
+                      <p>Check the CataBull repo and pull fast-forward updates into this install.</p>
+                    </div>
                   </div>
-                </div>
-                <div class="settings-action-row">
-                  <a class="btn btn-outline" href="#" data-noop>Export Backup</a>
-                  <button class="btn btn-outline" type="button" data-noop>Import Backup</button>
-                </div>
-              </section>
+                  <div class="settings-grid settings-grid-compact">
+                    <div class="settings-field">
+                      <div class="settings-field-top">
+                        <span class="form-label">Auto update</span>
+                        <label class="toggle" title="Toggle automatic updates">
+                          <input type="checkbox" checked disabled>
+                          <span class="toggle-track"></span>
+                          <span class="toggle-thumb"></span>
+                        </label>
+                      </div>
+                      <span class="settings-help">When enabled, CataBull checks on launch and applies repo updates automatically when safe.</span>
+                    </div>
+                    <div class="update-status-card">
+                      <span><span class="update-status-ok">Up to date</span> · v1.4.1</span>
+                    </div>
+                  </div>
+                  <div class="settings-action-row">
+                    <button class="btn btn-outline" type="button" data-noop>Check for Updates</button>
+                    <button class="btn btn-primary" type="button" data-noop disabled>Update</button>
+                    <button class="btn btn-outline" type="button" data-noop disabled title="Dev installs only: runs git pull --ff-only against origin/main">Pull from git</button>
+                    <button class="btn btn-outline" type="button" data-noop disabled title="Restart available only when the dashboard was launched through catabull or start.mjs">Restart Dashboard</button>
+                  </div>
+                </section>
+              </div>
 
-              <section class="settings-section">
-                <div class="settings-section-header">
-                  <div>
-                    <h2>Data Maintenance</h2>
-                    <p>Clean or rebuild scan data when the pipeline gets noisy.</p>
+              <div class="settings-column">
+                <section class="settings-section">
+                  <div class="settings-section-header">
+                    <div>
+                      <h2>Scan Defaults</h2>
+                      <p>These tune scan behavior without changing portals.yml.</p>
+                    </div>
                   </div>
-                </div>
-                <div class="settings-maintenance-stats">
-                  <span><strong>18</strong> pending</span>
-                  <span><strong>412</strong> scan-history rows</span>
-                  <span><strong>31</strong> application URLs</span>
-                </div>
-                <div class="settings-action-row">
-                  <button class="btn btn-outline" type="button" data-noop>Clear Pending</button>
-                  <button class="btn btn-outline" type="button" data-noop>Clear Scan History</button>
-                  <button class="btn btn-outline" type="button" data-noop>Rebuild Scan History</button>
-                </div>
-              </section>
+                  <div class="settings-grid">
+                    <label class="settings-field">
+                      <span class="form-label">WebSearch provider</span>
+                      <select class="form-select" disabled>
+                        <option selected>Auto</option>
+                        <option>Brave</option>
+                        <option>Scrape fallback</option>
+                        <option>Serper</option>
+                      </select>
+                      <span class="settings-help">Auto follows the provider order below.</span>
+                    </label>
+                    <label class="settings-field">
+                      <span class="form-label">Auto provider order</span>
+                      <select class="form-select" disabled>
+                        <option selected>Brave, Serper, scrape</option>
+                        <option>Serper, Brave, scrape</option>
+                        <option>Brave, scrape</option>
+                        <option>Serper, scrape</option>
+                        <option>Scrape only</option>
+                      </select>
+                      <span class="settings-help">Used only when provider is Auto.</span>
+                    </label>
+                    <label class="settings-field">
+                      <span class="form-label">Deep Scan max roles</span>
+                      <input class="form-input" type="number" value="80" disabled>
+                      <span class="settings-help">Use 0 for no local limit.</span>
+                    </label>
+                    <label class="settings-field">
+                      <span class="form-label">Minimum relevance</span>
+                      <input class="form-input" type="number" value="3.0" disabled>
+                      <span class="settings-help">Filters Quick Scan, WebSearch, and JobSpy roles before they hit Pending. Use 0 to keep everything.</span>
+                    </label>
+                    <label class="settings-field">
+                      <span class="form-label">Freshness window</span>
+                      <select class="form-select" disabled>
+                        <option>Any posted date</option>
+                        <option>Last 24 hours</option>
+                        <option>Last 7 days</option>
+                        <option>Last 14 days</option>
+                        <option selected>Last 30 days</option>
+                        <option>Last 60 days</option>
+                      </select>
+                      <span class="settings-help">Roles without posted dates are kept.</span>
+                    </label>
+                  </div>
+                </section>
+
+                <section class="settings-section settings-section-compact">
+                  <div class="settings-section-header">
+                    <div>
+                      <h2>Backup</h2>
+                      <p>Export or restore the user-data layer.</p>
+                    </div>
+                  </div>
+                  <div class="settings-action-row">
+                    <a class="btn btn-outline" href="#" data-noop>Export Backup</a>
+                    <button class="btn btn-outline" type="button" data-noop>Import Backup</button>
+                  </div>
+                </section>
+
+                <section class="settings-section settings-section-compact">
+                  <div class="settings-section-header">
+                    <div>
+                      <h2>Data Maintenance</h2>
+                      <p>Clean or rebuild scan data when the pipeline gets noisy.</p>
+                    </div>
+                  </div>
+                  <div class="settings-maintenance-stats">
+                    <span><strong>18</strong> pending</span>
+                    <span><strong>412</strong> scan-history rows</span>
+                    <span><strong>31</strong> application URLs</span>
+                  </div>
+                  <div class="settings-action-row">
+                    <button class="btn btn-outline" type="button" data-noop>Clear Pending</button>
+                    <button class="btn btn-outline" type="button" data-noop>Clear Scan History</button>
+                    <button class="btn btn-outline" type="button" data-noop>Rebuild Scan History</button>
+                  </div>
+                </section>
+              </div>
 
               <div class="settings-actions">
                 <button class="btn btn-primary" type="button" data-noop>Save Settings</button>

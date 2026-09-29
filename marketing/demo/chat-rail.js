@@ -36,22 +36,29 @@
       </div>
       <div class="terminal-content">
         <div class="chat-pane" style="display:flex;flex-direction:column;height:100%">
-          <div class="chat-messages" style="flex:1;display:flex">
-            <div class="chat-empty-state">
-              <span class="chat-empty-icon" aria-hidden="true">
-                <svg width="44" height="44" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h26a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H17l-7 7v-7H9a3 3 0 0 1-3-3V15a3 3 0 0 1 3-3z"/><circle cx="17" cy="22" r="1.6" fill="currentColor" stroke="none"/><circle cx="22" cy="22" r="1.6" fill="currentColor" stroke="none"/><circle cx="27" cy="22" r="1.6" fill="currentColor" stroke="none"/></svg>
-              </span>
-              <h3>Chat View</h3>
-              <p>Send a prompt here or launch a mode from the dashboard. Raw terminal stays one click away.</p>
+          <div class="chatui-shell" style="display:flex;flex-direction:column;height:100%">
+            <div class="chat-messages" style="flex:1;display:flex">
+              <div class="chat-empty-state">
+                <span class="chat-empty-icon" aria-hidden="true">
+                  <svg width="44" height="44" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h26a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H17l-7 7v-7H9a3 3 0 0 1-3-3V15a3 3 0 0 1 3-3z"/><circle cx="17" cy="22" r="1.6" fill="currentColor" stroke="none"/><circle cx="22" cy="22" r="1.6" fill="currentColor" stroke="none"/><circle cx="27" cy="22" r="1.6" fill="currentColor" stroke="none"/></svg>
+                </span>
+                <h3>Chat View</h3>
+                <p>Send a prompt here or launch a mode from the dashboard. Raw terminal stays one click away.</p>
+              </div>
             </div>
-          </div>
-          <div class="chat-composer">
-            <textarea class="form-textarea chat-composer-input" placeholder="Ask CataBull something or type /catabull to show a list of commands" data-noop></textarea>
-            <div class="chat-composer-actions">
-              <button class="btn btn-ghost btn-sm" type="button" data-noop>Settings</button>
-              <button class="btn btn-ghost btn-sm" type="button" data-noop>History</button>
-              <button class="btn btn-sm btn-primary" type="button" data-noop style="margin-left:auto">Send</button>
-            </div>
+            <form class="chat-composer">
+              <textarea class="form-textarea chat-composer-input" placeholder="Ask CataBull something or type /catabull to show a list of commands" rows="3" data-noop></textarea>
+              <div class="chat-composer-actions">
+                <button type="button" class="btn btn-ghost btn-sm" data-noop title="Start a new chat">+ New</button>
+                <div class="chat-session-picker">
+                  <button type="button" class="btn btn-ghost btn-sm" data-noop title="Previous sessions" aria-label="Previous sessions">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/><path d="M12 7v5l3 2"/></svg>
+                  </button>
+                </div>
+                <span class="chat-composer-hint">Enter to send, Shift+Enter for a new line.</span>
+                <button type="button" class="btn btn-primary btn-sm" data-noop>Send</button>
+              </div>
+            </form>
           </div>
         </div>
       </div>

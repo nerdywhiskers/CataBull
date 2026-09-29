@@ -29,12 +29,12 @@
 
           <div class="pipeline-shell">
 
-            <header class="pipeline-header">
+            <header class="section-header no-mb">
               <div>
                 <h1 class="section-title">Pipeline</h1>
                 <p class="section-sub">Manage your active opportunities and AI-driven match insights.</p>
               </div>
-              <div class="pipeline-header-stats">
+              <div class="section-header-actions">
                 <div class="stat-pill is-accent">
                   <span class="stat-pill-label">Active offers</span>
                   <span class="stat-pill-value">3</span>
@@ -46,40 +46,53 @@
               </div>
             </header>
 
+            <div class="scan-progress-slot"></div>
+
             <section class="pipeline-toolbar">
-              <div class="pipeline-toolbar-row">
-                <div class="filter-tabs">
-                  <button class="filter-tab active" data-filter="pending" data-noop>Pending<span class="count">8</span></button>
-                  <button class="filter-tab" data-filter="all" data-noop>All<span class="count">14</span></button>
-                  <button class="filter-tab" data-filter="evaluated" data-noop>Evaluated<span class="count">3</span></button>
-                  <button class="filter-tab" data-filter="applied" data-noop>Applied<span class="count">2</span></button>
-                  <button class="filter-tab" data-filter="interview" data-noop>Interview<span class="count">1</span></button>
-                </div>
-                <label class="search-input">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="6" r="4.5"/><line x1="9.5" y1="9.5" x2="13" y2="13"/></svg>
-                  <input type="text" placeholder="Search company or role..." disabled />
-                </label>
-              </div>
-              <div class="pipeline-toolbar-divider">
-                <label class="toggle-row">
-                  <input type="checkbox" checked disabled>
-                  <span>Top matches only (4+)</span>
-                </label>
-                <div style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">
-                  <button class="btn btn-sm btn-primary" data-noop>
-                    <svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor" aria-hidden="true"><path d="M7.5 0L0 7.5h4L3.5 14 11 6.5H7L7.5 0z"/></svg>
-                    Scan
+              <div class="pipeline-toolbar-primary">
+                <div class="pipeline-toolbar-search">
+                  <label class="search-input">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="6" r="4.5"/><line x1="9.5" y1="9.5" x2="13" y2="13"/></svg>
+                    <input type="text" id="pipeline-search" placeholder="Search company or role..." disabled />
+                  </label>
+                  <button class="btn-icon pipeline-filter-btn" type="button" data-noop aria-label="Filter pending jobs" title="Filter by industry, location, posted date">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M1.5 2h11l-4 5v5l-3-1.5V7l-4-5z"/>
+                    </svg>
                   </button>
-                  <button class="btn btn-sm btn-secondary" data-noop>Deep Scan</button>
-                  <button class="btn-icon" data-noop title="Refresh">
+                </div>
+                <label class="discover-score-slider pipeline-score-slider">
+                  <span>Min score: <strong>3.0</strong></span>
+                  <input type="range" min="0" max="5" step="0.5" value="3" disabled />
+                </label>
+                <label class="discover-exact-score pipeline-exact-score">
+                  <span>Exact</span>
+                  <input class="form-input" type="number" min="0" max="5" step="0.1" inputmode="decimal" placeholder="Any" aria-label="Exact score" disabled />
+                </label>
+                <button class="btn btn-sm btn-outline" type="button" data-noop>AI Rescore</button>
+                <div class="pipeline-toolbar-actions">
+                  <button class="btn btn-sm btn-primary" type="button" data-noop>Add Job</button>
+                  <button class="btn-icon" type="button" data-noop title="Refresh + verify each pending posting is still live">
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 6a4.5 4.5 0 1 1-1.3-3.18"/><polyline points="11.5 1 11.5 4 8.5 4"/></svg>
                   </button>
+                </div>
+              </div>
+              <div class="pipeline-toolbar-tabs">
+                <div class="filter-tabs">
+                  <button class="filter-tab active" data-noop>Pending<span class="count">8</span></button>
+                  <button class="filter-tab" data-noop>Tailored<span class="count">3</span></button>
+                  <button class="filter-tab" data-noop>Applied<span class="count">2</span></button>
+                  <button class="filter-tab" data-noop>Rejected<span class="count">1</span></button>
+                  <button class="filter-tab" data-noop>Interview<span class="count">1</span></button>
+                  <button class="filter-tab" data-noop>Offer<span class="count">0</span></button>
+                  <button class="filter-tab" data-noop>Discarded<span class="count">0</span></button>
+                  <button class="filter-tab" data-noop>Skip<span class="count">4</span></button>
                 </div>
               </div>
             </section>
 
             <div class="pipeline-table-shell">
-              <table class="data-table">
+              <table class="data-table pipeline-table pending-table">
                 <thead>
                   <tr>
                     <th class="col-check"><input type="checkbox" disabled></th>
@@ -102,20 +115,22 @@
                     <td><span class="cell-role">Staff Backend Engineer, Inference</span></td>
                     <td><span class="cell-date">2026-05-04</span></td>
                     <td class="col-score">
-                      <span class="score-ring tone-excellent">
-                        <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
-                          <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
-                          <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="12.57" />
-                        </svg>
-                        <span class="score-ring-value">4.6</span>
-                      </span>
+                      <button type="button" class="score-trigger" data-noop title="Click for match details">
+                        <span class="score-ring tone-excellent">
+                          <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
+                            <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
+                            <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="10.05" />
+                          </svg>
+                          <span class="score-ring-value">4.6</span>
+                        </span>
+                      </button>
                     </td>
                     <td class="col-actions">
                       <span class="cell-actions">
-                        <a href="#" class="btn btn-ghost btn-sm" data-noop>↗</a>
-                        <button class="btn btn-sm btn-outline" data-noop>Skip</button>
-                        <button class="btn btn-sm btn-secondary" data-noop>Tailor</button>
-                        <button class="btn btn-sm btn-soft" data-noop>Applied</button>
+                        <a href="#" class="btn btn-ghost btn-sm" data-noop title="Open posting">&#x2197;</a>
+                        <button class="btn btn-sm btn-outline" data-noop title="Skip this role">Skip</button>
+                        <button class="btn btn-sm btn-secondary" data-noop title="Score this role and draft a tailored CV when it is a strong fit">Tailor</button>
+                        <button class="btn btn-sm btn-soft" data-noop title="Mark as Applied">Applied</button>
                         <button class="btn btn-ghost btn-sm overflow-trigger" data-noop title="More actions">⋮</button>
                       </span>
                     </td>
@@ -131,20 +146,22 @@
                     <td><span class="cell-role">Founding Platform Engineer</span></td>
                     <td><span class="cell-date">2026-05-05</span></td>
                     <td class="col-score">
-                      <span class="score-ring tone-good">
-                        <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
-                          <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
-                          <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="17.59" />
-                        </svg>
-                        <span class="score-ring-value">4.3</span>
-                      </span>
+                      <button type="button" class="score-trigger" data-noop title="Click for match details">
+                        <span class="score-ring tone-good">
+                          <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
+                            <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
+                            <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="17.59" />
+                          </svg>
+                          <span class="score-ring-value">4.3</span>
+                        </span>
+                      </button>
                     </td>
                     <td class="col-actions">
                       <span class="cell-actions">
-                        <a href="#" class="btn btn-ghost btn-sm" data-noop>↗</a>
-                        <button class="btn btn-sm btn-outline" data-noop>Skip</button>
-                        <button class="btn btn-sm btn-secondary" data-noop>Tailor</button>
-                        <button class="btn btn-sm btn-soft" data-noop>Applied</button>
+                        <a href="#" class="btn btn-ghost btn-sm" data-noop title="Open posting">&#x2197;</a>
+                        <button class="btn btn-sm btn-outline" data-noop title="Skip this role">Skip</button>
+                        <button class="btn btn-sm btn-secondary" data-noop title="Score this role and draft a tailored CV when it is a strong fit">Tailor</button>
+                        <button class="btn btn-sm btn-soft" data-noop title="Mark as Applied">Applied</button>
                         <button class="btn btn-ghost btn-sm overflow-trigger" data-noop title="More actions">⋮</button>
                       </span>
                     </td>
@@ -160,20 +177,22 @@
                     <td><span class="cell-role">Senior Research Engineer, Alignment</span></td>
                     <td><span class="cell-date">2026-05-02</span></td>
                     <td class="col-score">
-                      <span class="score-ring tone-good">
-                        <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
-                          <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
-                          <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="22.62" />
-                        </svg>
-                        <span class="score-ring-value">4.1</span>
-                      </span>
+                      <button type="button" class="score-trigger" data-noop title="Click for match details">
+                        <span class="score-ring tone-good">
+                          <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
+                            <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
+                            <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="22.62" />
+                          </svg>
+                          <span class="score-ring-value">4.1</span>
+                        </span>
+                      </button>
                     </td>
                     <td class="col-actions">
                       <span class="cell-actions">
-                        <a href="#" class="btn btn-ghost btn-sm" data-noop>↗</a>
-                        <button class="btn btn-sm btn-outline" data-noop>Skip</button>
-                        <button class="btn btn-sm btn-secondary" data-noop>Tailor</button>
-                        <button class="btn btn-sm btn-soft" data-noop>Applied</button>
+                        <a href="#" class="btn btn-ghost btn-sm" data-noop title="Open posting">&#x2197;</a>
+                        <button class="btn btn-sm btn-outline" data-noop title="Skip this role">Skip</button>
+                        <button class="btn btn-sm btn-secondary" data-noop title="Score this role and draft a tailored CV when it is a strong fit">Tailor</button>
+                        <button class="btn btn-sm btn-soft" data-noop title="Mark as Applied">Applied</button>
                         <button class="btn btn-ghost btn-sm overflow-trigger" data-noop title="More actions">⋮</button>
                       </span>
                     </td>
@@ -189,20 +208,22 @@
                     <td><span class="cell-role">Senior ML Engineer, Video</span></td>
                     <td><span class="cell-date">2026-05-03</span></td>
                     <td class="col-score">
-                      <span class="score-ring tone-decent">
-                        <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
-                          <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
-                          <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="32.67" />
-                        </svg>
-                        <span class="score-ring-value">3.7</span>
-                      </span>
+                      <button type="button" class="score-trigger" data-noop title="Click for match details">
+                        <span class="score-ring tone-decent">
+                          <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
+                            <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
+                            <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="32.67" />
+                          </svg>
+                          <span class="score-ring-value">3.7</span>
+                        </span>
+                      </button>
                     </td>
                     <td class="col-actions">
                       <span class="cell-actions">
-                        <a href="#" class="btn btn-ghost btn-sm" data-noop>↗</a>
-                        <button class="btn btn-sm btn-outline" data-noop>Skip</button>
-                        <button class="btn btn-sm btn-secondary" data-noop>Tailor</button>
-                        <button class="btn btn-sm btn-soft" data-noop>Applied</button>
+                        <a href="#" class="btn btn-ghost btn-sm" data-noop title="Open posting">&#x2197;</a>
+                        <button class="btn btn-sm btn-outline" data-noop title="Skip this role">Skip</button>
+                        <button class="btn btn-sm btn-secondary" data-noop title="Score this role and draft a tailored CV when it is a strong fit">Tailor</button>
+                        <button class="btn btn-sm btn-soft" data-noop title="Mark as Applied">Applied</button>
                         <button class="btn btn-ghost btn-sm overflow-trigger" data-noop title="More actions">⋮</button>
                       </span>
                     </td>
@@ -218,20 +239,22 @@
                     <td><span class="cell-role">Staff Backend Engineer</span></td>
                     <td><span class="cell-date">2026-05-04</span></td>
                     <td class="col-score">
-                      <span class="score-ring tone-decent">
-                        <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
-                          <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
-                          <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="37.70" />
-                        </svg>
-                        <span class="score-ring-value">3.5</span>
-                      </span>
+                      <button type="button" class="score-trigger" data-noop title="Click for match details">
+                        <span class="score-ring tone-decent">
+                          <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
+                            <circle class="ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="4" />
+                            <circle class="ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="4" stroke-linecap="round" stroke-dasharray="125.66" stroke-dashoffset="37.70" />
+                          </svg>
+                          <span class="score-ring-value">3.5</span>
+                        </span>
+                      </button>
                     </td>
                     <td class="col-actions">
                       <span class="cell-actions">
-                        <a href="#" class="btn btn-ghost btn-sm" data-noop>↗</a>
-                        <button class="btn btn-sm btn-outline" data-noop>Skip</button>
-                        <button class="btn btn-sm btn-secondary" data-noop>Tailor</button>
-                        <button class="btn btn-sm btn-soft" data-noop>Applied</button>
+                        <a href="#" class="btn btn-ghost btn-sm" data-noop title="Open posting">&#x2197;</a>
+                        <button class="btn btn-sm btn-outline" data-noop title="Skip this role">Skip</button>
+                        <button class="btn btn-sm btn-secondary" data-noop title="Score this role and draft a tailored CV when it is a strong fit">Tailor</button>
+                        <button class="btn btn-sm btn-soft" data-noop title="Mark as Applied">Applied</button>
                         <button class="btn btn-ghost btn-sm overflow-trigger" data-noop title="More actions">⋮</button>
                       </span>
                     </td>

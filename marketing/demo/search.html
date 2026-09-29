@@ -27,66 +27,49 @@
       <main class="main">
         <div class="view active">
 
-          <div class="section-header">
+          <header class="section-header">
             <div>
-              <h2 class="section-title">Portals</h2>
-              <span style="font-size:13px;color:var(--subtext)">12 companies tracked</span>
+              <h1 class="section-title">Portals</h1>
+              <p class="section-sub">Manage tracked companies and sources. 12 companies tracked.</p>
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button class="btn btn-sm" data-noop>Import seed companies</button>
-              <button class="btn btn-primary" data-noop>Add Company</button>
+          </header>
+
+          <div class="portals-tab-row">
+            <div class="filter-tabs">
+              <button class="filter-tab active" data-noop>Companies</button>
+              <button class="filter-tab" data-noop>Sources</button>
             </div>
+            <button class="btn btn-soft btn-sm" data-noop><span style="font-weight:700">+</span> Add Company</button>
           </div>
 
           <div class="card" style="margin-bottom:16px">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;flex-wrap:wrap">
-              <h3 style="font-size:14px;font-weight:600;color:var(--subtext);margin:0">Automatic Scanning</h3>
-              <div style="display:flex;align-items:center;gap:8px">
-                <label style="font-size:12px;color:var(--subtext0)">Max new:</label>
-                <select class="form-select" disabled style="width:auto;padding:5px 10px;font-size:12px"><option>All</option></select>
-                <button class="btn btn-sm btn-primary" data-noop>Scan Now</button>
-                <button class="btn btn-sm" data-noop>Deep Scan</button>
+            <div style="display:flex;align-items:stretch;justify-content:space-between;gap:16px;flex-wrap:wrap">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+                <h3 style="font-size:15px;font-weight:600;color:var(--text);margin:0;line-height:1.2">Health Tools</h3>
+                <p style="font-size:12px;color:var(--subtext0);margin:0;line-height:1.4">
+                  Last checked 10m ago. Probes every enabled company's ATS endpoint without using agent credits.
+                </p>
+                <div class="health-summary" style="margin-top:auto">
+                  <span class="health-chip health-chip-not_found">Not Found: 1</span>
+                  <span class="health-chip health-chip-healthy">Healthy: 11</span>
+                </div>
               </div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <label style="font-size:13px;color:var(--subtext)">Frequency:</label>
-              <select class="form-select" disabled style="width:auto;padding:6px 12px;font-size:13px"><option>Off</option></select>
-            </div>
-            <div style="margin-top:12px;font-size:13px;color:var(--subtext)">
-              <div>Last scan: <span style="color:var(--text)">2h ago</span></div>
-              <div>Result: <span style="color:var(--green)">0 new offers found</span></div>
-            </div>
-          </div>
-
-          <div class="filter-tabs" style="margin-bottom:24px">
-            <button class="filter-tab active" data-noop>Companies</button>
-            <button class="filter-tab" data-noop>Sources</button>
-            <button class="filter-tab" data-noop>Title Keywords</button>
-          </div>
-
-          <div class="card" style="margin-bottom:16px">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap">
-              <div>
-                <h3 style="font-size:14px;font-weight:600;color:var(--subtext);margin:0 0 4px">Health Tools</h3>
-                <p style="font-size:12px;color:var(--subtext0);margin:0">Last checked 10m ago. Probes every enabled company's ATS endpoint without using agent credits.</p>
+              <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:200px">
+                <button class="btn btn-secondary" type="button" data-noop style="justify-content:center">Run Health Check All</button>
+                <button class="btn btn-primary" type="button" data-noop style="justify-content:center" title="Auto-recover careers_url for broken portals using JSON probes + Playwright network capture. No agent or API credits used.">Fix Broken Links</button>
               </div>
-              <button class="btn btn-sm" data-noop>Run Health Check All</button>
-            </div>
-            <div class="health-summary">
-              <span class="health-chip health-chip-not_found">Not Found: 1</span>
-              <span class="health-chip health-chip-healthy">Healthy: 11</span>
             </div>
           </div>
 
           <div class="card" style="margin-bottom:16px">
             <div class="company-toolbar">
-              <input class="form-input" placeholder="Search companies" disabled>
+              <input class="form-input" id="company-search" placeholder="Search companies" disabled>
               <label class="company-group-toggle">
                 <input type="checkbox" checked disabled>
                 <span>Group by ATS</span>
               </label>
             </div>
-            <div class="filter-tabs" style="margin-bottom:12px">
+            <div class="filter-tabs" style="margin-bottom:20px">
               <button class="filter-tab active" data-noop>All</button>
               <button class="filter-tab" data-noop>Scanned &lt;7d</button>
               <button class="filter-tab" data-noop>Never scanned</button>
@@ -113,60 +96,126 @@
             </div>
             <div class="filter-chip-group">
               <span class="filter-chip-label">Health</span>
-              <button class="filter-chip" data-noop>Healthy</button>
-              <button class="filter-chip" data-noop>Empty</button>
-              <button class="filter-chip" data-noop>Not Found</button>
-              <button class="filter-chip" data-noop>Bot-blocked</button>
-              <button class="filter-chip" data-noop>Unknown ATS</button>
-              <button class="filter-chip" data-noop>Network</button>
-              <button class="filter-chip" data-noop>Auto-disabled</button>
+              <button class="filter-chip filter-chip-health filter-chip-health-healthy" data-noop>Healthy</button>
+              <button class="filter-chip filter-chip-health filter-chip-health-empty" data-noop>Empty</button>
+              <button class="filter-chip filter-chip-health filter-chip-health-not_found" data-noop>Not Found</button>
+              <button class="filter-chip filter-chip-health filter-chip-health-bot_blocked" data-noop>Bot-blocked</button>
+              <button class="filter-chip filter-chip-health filter-chip-health-unknown_ats" data-noop>Unknown ATS</button>
+              <button class="filter-chip filter-chip-health filter-chip-health-network_error" data-noop>Network</button>
+              <button class="filter-chip filter-chip-health filter-chip-health-auto_disabled" data-noop>Auto-disabled</button>
             </div>
-            <div class="filter-chip-group" style="border-top:1px solid var(--border-soft);padding-top:10px;margin-top:10px">
+            <div class="filter-chip-group" style="border-top:1px solid var(--border);padding-top:10px;margin-top:10px">
               <span class="filter-chip-label">Bulk</span>
               <span style="font-size:12px;color:var(--subtext)">12 total (10 enabled, 2 disabled)</span>
-              <button class="btn btn-sm" data-noop>Enable all visible</button>
-              <button class="btn btn-sm" data-noop>Disable all visible</button>
+              <button class="btn btn-sm" data-noop title="Enable every company currently visible in this list">Enable all visible</button>
+              <button class="btn btn-sm" data-noop title="Disable every company currently visible in this list">Disable all visible</button>
             </div>
           </div>
 
           <details class="company-group" open>
             <summary class="company-group-summary">
-              <span>Ashby</span><span>3 companies</span>
+              <span>Ashby</span>
+              <span>3 companies</span>
             </summary>
             <div class="company-grid">
               <article class="card company-card">
                 <div class="company-card-top">
-                  <div class="company-title-row">
-                    <h3 class="company-title">Cohere</h3>
-                    <span class="company-provider-badge ashby">Ashby</span>
-                    <span class="health-pill health-pill-healthy">healthy</span>
+                  <div>
+                    <div class="company-title-row">
+                      <h3 class="company-title">Cohere</h3>
+                      <span class="company-provider-badge ashby">Ashby</span>
+                      <span class="health-pill health-pill-healthy">healthy</span>
+                    </div>
+                    <a href="#" class="company-link" data-noop>jobs.ashbyhq.com/cohere</a>
                   </div>
-                  <span class="badge badge-status applied">enabled</span>
+                  <label class="toggle">
+                    <input type="checkbox" checked disabled>
+                    <span class="toggle-track"></span>
+                    <span class="toggle-thumb"></span>
+                  </label>
                 </div>
-                <a class="company-link" href="#" data-noop>jobs.ashbyhq.com/cohere</a>
-                <p class="company-notes">6 jobs scanned · last 2026-05-05</p>
+                <div class="tag-list"><span class="tag">AI</span><span class="tag">Developer Tools</span></div>
+                <p class="company-notes">Core inference platform team.</p>
+                <div class="company-metrics">
+                  <div><span class="metric-label">Last scanned</span><strong>2d ago</strong></div>
+                  <div><span class="metric-label">Jobs found</span><strong>6</strong></div>
+                  <div><span class="metric-label">Match rate</span><strong>33.3%</strong></div>
+                </div>
                 <div class="company-actions">
-                  <a class="btn btn-ghost btn-sm" href="#" data-noop>Visit</a>
-                  <button class="btn btn-sm" data-noop>Recheck</button>
-                  <button class="btn btn-sm" data-noop>Disable</button>
+                  <button class="btn btn-sm" type="button" data-noop>Scan Now</button>
+                  <button class="btn btn-sm" type="button" data-noop>Recheck</button>
+                  <button class="btn btn-sm" type="button" data-noop>Edit URL</button>
+                  <button class="btn btn-sm" type="button" data-noop style="color:var(--yellow)">Deep Research</button>
+                  <button class="btn btn-sm" type="button" data-noop>Edit</button>
+                  <button class="btn btn-ghost btn-sm" type="button" data-noop style="color:var(--red)">Delete</button>
                 </div>
               </article>
 
               <article class="card company-card">
                 <div class="company-card-top">
-                  <div class="company-title-row">
-                    <h3 class="company-title">Mistral</h3>
-                    <span class="company-provider-badge ashby">Ashby</span>
-                    <span class="health-pill health-pill-healthy">healthy</span>
+                  <div>
+                    <div class="company-title-row">
+                      <h3 class="company-title">Mistral</h3>
+                      <span class="company-provider-badge ashby">Ashby</span>
+                      <span class="health-pill health-pill-healthy">healthy</span>
+                    </div>
+                    <a href="#" class="company-link" data-noop>jobs.ashbyhq.com/mistral</a>
                   </div>
-                  <span class="badge badge-status applied">enabled</span>
+                  <label class="toggle">
+                    <input type="checkbox" checked disabled>
+                    <span class="toggle-track"></span>
+                    <span class="toggle-thumb"></span>
+                  </label>
                 </div>
-                <a class="company-link" href="#" data-noop>jobs.ashbyhq.com/mistral</a>
-                <p class="company-notes">3 jobs scanned · last 2026-05-05</p>
+                <div class="tag-list"><span class="tag">AI</span></div>
+                <p class="company-notes">European LLM lab.</p>
+                <div class="company-metrics">
+                  <div><span class="metric-label">Last scanned</span><strong>2d ago</strong></div>
+                  <div><span class="metric-label">Jobs found</span><strong>3</strong></div>
+                  <div><span class="metric-label">Match rate</span><strong>33.3%</strong></div>
+                </div>
                 <div class="company-actions">
-                  <a class="btn btn-ghost btn-sm" href="#" data-noop>Visit</a>
-                  <button class="btn btn-sm" data-noop>Recheck</button>
-                  <button class="btn btn-sm" data-noop>Disable</button>
+                  <button class="btn btn-sm" type="button" data-noop>Scan Now</button>
+                  <button class="btn btn-sm" type="button" data-noop>Recheck</button>
+                  <button class="btn btn-sm" type="button" data-noop>Edit URL</button>
+                  <button class="btn btn-sm" type="button" data-noop style="color:var(--yellow)">Deep Research</button>
+                  <button class="btn btn-sm" type="button" data-noop>Edit</button>
+                  <button class="btn btn-ghost btn-sm" type="button" data-noop style="color:var(--red)">Delete</button>
+                </div>
+              </article>
+
+              <article class="card company-card" style="border-color:rgba(251, 146, 60, 0.4)">
+                <div class="company-card-top">
+                  <div>
+                    <div class="company-title-row">
+                      <h3 class="company-title">Perplexity</h3>
+                      <span class="company-provider-badge ashby">Ashby</span>
+                      <span class="health-pill health-pill-empty">empty</span>
+                    </div>
+                    <a href="#" class="company-link" data-noop>jobs.ashbyhq.com/perplexity</a>
+                    <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><span class="health-auto-disabled">auto-disabled</span></div>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" disabled>
+                    <span class="toggle-track"></span>
+                    <span class="toggle-thumb"></span>
+                  </label>
+                </div>
+                <div class="tag-list"><span class="tag">AI</span><span class="tag">Tech</span></div>
+                <p class="company-notes muted">3 consecutive failed checks · last 2026-05-02</p>
+                <div class="company-metrics">
+                  <div><span class="metric-label">Last scanned</span><strong>3d ago</strong></div>
+                  <div><span class="metric-label">Jobs found</span><strong>0</strong></div>
+                  <div><span class="metric-label">Match rate</span><strong>0.0%</strong></div>
+                </div>
+                <div class="company-actions">
+                  <button class="btn btn-sm" type="button" data-noop disabled>Scan Now</button>
+                  <button class="btn btn-sm" type="button" data-noop>Recheck</button>
+                  <button class="btn btn-sm" type="button" data-noop title="Run WebSearch + role-fit pre-flight to find a new careers URL">Find new URL</button>
+                  <button class="btn btn-sm" type="button" data-noop>Edit URL</button>
+                  <button class="btn btn-sm" type="button" data-noop style="color:var(--yellow)">Deep Research</button>
+                  <button class="btn btn-sm" type="button" data-noop>Edit</button>
+                  <button class="btn btn-ghost btn-sm" type="button" data-noop style="color:var(--red)">Delete</button>
                 </div>
               </article>
             </div>
@@ -174,42 +223,73 @@
 
           <details class="company-group" open>
             <summary class="company-group-summary">
-              <span>Greenhouse</span><span>2 companies</span>
+              <span>Greenhouse</span>
+              <span>2 companies</span>
             </summary>
             <div class="company-grid">
               <article class="card company-card">
                 <div class="company-card-top">
-                  <div class="company-title-row">
-                    <h3 class="company-title">Anthropic</h3>
-                    <span class="company-provider-badge">Greenhouse</span>
-                    <span class="health-pill health-pill-healthy">healthy</span>
+                  <div>
+                    <div class="company-title-row">
+                      <h3 class="company-title">Anthropic</h3>
+                      <span class="company-provider-badge">Greenhouse</span>
+                      <span class="health-pill health-pill-healthy">healthy</span>
+                    </div>
+                    <a href="#" class="company-link" data-noop>boards.greenhouse.io/anthropic</a>
                   </div>
-                  <span class="badge badge-status applied">enabled</span>
+                  <label class="toggle">
+                    <input type="checkbox" checked disabled>
+                    <span class="toggle-track"></span>
+                    <span class="toggle-thumb"></span>
+                  </label>
                 </div>
-                <a class="company-link" href="#" data-noop>boards.greenhouse.io/anthropic</a>
-                <p class="company-notes">8 jobs scanned · last 2026-05-05</p>
+                <div class="tag-list"><span class="tag">AI</span></div>
+                <p class="company-notes">Frontier AI safety company.</p>
+                <div class="company-metrics">
+                  <div><span class="metric-label">Last scanned</span><strong>2h ago</strong></div>
+                  <div><span class="metric-label">Jobs found</span><strong>8</strong></div>
+                  <div><span class="metric-label">Match rate</span><strong>25.0%</strong></div>
+                </div>
                 <div class="company-actions">
-                  <a class="btn btn-ghost btn-sm" href="#" data-noop>Visit</a>
-                  <button class="btn btn-sm" data-noop>Recheck</button>
-                  <button class="btn btn-sm" data-noop>Disable</button>
+                  <button class="btn btn-sm" type="button" data-noop>Scan Now</button>
+                  <button class="btn btn-sm" type="button" data-noop>Recheck</button>
+                  <button class="btn btn-sm" type="button" data-noop>Edit URL</button>
+                  <button class="btn btn-sm" type="button" data-noop style="color:var(--yellow)">Deep Research</button>
+                  <button class="btn btn-sm" type="button" data-noop>Edit</button>
+                  <button class="btn btn-ghost btn-sm" type="button" data-noop style="color:var(--red)">Delete</button>
                 </div>
               </article>
 
               <article class="card company-card">
                 <div class="company-card-top">
-                  <div class="company-title-row">
-                    <h3 class="company-title">Runway</h3>
-                    <span class="company-provider-badge">Greenhouse</span>
-                    <span class="health-pill health-pill-healthy">healthy</span>
+                  <div>
+                    <div class="company-title-row">
+                      <h3 class="company-title">Runway</h3>
+                      <span class="company-provider-badge">Greenhouse</span>
+                      <span class="health-pill health-pill-healthy">healthy</span>
+                    </div>
+                    <a href="#" class="company-link" data-noop>boards.greenhouse.io/runwayml</a>
                   </div>
-                  <span class="badge badge-status applied">enabled</span>
+                  <label class="toggle">
+                    <input type="checkbox" checked disabled>
+                    <span class="toggle-track"></span>
+                    <span class="toggle-thumb"></span>
+                  </label>
                 </div>
-                <a class="company-link" href="#" data-noop>boards.greenhouse.io/runwayml</a>
-                <p class="company-notes">4 jobs scanned · last 2026-05-04</p>
+                <div class="tag-list"><span class="tag">AI</span><span class="tag">Design</span></div>
+                <p class="company-notes">Creative video models.</p>
+                <div class="company-metrics">
+                  <div><span class="metric-label">Last scanned</span><strong>2h ago</strong></div>
+                  <div><span class="metric-label">Jobs found</span><strong>4</strong></div>
+                  <div><span class="metric-label">Match rate</span><strong>25.0%</strong></div>
+                </div>
                 <div class="company-actions">
-                  <a class="btn btn-ghost btn-sm" href="#" data-noop>Visit</a>
-                  <button class="btn btn-sm" data-noop>Recheck</button>
-                  <button class="btn btn-sm" data-noop>Disable</button>
+                  <button class="btn btn-sm" type="button" data-noop>Scan Now</button>
+                  <button class="btn btn-sm" type="button" data-noop>Recheck</button>
+                  <button class="btn btn-sm" type="button" data-noop>Edit URL</button>
+                  <button class="btn btn-sm" type="button" data-noop style="color:var(--yellow)">Deep Research</button>
+                  <button class="btn btn-sm" type="button" data-noop>Edit</button>
+                  <button class="btn btn-ghost btn-sm" type="button" data-noop style="color:var(--red)">Delete</button>
                 </div>
               </article>
             </div>
@@ -217,23 +297,42 @@
 
           <details class="company-group" open>
             <summary class="company-group-summary">
-              <span>Lever</span><span>1 company</span>
+              <span>Lever</span>
+              <span>1 company</span>
             </summary>
             <div class="company-grid">
               <article class="card company-card" style="border-color:rgba(251, 146, 60, 0.4)">
                 <div class="company-card-top">
-                  <div class="company-title-row">
-                    <h3 class="company-title">Vinted</h3>
-                    <span class="company-provider-badge lever">Lever</span>
-                    <span class="health-pill health-pill-not_found">not found</span>
+                  <div>
+                    <div class="company-title-row">
+                      <h3 class="company-title">Vinted</h3>
+                      <span class="company-provider-badge lever">Lever</span>
+                      <span class="health-pill health-pill-not_found">not found</span>
+                    </div>
+                    <a href="#" class="company-link" data-noop>jobs.lever.co/vinted</a>
+                    <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><span class="health-auto-disabled">auto-disabled</span></div>
                   </div>
-                  <span class="health-auto-disabled">auto-disabled</span>
+                  <label class="toggle">
+                    <input type="checkbox" disabled>
+                    <span class="toggle-track"></span>
+                    <span class="toggle-thumb"></span>
+                  </label>
                 </div>
-                <a class="company-link" href="#" data-noop>jobs.lever.co/vinted</a>
+                <div class="tag-list"><span class="tag">E-commerce</span></div>
                 <p class="company-notes muted">careers URL returned 404 · last check 2026-05-02</p>
+                <div class="company-metrics">
+                  <div><span class="metric-label">Last scanned</span><strong>3d ago</strong></div>
+                  <div><span class="metric-label">Jobs found</span><strong>0</strong></div>
+                  <div><span class="metric-label">Match rate</span><strong>0.0%</strong></div>
+                </div>
                 <div class="company-actions">
-                  <button class="btn btn-sm btn-primary" data-noop>Find new URL</button>
-                  <button class="btn btn-sm" data-noop>Remove</button>
+                  <button class="btn btn-sm" type="button" data-noop disabled>Scan Now</button>
+                  <button class="btn btn-sm" type="button" data-noop>Recheck</button>
+                  <button class="btn btn-sm" type="button" data-noop title="Run WebSearch + role-fit pre-flight to find a new careers URL">Find new URL</button>
+                  <button class="btn btn-sm" type="button" data-noop>Edit URL</button>
+                  <button class="btn btn-sm" type="button" data-noop style="color:var(--yellow)">Deep Research</button>
+                  <button class="btn btn-sm" type="button" data-noop>Edit</button>
+                  <button class="btn btn-ghost btn-sm" type="button" data-noop style="color:var(--red)">Delete</button>
                 </div>
               </article>
             </div>

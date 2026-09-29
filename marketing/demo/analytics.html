@@ -27,52 +27,285 @@
       <main class="main">
         <div class="view active">
 
-          <div class="filter-tabs">
-            <button class="filter-tab active" data-noop>Funnel</button>
-            <button class="filter-tab" data-noop>Patterns</button>
-            <button class="filter-tab" data-noop>Follow-ups</button>
+          <header class="section-header">
+            <div>
+              <h1 class="section-title">Analytics</h1>
+              <p class="section-sub">Funnel, response rates, archetype performance, and follow-up cadence over time.</p>
+            </div>
+          </header>
+
+          <div class="filter-tabs analytics-subtabs" style="margin-bottom:16px">
+            <button class="filter-tab active" data-noop>Overview</button>
+            <button class="filter-tab" data-noop>Reports</button>
             <button class="filter-tab" data-noop>Memory</button>
           </div>
 
-          <section class="demo-metric-grid">
-            <div class="demo-metric"><span class="demo-metric-label">Pending</span><span class="demo-metric-value">8</span><span class="demo-metric-trend">+3 this week</span></div>
-            <div class="demo-metric"><span class="demo-metric-label">Evaluated</span><span class="demo-metric-value">3</span><span class="demo-metric-trend">avg fit 4.0</span></div>
-            <div class="demo-metric"><span class="demo-metric-label">Applied</span><span class="demo-metric-value">2</span><span class="demo-metric-trend">25% conversion</span></div>
-            <div class="demo-metric"><span class="demo-metric-label">Interview</span><span class="demo-metric-value">1</span><span class="demo-metric-trend">50% from applied</span></div>
-            <div class="demo-metric"><span class="demo-metric-label">Offers</span><span class="demo-metric-value">0</span><span class="demo-metric-trend">in flight</span></div>
-          </section>
-
-          <section class="card" style="padding:18px;margin-bottom:16px">
-            <header style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
-              <h3 style="margin:0;color:var(--text);font-size:14px">Funnel</h3>
-              <span style="font-size:11px;color:var(--subtext0)">last 30 days</span>
-            </header>
-            <div class="demo-funnel">
-              <div class="demo-funnel-row"><span class="demo-funnel-label">Discovered</span><div class="demo-funnel-bar"><div class="demo-funnel-fill" style="width:100%">14</div></div></div>
-              <div class="demo-funnel-row"><span class="demo-funnel-label">Evaluated</span><div class="demo-funnel-bar"><div class="demo-funnel-fill" style="width:36%">5</div></div></div>
-              <div class="demo-funnel-row"><span class="demo-funnel-label">Applied</span><div class="demo-funnel-bar"><div class="demo-funnel-fill" style="width:21%">3</div></div></div>
-              <div class="demo-funnel-row"><span class="demo-funnel-label">Interview</span><div class="demo-funnel-bar"><div class="demo-funnel-fill" style="width:14%">2</div></div></div>
-              <div class="demo-funnel-row"><span class="demo-funnel-label">Offer</span><div class="demo-funnel-bar"><div class="demo-funnel-fill" style="width:0%">0</div></div></div>
+          <div class="analytics-subtoolbar">
+            <div class="analytics-range-group">
+              <button class="btn btn-sm btn-primary" type="button" data-noop>All time</button>
+              <button class="btn btn-sm" type="button" data-noop>Last 30 days</button>
+              <button class="btn btn-sm" type="button" data-noop>Last 7 days</button>
             </div>
-          </section>
+            <span class="analytics-total">14 total offers evaluated</span>
+          </div>
 
-          <section class="card" style="padding:18px">
-            <header style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
-              <h3 style="margin:0;color:var(--text);font-size:14px">Score distribution</h3>
-              <span style="font-size:11px;color:var(--subtext0)">all evaluated roles</span>
-            </header>
-            <div class="demo-hist">
-              <div class="demo-hist-bar"><div class="demo-hist-fill poor" style="height:8%"></div><span>1.0</span></div>
-              <div class="demo-hist-bar"><div class="demo-hist-fill poor" style="height:8%"></div><span>1.5</span></div>
-              <div class="demo-hist-bar"><div class="demo-hist-fill low" style="height:16%"></div><span>2.0</span></div>
-              <div class="demo-hist-bar"><div class="demo-hist-fill low" style="height:24%"></div><span>2.5</span></div>
-              <div class="demo-hist-bar"><div class="demo-hist-fill decent" style="height:32%"></div><span>3.0</span></div>
-              <div class="demo-hist-bar"><div class="demo-hist-fill decent" style="height:48%"></div><span>3.5</span></div>
-              <div class="demo-hist-bar"><div class="demo-hist-fill good" style="height:80%"></div><span>4.0</span></div>
-              <div class="demo-hist-bar"><div class="demo-hist-fill excellent" style="height:64%"></div><span>4.5</span></div>
-              <div class="demo-hist-bar"><div class="demo-hist-fill excellent" style="height:24%"></div><span>5.0</span></div>
+          <div class="grid-5" style="margin-bottom:24px">
+            <div class="stat-card">
+              <div class="stat-label">Total Evaluated</div>
+              <div class="stat-value">14</div>
             </div>
-          </section>
+            <div class="stat-card">
+              <div class="stat-label">Avg Score</div>
+              <div class="stat-value" style="color:var(--green)">3.9</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Active</div>
+              <div class="stat-value">10</div>
+              <div class="stat-sub">Not skipped/rejected</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Rejected</div>
+              <div class="stat-value">1</div>
+              <div class="stat-sub">Explicit negative outcomes</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">PDFs Generated</div>
+              <div class="stat-value">9</div>
+            </div>
+          </div>
+
+          <div class="grid-2" style="margin-bottom:24px">
+            <div class="card">
+              <h3 style="font-size:14px;font-weight:600;margin-bottom:16px;color:var(--subtext)">Pipeline Funnel</h3>
+              <div class="bar-chart">
+                <div class="bar-row">
+                  <span class="bar-label">Evaluated</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--blue)"></div></div>
+                  <span class="bar-value">14 (100%)</span>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-label">Applied</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:29%;background:var(--sky)"></div></div>
+                  <span class="bar-value">4 (29%)</span>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-label">Responded</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:14%;background:var(--teal)"></div></div>
+                  <span class="bar-value">2 (50%)</span>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-label">Interview</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:8%;background:var(--green)"></div></div>
+                  <span class="bar-value">1 (25%)</span>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-label">Offer</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:1%;background:var(--yellow)"></div></div>
+                  <span class="bar-value">0 (0%)</span>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-label">Rejected</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:8%;background:var(--yellow)"></div></div>
+                  <span class="bar-value">1 (25%)</span>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <h3 style="font-size:14px;font-weight:600;margin-bottom:16px;color:var(--subtext)">Score Distribution</h3>
+              <div class="bar-chart">
+                <div class="bar-row">
+                  <span class="bar-label">4.5-5.0</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:50%;background:var(--green)"></div></div>
+                  <span class="bar-value">2</span>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-label">4.0-4.4</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--sky)"></div></div>
+                  <span class="bar-value">4</span>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-label">3.5-3.9</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--yellow)"></div></div>
+                  <span class="bar-value">4</span>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-label">3.0-3.4</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:75%;background:var(--peach)"></div></div>
+                  <span class="bar-value">3</span>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-label">&lt;3.0</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:25%;background:var(--red)"></div></div>
+                  <span class="bar-value">1</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-4" style="margin-bottom:24px">
+            <div class="stat-card">
+              <div class="stat-label">Response Rate</div>
+              <div class="stat-value" style="color:var(--green)">50.0%</div>
+              <div class="stat-sub">Responded / Applied</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Interview Rate</div>
+              <div class="stat-value" style="color:var(--green)">25.0%</div>
+              <div class="stat-sub">Interview / Applied</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Offer Rate</div>
+              <div class="stat-value" style="color:var(--red)">0.0%</div>
+              <div class="stat-sub">Offer / Applied</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Rejection Rate</div>
+              <div class="stat-value" style="color:var(--peach)">25.0%</div>
+              <div class="stat-sub">Rejected / Applied</div>
+            </div>
+          </div>
+
+          <div class="grid-2" style="margin-bottom:24px">
+            <div class="card analytics-panel">
+              <div class="analytics-panel-header">
+                <div>
+                  <h3>Patterns</h3>
+                  <p>4 negative outcomes analyzed</p>
+                </div>
+              </div>
+              <div style="margin-bottom:16px">
+                <div class="bar-chart">
+                  <div class="bar-row">
+                    <span class="bar-label">comp gap</span>
+                    <div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--red)"></div></div>
+                    <span class="bar-value">2 (50%)</span>
+                  </div>
+                  <div class="bar-row">
+                    <span class="bar-label">location</span>
+                    <div class="bar-track"><div class="bar-fill" style="width:50%;background:var(--peach)"></div></div>
+                    <span class="bar-value">1 (25%)</span>
+                  </div>
+                  <div class="bar-row">
+                    <span class="bar-label">seniority</span>
+                    <div class="bar-track"><div class="bar-fill" style="width:50%;background:var(--yellow)"></div></div>
+                    <span class="bar-value">1 (25%)</span>
+                  </div>
+                </div>
+              </div>
+              <div class="analytics-list">
+                <div class="analytics-list-item">
+                  <span class="analytics-chip high">high</span>
+                  <div>
+                    <strong>Tighten comp range on platform roles</strong>
+                    <p>Two rejections cited comp expectations above your range. Adjust the comp target before applying to similar roles.</p>
+                  </div>
+                </div>
+                <div class="analytics-list-item">
+                  <span class="analytics-chip medium">medium</span>
+                  <div>
+                    <strong>Prioritize remote-first postings</strong>
+                    <p>Hybrid roles convert at half the rate of remote roles in your history.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card analytics-panel">
+              <div class="analytics-panel-header">
+                <div>
+                  <h3>Follow-up Urgency</h3>
+                  <p>2 active applications in cadence tracking</p>
+                </div>
+              </div>
+              <div class="analytics-summary">
+                <span class="analytics-chip red">1 urgent</span>
+                <span class="analytics-chip yellow">1 overdue</span>
+                <span class="analytics-chip green">2 waiting</span>
+                <span class="analytics-chip muted">0 cold</span>
+              </div>
+              <div class="analytics-table-wrap">
+                <table class="data-table analytics-table">
+                  <thead>
+                    <tr>
+                      <th>Company</th>
+                      <th>Status</th>
+                      <th>Days</th>
+                      <th>Next</th>
+                      <th>Urgency</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <div style="font-weight:600">Cohere</div>
+                        <div style="font-size:12px;color:var(--subtext)">Founding Platform Engineer</div>
+                      </td>
+                      <td>Applied</td>
+                      <td>12</td>
+                      <td>2026-05-20</td>
+                      <td><span class="analytics-chip red">urgent</span></td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div style="font-weight:600">Runway</div>
+                        <div style="font-size:12px;color:var(--subtext)">Senior ML Engineer, Video</div>
+                      </td>
+                      <td>Applied</td>
+                      <td>8</td>
+                      <td>2026-05-16</td>
+                      <td><span class="analytics-chip yellow">overdue</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:24px">
+            <h3 style="font-size:14px;font-weight:600;margin-bottom:16px;color:var(--subtext)">Weekly Activity</h3>
+            <div class="bar-chart">
+              <div class="bar-row">
+                <span class="bar-label">2026-W14</span>
+                <div class="bar-track"><div class="bar-fill" style="width:67%;background:var(--lavender)"></div></div>
+                <span class="bar-value">2</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">2026-W15</span>
+                <div class="bar-track"><div class="bar-fill" style="width:33%;background:var(--lavender)"></div></div>
+                <span class="bar-value">1</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">2026-W16</span>
+                <div class="bar-track"><div class="bar-fill" style="width:67%;background:var(--lavender)"></div></div>
+                <span class="bar-value">2</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">2026-W17</span>
+                <div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--lavender)"></div></div>
+                <span class="bar-value">3</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">2026-W18</span>
+                <div class="bar-track"><div class="bar-fill" style="width:67%;background:var(--lavender)"></div></div>
+                <span class="bar-value">2</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">2026-W19</span>
+                <div class="bar-track"><div class="bar-fill" style="width:33%;background:var(--lavender)"></div></div>
+                <span class="bar-value">1</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">2026-W20</span>
+                <div class="bar-track"><div class="bar-fill" style="width:67%;background:var(--lavender)"></div></div>
+                <span class="bar-value">2</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">2026-W21</span>
+                <div class="bar-track"><div class="bar-fill" style="width:33%;background:var(--lavender)"></div></div>
+                <span class="bar-value">1</span>
+              </div>
+            </div>
+          </div>
 
         </div>
       </main>
