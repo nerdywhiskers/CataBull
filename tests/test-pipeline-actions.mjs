@@ -101,9 +101,15 @@ const rejectedBatchActions = batchActionsForFilter('rejected');
 assert(rejectedBatchActions.length === 0, 'rejected filter has no batch stage actions');
 
 const pipelineFilterKeys = PIPELINE_FILTERS.map((filter) => filter.key);
-for (const canonicalState of ['tailored', 'applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'skip']) {
+for (const canonicalState of ['pending', 'tailored', 'applied', 'interview', 'offer', 'rejected', 'discarded', 'skip']) {
   assert(pipelineFilterKeys.includes(canonicalState), `pipeline exposes a tab for canonical state ${canonicalState}`);
 }
+for (const removedFilter of ['all', 'responded', 'top']) {
+  assert(!pipelineFilterKeys.includes(removedFilter), `pipeline hides redundant ${removedFilter} tab`);
+}
+const pipelineViewSource = readFileSync(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'pipeline.mjs'), 'utf8');
+assert(pipelineViewSource.includes('id="pipeline-exact-input"'), 'pipeline renders an exact score input for pending roles');
+assert(pipelineViewSource.includes('exactScore: exactPendingScore'), 'pipeline applies exact score state to pending role filtering');
 assert(
   hasCanonicalRole([{ company: 'AMD', role: 'AI Creative Technologist' }], 'AMD, Inc.', 'AI Creative Technologist') === true,
   'pipeline duplicate warnings use canonical company and role identity'
@@ -282,12 +288,20 @@ assert(
   'pipeline min score filter keeps roles at the slider threshold'
 );
 assert(
-  pendingPassesScoreFilters({ relevance: 3.9 }, { topOnly: true, minScore: 2.5 }) === false,
-  'top-match filter still requires a 4+ score'
+  pendingPassesScoreFilters({ relevance: 4.0 }, { exactScore: 4.0, minScore: 0 }) === true,
+  'pipeline exact score filter keeps the matching displayed score'
 );
 assert(
-  pendingPassesScoreFilters({ relevance: 4.1 }, { topOnly: true, minScore: 4 }) === true,
-  'top-match and slider filters can both pass'
+  pendingPassesScoreFilters({ relevance: 4.1 }, { exactScore: 4.0, minScore: 0 }) === false,
+  'pipeline exact score filter excludes a different displayed score'
+);
+assert(
+  pendingPassesScoreFilters({ relevance: 4.04 }, { exactScore: 4.0, minScore: 4 }) === true,
+  'pipeline exact score uses one-decimal display precision and composes with minimum score'
+);
+assert(
+  pendingPassesScoreFilters({ relevance: 4.05 }, { exactScore: 4.0, minScore: 0 }) === true,
+  'pipeline exact score matches the score ring at JavaScript half-rounding boundaries'
 );
 
 const partiallySelectedPending = new Set(['https://jobs.example/a', 'https://jobs.example/hidden']);

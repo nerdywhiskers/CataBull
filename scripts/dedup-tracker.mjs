@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync } from
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { defaultWorkspace } from '../lib/workspace.mjs';
-import { canonicalCompanyName, canonicalCompanyRoleKey } from '../lib/role-identity.mjs';
+import { canonicalCompanyName, canonicalCompanyRoleKey, sameJobPosting } from '../lib/role-identity.mjs';
 
 // Data root = the user's workspace. CATABULL_WORKSPACE_ROOT (set by the CLI and
 // the dashboard when it spawns scripts) wins; otherwise fall back to the package
@@ -122,8 +122,20 @@ function parseAppLine(line) {
     pdf: parts[7],
     report: parts[8],
     notes: parts[9] || '',
+    jobUrl: parts[10] || '',
     raw: line,
   };
+}
+
+function reportJobUrl(reportCell) {
+  const link = String(reportCell || '').match(/\((reports\/[^)]+\.md)\)/);
+  if (!link || link[1].includes('..')) return '';
+  try {
+    const report = readFileSync(join(CATA_BULL_ROOT, link[1]), 'utf8');
+    return report.match(/^\*\*URL:\*\*\s*(https?:\/\/\S+)/m)?.[1]?.replace(/[),.]+$/, '') || '';
+  } catch {
+    return '';
+  }
 }
 
 // Read
@@ -132,16 +144,36 @@ if (!existsSync(APPS_FILE)) {
   process.exit(0);
 }
 const content = readFileSync(APPS_FILE, 'utf-8');
-const lines = content.split('\n');
+const lines = content.split('\n').map((line) => {
+  if (line.trim() === '| # | Date | Company | Role | Score | Status | PDF | Report | Notes |') {
+    return '| # | Date | Company | Role | Score | Status | PDF | Report | Notes | Job URL |';
+  }
+  if (line.trim() === '|---|------|---------|------|-------|--------|-----|--------|-------|') {
+    return '|---|------|---------|------|-------|--------|-----|--------|-------|---------|';
+  }
+  return line;
+});
 
 // Parse all entries
 const entries = [];
 const entryLineMap = new Map(); // num → line index
+let backfilled = 0;
 
 for (let i = 0; i < lines.length; i++) {
   if (!lines[i].startsWith('|')) continue;
   const app = parseAppLine(lines[i]);
   if (app && app.num > 0) {
+    if (!app.jobUrl) {
+      const recovered = reportJobUrl(app.report);
+      if (recovered) {
+        app.jobUrl = recovered;
+        const parts = lines[i].split('|').map((part) => part.trim());
+        parts.splice(parts.length - 1, 0, recovered);
+        lines[i] = '| ' + parts.slice(1, -1).join(' | ') + ' |';
+        app.raw = lines[i];
+        backfilled++;
+      }
+    }
     entries.push(app);
     entryLineMap.set(app.num, i);
   }
@@ -149,73 +181,80 @@ for (let i = 0; i < lines.length; i++) {
 
 console.log(`📊 ${entries.length} entries loaded`);
 
-// Group by company+role
-const groups = new Map();
-for (const entry of entries) {
-  const key = canonicalCompanyName(entry.company);
-  if (!groups.has(key)) groups.set(key, []);
-  groups.get(key).push(entry);
+// Build duplicate clusters across all rows. Canonical URL identity can match
+// even when an aggregator supplied the wrong company/title metadata; otherwise
+// retain the legacy same-company fuzzy-role behavior.
+const parent = entries.map((_, index) => index);
+const findRoot = (index) => {
+  while (parent[index] !== index) {
+    parent[index] = parent[parent[index]];
+    index = parent[index];
+  }
+  return index;
+};
+const union = (a, b) => {
+  const rootA = findRoot(a);
+  const rootB = findRoot(b);
+  if (rootA !== rootB) parent[rootB] = rootA;
+};
+for (let i = 0; i < entries.length; i++) {
+  for (let j = i + 1; j < entries.length; j++) {
+    const sameCompanyRole = canonicalCompanyName(entries[i].company) === canonicalCompanyName(entries[j].company)
+      && roleMatch(entries[i].role, entries[j].role);
+    if (sameJobPosting(entries[i], entries[j]) || sameCompanyRole) union(i, j);
+  }
 }
 
-// Find duplicates
+const clusters = new Map();
+for (let i = 0; i < entries.length; i++) {
+  const root = findRoot(i);
+  if (!clusters.has(root)) clusters.set(root, []);
+  clusters.get(root).push(entries[i]);
+}
+
 let removed = 0;
 const linesToRemove = new Set();
+for (const cluster of clusters.values()) {
+  if (cluster.length < 2) continue;
 
-for (const [company, companyEntries] of groups) {
-  if (companyEntries.length < 2) continue;
+  // Keep the one with highest score.
+  cluster.sort((a, b) => parseScore(b.score) - parseScore(a.score));
+  const keeper = cluster[0];
 
-  // Within same company, find role matches
-  const processed = new Set();
-  for (let i = 0; i < companyEntries.length; i++) {
-    if (processed.has(i)) continue;
-    const cluster = [companyEntries[i]];
-    processed.add(i);
-
-    for (let j = i + 1; j < companyEntries.length; j++) {
-      if (processed.has(j)) continue;
-      if (roleMatch(companyEntries[i].role, companyEntries[j].role)) {
-        cluster.push(companyEntries[j]);
-        processed.add(j);
-      }
+  let bestStatusRank = STATUS_RANK[keeper.status.toLowerCase()] || 0;
+  let bestStatus = keeper.status;
+  for (let k = 1; k < cluster.length; k++) {
+    const rank = STATUS_RANK[cluster[k].status.toLowerCase()] || 0;
+    if (rank > bestStatusRank) {
+      bestStatusRank = rank;
+      bestStatus = cluster[k].status;
     }
+  }
 
-    if (cluster.length < 2) continue;
-
-    // Keep the one with highest score
-    cluster.sort((a, b) => parseScore(b.score) - parseScore(a.score));
-    const keeper = cluster[0];
-
-    // Check if any removed entry has more advanced status
-    let bestStatusRank = STATUS_RANK[keeper.status.toLowerCase()] || 0;
-    let bestStatus = keeper.status;
-    for (let k = 1; k < cluster.length; k++) {
-      const rank = STATUS_RANK[cluster[k].status.toLowerCase()] || 0;
-      if (rank > bestStatusRank) {
-        bestStatusRank = rank;
-        bestStatus = cluster[k].status;
-      }
-    }
-
-    // Update keeper's status if a removed entry had a more advanced one
+  const lineIdx = entryLineMap.get(keeper.num);
+  if (lineIdx !== undefined) {
+    const parts = lines[lineIdx].split('|').map(s => s.trim());
     if (bestStatus !== keeper.status) {
-      const lineIdx = entryLineMap.get(keeper.num);
-      if (lineIdx !== undefined) {
-        const parts = lines[lineIdx].split('|').map(s => s.trim());
-        parts[6] = bestStatus;
-        lines[lineIdx] = '| ' + parts.slice(1, -1).join(' | ') + ' |';
-        console.log(`  📝 #${keeper.num}: status promoted to "${bestStatus}" (from #${cluster.find(e => e.status === bestStatus)?.num})`);
+      parts[6] = bestStatus;
+      console.log(`  📝 #${keeper.num}: status promoted to "${bestStatus}" (from #${cluster.find(e => e.status === bestStatus)?.num})`);
+    }
+    if (!keeper.jobUrl) {
+      const recoveredUrl = cluster.find((entry) => entry.jobUrl)?.jobUrl || '';
+      if (recoveredUrl) {
+        while (parts.length < 12) parts.splice(parts.length - 1, 0, '');
+        parts[10] = recoveredUrl;
       }
     }
+    lines[lineIdx] = '| ' + parts.slice(1, -1).join(' | ') + ' |';
+  }
 
-    // Remove duplicates
-    for (let k = 1; k < cluster.length; k++) {
-      const dup = cluster[k];
-      const lineIdx = entryLineMap.get(dup.num);
-      if (lineIdx !== undefined) {
-        linesToRemove.add(lineIdx);
-        removed++;
-        console.log(`🗑️  Remove #${dup.num} (${dup.company} — ${dup.role}, ${dup.score}) → kept #${keeper.num} (${keeper.score})`);
-      }
+  for (let k = 1; k < cluster.length; k++) {
+    const dup = cluster[k];
+    const duplicateLineIdx = entryLineMap.get(dup.num);
+    if (duplicateLineIdx !== undefined) {
+      linesToRemove.add(duplicateLineIdx);
+      removed++;
+      console.log(`🗑️  Remove #${dup.num} (${dup.company} — ${dup.role}, ${dup.score}) → kept #${keeper.num} (${keeper.score})`);
     }
   }
 }
@@ -226,9 +265,9 @@ for (const idx of sortedRemoveIndices) {
   lines.splice(idx, 1);
 }
 
-console.log(`\n📊 ${removed} duplicates removed`);
+console.log(`\n📊 ${removed} duplicates removed, ${backfilled} job URLs backfilled`);
 
-if (!DRY_RUN && removed > 0) {
+if (!DRY_RUN && (removed > 0 || backfilled > 0)) {
   copyFileSync(APPS_FILE, APPS_FILE + '.bak');
   writeFileSync(APPS_FILE, lines.join('\n'));
   console.log('✅ Written to applications.md (backup: applications.md.bak)');

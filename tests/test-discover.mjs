@@ -9,6 +9,7 @@
 
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join, resolve } from 'path';
+import { readFileSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -30,10 +31,14 @@ function assert(cond, msg) {
 }
 
 const {
+  DISCOVER_VIEW_MODES,
   buildDiscoverFilter,
   groupPostingsByCompany,
   sortByRelevance,
   collectIndustries,
+  areAllDiscoverItemsSelected,
+  setDiscoverSelectionForItems,
+  selectionForDragRect,
 } = await import(
   pathToFileURL(join(ROOT, 'dashboard-web', 'public', 'js', 'lib', 'discover-grouping.mjs')).href
 );
@@ -74,6 +79,16 @@ assert(postings.every(allPass), 'no filters → all pass');
 const min4 = buildDiscoverFilter({ minScore: 4 });
 assert(postings.filter(min4).length === 3, 'minScore 4 keeps 3 of 6 postings');
 assert(!min4(postings.find((p) => p.relevance === 3.2)), 'min 4 drops 3.2');
+
+// Exact score is independent from the minimum slider and matches the
+// displayed one-decimal score rather than using a range.
+const exact4 = buildDiscoverFilter({ exactScore: 4.0 });
+assert(postings.filter(exact4).length === 1, 'exact score 4.0 keeps only the 4.0 posting');
+assert(exact4(postings.find((p) => p.relevance === 4.0)), 'exact score includes an equal score');
+assert(!exact4(postings.find((p) => p.relevance === 4.5)), 'exact score excludes higher scores');
+assert(exact4({ company: 'Boundary', role: 'Designer', relevance: 4.05 }), 'exact score matches displayed score at JavaScript half-rounding boundaries');
+const exactAndMinimum = buildDiscoverFilter({ minScore: 3.5, exactScore: 4.0 });
+assert(postings.filter(exactAndMinimum).length === 1, 'exact score composes with the minimum slider');
 
 // Industry filter — single
 const aiOnly = buildDiscoverFilter({
@@ -122,6 +137,17 @@ const safeResolver = buildDiscoverFilter({
   resolveIndustries: () => null,
 });
 assert(safeResolver(postings[0]) === false, 'null resolveIndustries → no industry match');
+
+// Location and posted-date filters mirror the Pipeline filter popover.
+const remoteOnly = buildDiscoverFilter({ location: 'remote' });
+assert(remoteOnly({ company: 'A', role: 'Designer', relevance: 4, location: 'Remote — US' }), 'location filter is a case-insensitive substring match');
+assert(!remoteOnly({ company: 'B', role: 'Designer', relevance: 4, location: 'Austin' }), 'location filter excludes other locations');
+assert(!remoteOnly({ company: 'C', role: 'Designer', relevance: 4 }), 'location filter excludes postings without location metadata');
+
+const last7Days = buildDiscoverFilter({ dateRange: '7d', now: new Date('2026-09-26T12:00:00Z') });
+assert(last7Days({ company: 'A', role: 'Designer', relevance: 4, postedAt: '2026-09-20' }), 'posted window includes recent roles');
+assert(!last7Days({ company: 'B', role: 'Designer', relevance: 4, postedAt: '2026-09-18' }), 'posted window excludes older roles');
+assert(!last7Days({ company: 'C', role: 'Designer', relevance: 4 }), 'posted window excludes roles without posted dates');
 
 // ── 2. groupPostingsByCompany ─────────────────────────────────────────
 
@@ -199,6 +225,65 @@ assert(dup.includes('fintech'), 'fintech surfaced');
 
 assert(collectIndustries([]).length === 0, 'empty input → []');
 assert(collectIndustries(null).length === 0, 'null input → []');
+
+// ── 5. filtered bulk selection ───────────────────────────────────────
+
+console.log('\n5. filtered bulk selection');
+
+const visible = postings.slice(0, 2);
+assert(!areAllDiscoverItemsSelected(new Set(['a']), visible), 'partial visible selection keeps select-all unchecked');
+assert(areAllDiscoverItemsSelected(new Set(['a', 'b', 'hidden']), visible), 'all visible selected ignores unrelated hidden selections');
+assert(!areAllDiscoverItemsSelected(new Set(), []), 'empty result set never reports select-all checked');
+
+const selectedVisible = setDiscoverSelectionForItems(new Set(['hidden']), visible, true);
+assert(selectedVisible.has('a') && selectedVisible.has('b'), 'select-all adds every filtered role');
+assert(selectedVisible.has('hidden'), 'select-all preserves hidden selections');
+const deselectedVisible = setDiscoverSelectionForItems(selectedVisible, visible, false);
+assert(!deselectedVisible.has('a') && !deselectedVisible.has('b'), 'deselect-all removes filtered roles');
+assert(deselectedVisible.has('hidden'), 'deselect-all preserves hidden selections');
+
+// ── 6. drag-selection geometry ──────────────────────────────────────
+
+console.log('\n6. drag-selection geometry');
+
+const dragCards = [
+  { url: 'a', rect: { left: 0, top: 0, right: 100, bottom: 100 } },
+  { url: 'b', rect: { left: 120, top: 0, right: 220, bottom: 100 } },
+  { url: 'c', rect: { left: 240, top: 0, right: 340, bottom: 100 } },
+];
+const dragged = selectionForDragRect(new Set(['hidden']), dragCards, { left: 50, top: 10, right: 180, bottom: 90 });
+assert(dragged.has('a') && dragged.has('b'), 'drag rectangle selects every intersecting card');
+assert(!dragged.has('c'), 'drag rectangle leaves non-intersecting cards unselected');
+assert(dragged.has('hidden'), 'drag selection preserves prior selections');
+
+assert(DISCOVER_VIEW_MODES.join(',') === 'cards,list', 'Discover exposes cards and list view modes');
+
+const discoverViewSource = readFileSync(join(ROOT, 'dashboard-web', 'public', 'js', 'views', 'discover.mjs'), 'utf8');
+const scoreModalSource = readFileSync(join(ROOT, 'dashboard-web', 'public', 'js', 'components', 'score-modal.mjs'), 'utf8');
+const scanSource = readFileSync(join(ROOT, 'scripts', 'scan.mjs'), 'utf8');
+const deepScanSource = readFileSync(join(ROOT, 'dashboard-web', 'routes', 'scan-deep.mjs'), 'utf8');
+assert(discoverViewSource.includes('appsResp.discover'), 'Discover renders the isolated discovery queue instead of pipeline pending rows');
+assert(discoverViewSource.includes('Add to pipeline'), 'Discover exposes explicit pipeline promotion in both views');
+assert(discoverViewSource.includes('discover-list'), 'Discover implements list rendering alongside cards');
+assert(discoverViewSource.includes('discover-select-all'), 'Discover exposes select-all in card and list views');
+assert(discoverViewSource.includes('deleteDiscovery'), 'Discover exposes persistent deletion actions');
+assert(discoverViewSource.includes('addDiscoveriesToPipeline'), 'Discover exposes bulk pipeline promotion');
+assert(discoverViewSource.includes('discover-filter-btn'), 'Discover exposes a Pipeline-style filter button');
+assert(discoverViewSource.includes('discover-filter-popover'), 'Discover filters open in a popover');
+assert(discoverViewSource.includes('Filter by industry, location, posted date'), 'Discover filter button explains its filter dimensions');
+assert(!discoverViewSource.includes('id="discover-sort"'), 'Discover no longer exposes the incorrect sort dropdown');
+assert(discoverViewSource.includes('discover-drag-marquee'), 'Discover card view exposes drag-selection marquee');
+assert(discoverViewSource.includes('&#x2197;'), 'Discover list uses the Pipeline arrow icon for posting links');
+assert(!discoverViewSource.includes('checkLivenessAll'), 'Discover refresh cannot mutate Pipeline liveness state');
+assert(discoverViewSource.includes('allowEvaluate: false'), 'Discover match details enforce the evaluation gate');
+assert(scoreModalSource.includes("allowEvaluate ? `<button class=\"btn btn-secondary\" data-action=\"evaluate\""), 'score modal hides evaluation action when the gate is closed');
+assert(scoreModalSource.includes('Add this role to Pipeline'), 'score modal explains the promotion gate');
+assert(scanSource.includes('appendToDiscovery(newOffers)'), 'Quick Scan writes new roles to Discover');
+assert(!scanSource.includes('appendToPipeline(newOffers)'), 'Quick Scan no longer inserts scanned roles directly into Pipeline');
+assert(deepScanSource.includes('appendToDiscovery(root, level3Result.added)'), 'Deep Scan Level 3 writes new roles to Discover');
+assert(deepScanSource.includes('appendToDiscovery(root, level4Result.added)'), 'Deep Scan Level 4 writes new roles to Discover');
+assert(scanSource.includes('canonicalCompanyRoleKey(fields[4], fields[3])'), 'Quick Scan suppresses previously seen company-role pairs from scan history');
+assert(deepScanSource.includes('canonicalCompanyRoleKey(fields[4], fields[3])'), 'Deep Scan suppresses previously seen company-role pairs from scan history');
 
 // ── DONE ──────────────────────────────────────────────────────────────
 

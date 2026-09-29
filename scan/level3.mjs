@@ -3,7 +3,7 @@
  *
  * Runs the same job-search-engine sweeps that modes/scan.md prose-spec'd
  * for the agent, but in-process so the dashboard can stream progress,
- * sidestep agent network sandboxing, and write to pipeline.md + history
+ * sidestep agent network sandboxing, and write to Discover + history
  * with the same machinery the rest of scan.mjs uses.
  *
  * Pure module — no top-level side effects, no `process.argv` reads.
@@ -15,6 +15,7 @@
 import { buildTitleClassifier } from '../lib/title-filter.mjs';
 import { searchWeb } from './websearch.mjs';
 import { isActiveLiveness } from '../lib/job-board-liveness.mjs';
+import { canonicalCompanyRoleKey, canonicalJobUrlKey, sameJobPosting } from '../lib/role-identity.mjs';
 
 const LIVENESS_CONCURRENCY = 1;   // Playwright is single-threaded per browser
 const SEARCH_CONCURRENCY = 3;     // Rate-limit-friendly across providers
@@ -89,33 +90,8 @@ export function isAggregatorPage({ url, title }) {
   return false;
 }
 
-/**
- * Tracking-param-stripping URL canonicalizer. Mirrors the helper in
- * scan.mjs so a hit that comes back through both Level 1-2 and Level 3
- * dedupes against the same string.
- */
-const TRACKING_PARAMS = new Set([
-  'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-  'src', 'source', 'ref', 'referrer', 'fbclid', 'gclid', 'mc_cid', 'mc_eid',
-]);
-
 export function normalizeUrl(raw) {
-  if (!raw) return '';
-  const input = String(raw).trim();
-  if (!input) return '';
-  try {
-    const u = new URL(input);
-    u.hostname = u.hostname.toLowerCase();
-    u.hash = '';
-    const filtered = [...u.searchParams.entries()].filter(([k]) => !TRACKING_PARAMS.has(k.toLowerCase()));
-    filtered.sort(([a], [b]) => a.localeCompare(b));
-    u.search = '';
-    for (const [k, v] of filtered) u.searchParams.append(k, v);
-    if (u.pathname.length > 1) u.pathname = u.pathname.replace(/\/+$/, '');
-    return u.toString();
-  } catch {
-    return input;
-  }
+  return canonicalJobUrlKey(raw);
 }
 
 /**
@@ -196,6 +172,7 @@ export async function runLevel3({
   titleFilter,
   seenUrls = new Set(),
   seenCompanyRoles = new Set(),
+  blockedPostings = [],
   onProgress = () => {},
   webSearch = searchWeb,
   livenessCheck,
@@ -307,8 +284,9 @@ export async function runLevel3({
 
       const company = cand.companyHint || extractCompany({ title: cand.searchTitle, url: cand.url });
       const role = extractRole(cand.searchTitle);
-      const companyRoleKey = `${company.toLowerCase()}::${role.toLowerCase()}`;
-      if (seenCompanyRoles.has(companyRoleKey)) {
+      const companyRoleKey = canonicalCompanyRoleKey(company, role);
+      const posting = { url: cand.url, company, role };
+      if (seenCompanyRoles.has(companyRoleKey) || blockedPostings.some((existing) => sameJobPosting(existing, posting))) {
         skipped.dup++;
         continue;
       }
@@ -335,8 +313,9 @@ export async function runLevel3({
       if (totalCap && added.length >= totalCap) break;
       const company = cand.companyHint || extractCompany({ title: cand.searchTitle, url: cand.url });
       const role = extractRole(cand.searchTitle);
-      const companyRoleKey = `${company.toLowerCase()}::${role.toLowerCase()}`;
-      if (seenCompanyRoles.has(companyRoleKey)) {
+      const companyRoleKey = canonicalCompanyRoleKey(company, role);
+      const posting = { url: cand.url, company, role };
+      if (seenCompanyRoles.has(companyRoleKey) || blockedPostings.some((existing) => sameJobPosting(existing, posting))) {
         skipped.dup++;
         continue;
       }

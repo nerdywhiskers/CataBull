@@ -258,6 +258,61 @@ console.log('\nmerge-tracker');
   }
 }
 
+{
+  const workspace = makeWorkspace();
+  try {
+    mkdirSync(join(workspace, 'reports'), { recursive: true });
+    writeFileSync(join(workspace, 'data', 'applications.md'), `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes | Job URL |\n|---|------|---------|------|-------|--------|-----|--------|-------|---------|\n`);
+    writeFileSync(join(workspace, 'reports', '001-first.md'), '# First\n\n**URL:** https://www.linkedin.com/comm/jobs/view/4442838957/?utm_source=feed\n');
+    writeFileSync(join(workspace, 'reports', '002-mirror.md'), '# Mirror\n\n**URL:** https://linkedin.com/jobs/view/4442838957/\n');
+    writeFileSync(join(workspace, 'batch', 'tracker-additions', '001.tsv'), '1\t2026-06-01\tFirst Provider\tCreative Director\tTailored\t4.0/5\t❌\t[001](reports/001-first.md)\tFirst\n');
+    writeFileSync(join(workspace, 'batch', 'tracker-additions', '002.tsv'), '2\t2026-06-02\tMirror Provider\tCreative Director, Brand\tTailored\t4.1/5\t❌\t[002](reports/002-mirror.md)\tMirror\n');
+
+    const result = runMergeTracker(workspace);
+    const content = readFileSync(join(workspace, 'data', 'applications.md'), 'utf8');
+
+    assert(result.status === 0, 'merge-tracker exits 0 for canonical URL duplicates');
+    assert((content.match(/^\| \d+ \|/gm) || []).length === 1, 'merge-tracker collapses the same posting URL despite provider metadata differences');
+    assert(content.includes('| https://www.linkedin.com/comm/jobs/view/4442838957/?utm_source=feed |') || content.includes('| https://linkedin.com/jobs/view/4442838957/ |'), 'merge-tracker persists a source posting URL in the tracker');
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
+{
+  const workspace = makeWorkspace();
+  try {
+    writeFileSync(join(workspace, 'data', 'applications.md'), `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes | Job URL |\n|---|------|---------|------|-------|--------|-----|--------|-------|---------|\n| 1 | 2026-06-01 | Wrong Provider | Creative Director | 3.5/5 | Tailored | ❌ | | first | https://www.linkedin.com/comm/jobs/view/4442838957/?utm_source=feed |\n| 2 | 2026-06-02 | Correct Company | Creative Director, Brand | 4.0/5 | Applied | ❌ | | second | https://linkedin.com/jobs/view/4442838957/ |\n`);
+
+    const result = runDedupTracker(workspace);
+    const content = readFileSync(join(workspace, 'data', 'applications.md'), 'utf8');
+
+    assert(result.status === 0, 'dedup-tracker exits 0 for canonical URL duplicates');
+    assert((content.match(/^\| \d+ \|/gm) || []).length === 1, 'dedup-tracker removes canonical URL duplicates despite conflicting provider metadata');
+    assert(content.includes('| Applied |'), 'dedup-tracker preserves the more advanced duplicate status');
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
+{
+  const workspace = makeWorkspace();
+  try {
+    mkdirSync(join(workspace, 'reports'), { recursive: true });
+    writeFileSync(join(workspace, 'data', 'applications.md'), `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-01 | Legacy Co | Legacy Role | 3.5/5 | Applied | ❌ | [001](reports/001-legacy.md) | note |\n`);
+    writeFileSync(join(workspace, 'reports', '001-legacy.md'), '# Legacy\n\n**URL:** https://jobs.example/legacy-role\n');
+
+    const result = runDedupTracker(workspace);
+    const content = readFileSync(join(workspace, 'data', 'applications.md'), 'utf8');
+
+    assert(result.status === 0, 'dedup-tracker exits 0 while backfilling report URLs');
+    assert(content.includes('| Notes | Job URL |'), 'dedup-tracker upgrades the tracker header for persisted job URLs');
+    assert(content.includes('| note | https://jobs.example/legacy-role |'), 'dedup-tracker backfills a provable URL from the linked report');
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
 console.log(`\nPassed: ${passed} / ${total}`);
 if (failed > 0) process.exitCode = 1;
 else console.log('All passed ✓');

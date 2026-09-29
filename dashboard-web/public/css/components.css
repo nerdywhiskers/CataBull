@@ -1866,7 +1866,9 @@
   background: var(--mantle);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  position: relative;
 }
+.discover-toolbar.has-popover { z-index: 100; }
 .discover-toolbar-row {
   display: flex;
   align-items: center;
@@ -1883,6 +1885,36 @@
   flex-wrap: wrap;
 }
 .discover-score-slider input[type="range"] { width: 140px; }
+.discover-exact-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--subtext);
+  font-size: 12px;
+}
+.discover-exact-score .form-input {
+  width: 76px;
+  min-height: 30px;
+  padding: 4px 8px;
+}
+.discover-list td:last-child { white-space: nowrap; }
+.discover-list .cell-actions { display: flex; gap: 6px; align-items: center; }
+.discover-selection-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--mantle);
+  color: var(--subtext);
+  font-size: 12px;
+}
+.discover-selection-bar label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.discover-selection-bar .btn:first-of-type { margin-left: auto; }
+.discover-card-head > .discover-check { flex: 0 0 auto; margin-top: 4px; position: relative; z-index: 2; }
+.discover-filter-wrap { position: relative; flex: 0 0 auto; }
 .pipeline-score-slider {
   flex-wrap: nowrap;
 }
@@ -2027,6 +2059,20 @@ details[open] > .discover-group-summary::before { transform: rotate(90deg); }
     0 8px 16px -8px rgba(0, 0, 0, 0.4);
 }
 .discover-card:hover::before { opacity: 1; }
+.discover-card.is-selected {
+  border-color: var(--mauve);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--mauve) 28%, transparent), 0 18px 32px -20px rgba(0, 0, 0, 0.62);
+}
+.discover-grid.is-drag-selecting { user-select: none; cursor: crosshair; }
+.discover-drag-marquee {
+  position: fixed;
+  z-index: 500;
+  pointer-events: none;
+  border: 1px solid var(--mauve);
+  background: color-mix(in oklab, var(--mauve) 16%, transparent);
+  border-radius: 5px;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--mauve) 20%, transparent) inset;
+}
 .discover-card:focus-visible {
   outline: 2px solid var(--primary-soft);
   outline-offset: 2px;

@@ -10,12 +10,12 @@
  */
 
 import { asWorkspace } from '../../lib/workspace.mjs';
-import { canonicalCompanyRoleKey } from '../../lib/role-identity.mjs';
+import { canonicalCompanyRoleKey, canonicalJobUrlKey, sameJobPosting } from '../../lib/role-identity.mjs';
 // Cyclic import is fine: parsers.mjs imports `applicationsPath` from this
 // file but only at function call time (not module top), and we import
 // `parseApplications` the same way. ESM resolves both bindings before
 // either function runs.
-import { parseApplications } from './parsers.mjs';
+import { parseApplications, parseDiscovery, parsePipeline } from './parsers.mjs';
 
 export { canonicalCompanyRoleKey } from '../../lib/role-identity.mjs';
 
@@ -330,8 +330,9 @@ export function enforcePipelineConsistency(root) {
   const content = ws.read('data/pipeline.md');
   if (content == null) return { removed: 0, removedBecauseTracked: 0, removedBecauseDuplicatePending: 0 };
 
+  const blockedPostings = parseApplications(root);
   const blockedKeys = new Set(
-    parseApplications(root)
+    blockedPostings
       .map((app) => canonicalCompanyRoleKey(app.company, app.role))
       .filter((key) => key && key !== '||')
   );
@@ -347,9 +348,11 @@ export function enforcePipelineConsistency(root) {
     const item = parsePipelineIdentity(line);
     if (!item || !item.done || !item.key || item.key === '||') continue;
     blockedKeys.add(item.key);
+    blockedPostings.push(item);
   }
 
   const seenPendingKeys = new Set();
+  const seenPendingPostings = [];
   let removedBecauseTracked = 0;
   let removedBecauseDuplicatePending = 0;
   inProcessed = false;
@@ -362,15 +365,16 @@ export function enforcePipelineConsistency(root) {
 
     const item = parsePipelineIdentity(line);
     if (!item || item.done || !item.key || item.key === '||') return true;
-    if (blockedKeys.has(item.key)) {
+    if (blockedKeys.has(item.key) || blockedPostings.some((posting) => sameJobPosting(posting, item))) {
       removedBecauseTracked += 1;
       return false;
     }
-    if (seenPendingKeys.has(item.key)) {
+    if (seenPendingKeys.has(item.key) || seenPendingPostings.some((posting) => sameJobPosting(posting, item))) {
       removedBecauseDuplicatePending += 1;
       return false;
     }
     seenPendingKeys.add(item.key);
+    seenPendingPostings.push(item);
     return true;
   });
 
@@ -388,9 +392,19 @@ function buildReportLink(reportNumber, reportPath) {
 function ensureApplicationsFile(ws, relPath) {
   const existing = ws.read(relPath);
   if (existing != null) return existing;
-  const bootstrap = '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n';
+  const bootstrap = '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes | Job URL |\n|---|------|---------|------|-------|--------|-----|--------|-------|---------|\n';
   ws.write(relPath, bootstrap);
   return bootstrap;
+}
+
+function ensureJobUrlColumn(content) {
+  const legacyHeader = '| # | Date | Company | Role | Score | Status | PDF | Report | Notes |';
+  const legacySeparator = '|---|------|---------|------|-------|--------|-----|--------|-------|';
+  return String(content || '').split('\n').map((line) => {
+    if (line.trim() === legacyHeader) return `${legacyHeader} Job URL |`;
+    if (line.trim() === legacySeparator) return `${legacySeparator}---------|`;
+    return line;
+  }).join('\n');
 }
 
 function markPipelineDone(ws, url) {
@@ -420,7 +434,7 @@ export function markPipelineTailored(root, {
   if (url) markPipelineDone(ws, url);
 
   const appsRelPath = ws.exists('data/applications.md') ? 'data/applications.md' : 'applications.md';
-  const appsContent = ensureApplicationsFile(ws, appsRelPath);
+  const appsContent = ensureJobUrlColumn(ensureApplicationsFile(ws, appsRelPath));
   const lines = appsContent.split('\n');
   const today = new Date().toISOString().slice(0, 10);
   const normalizedKey = canonicalCompanyRoleKey(company, role);
@@ -434,7 +448,9 @@ export function markPipelineTailored(root, {
     if (parts.length < 8) continue;
     const rowNum = parseInt(parts[0], 10);
     if (Number.isFinite(rowNum)) nextNum = Math.max(nextNum, rowNum + 1);
-    if (canonicalCompanyRoleKey(parts[2], parts[3]) !== normalizedKey) continue;
+    const existingPosting = { company: parts[2], role: parts[3], jobUrl: parts[9] || '' };
+    if (canonicalCompanyRoleKey(parts[2], parts[3]) !== normalizedKey
+      && !sameJobPosting(existingPosting, { url, company, role })) continue;
 
     parts[1] = parts[1] || today;
     parts[2] = company;
@@ -445,8 +461,9 @@ export function markPipelineTailored(root, {
     parts[6] = hasPdf ? '✅' : (parts[6] || '❌');
     parts[7] = reportCell || parts[7] || '';
     parts[8] = parts[8] || '';
+    parts[9] = url || parts[9] || '';
     const finalRowId = parts[0] || rowNum || nextNum;
-    lines[i] = `| ${finalRowId} | ${parts[1]} | ${parts[2]} | ${parts[3]} | ${parts[4]} | ${parts[5]} | ${parts[6]} | ${parts[7]} | ${parts[8]} |`;
+    lines[i] = `| ${finalRowId} | ${parts[1]} | ${parts[2]} | ${parts[3]} | ${parts[4]} | ${parts[5]} | ${parts[6]} | ${parts[7]} | ${parts[8]} | ${parts[9]} |`;
     ws.write(appsRelPath, lines.join('\n'));
     if (!existingStatus || /tailor|evaluat|hold|monitor|verificar|condicional/i.test(existingStatus)) {
       appendApplicationEvent(root, {
@@ -459,7 +476,7 @@ export function markPipelineTailored(root, {
     return { success: true, updated: true, num: rowNum || nextNum };
   }
 
-  const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | ${scoreRaw} | Tailored | ${hasPdf ? '✅' : '❌'} | ${reportCell} | |`;
+  const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | ${scoreRaw} | Tailored | ${hasPdf ? '✅' : '❌'} | ${reportCell} | | ${url || ''} |`;
   ws.write(appsRelPath, appsContent.trimEnd() + '\n' + newRow + '\n');
   appendApplicationEvent(root, {
     trackerRowId: nextNum,
@@ -538,7 +555,17 @@ export function deletePendingByUrl(root, urls) {
  * URL already exists anywhere in pipeline.md (pending, skipped, or
  * processed).
  */
-export function addPendingItem(root, { url, company, role, postedAt = null, location = null }) {
+export function addPendingItem(root, {
+  url,
+  company,
+  role,
+  postedAt = null,
+  location = null,
+  matchTier = null,
+  contextualScore = null,
+  contextualRationale = null,
+  contextualSignals = null,
+}) {
   if (!url || !company || !role) return { added: false, duplicate: false };
   const ws = asWorkspace(root);
   let content = ws.read('data/pipeline.md');
@@ -547,12 +574,12 @@ export function addPendingItem(root, { url, company, role, postedAt = null, loca
     content = '# Pipeline\n\n## Pendientes\n\n## Procesadas\n';
   }
 
-  if (content.includes(url)) return { added: false, duplicate: true };
+  const candidate = { url, company, role };
+  const existingItems = content.split('\n').map((line) => parsePipelineIdentity(line)).filter(Boolean);
+  const duplicateUrl = existingItems.some((item) => sameJobPosting(item, candidate));
+  if (duplicateUrl) return { added: false, duplicate: true };
   const candidateKey = canonicalCompanyRoleKey(company, role);
-  const duplicateRole = content.split('\n').some((line) => {
-    const item = parsePipelineIdentity(line);
-    return item?.key === candidateKey;
-  });
+  const duplicateRole = existingItems.some((item) => item.key === candidateKey);
   if (duplicateRole) return { added: false, duplicate: true };
 
   const lines = content.split('\n');
@@ -578,10 +605,121 @@ export function addPendingItem(root, { url, company, role, postedAt = null, loca
   // pipe-delimited format. Empty location → omit the field entirely.
   const locClean = location ? String(location).replace(/[\n\r|]/g, '').trim() : '';
   const locPart = locClean ? ` | loc:${locClean}` : '';
-  const newLine = `- [ ] ${url} | ${company} | ${role}${datePart}${locPart}`;
+  const matchClean = cleanPipelineField(matchTier, 40);
+  const matchPart = matchClean ? ` | match:${matchClean}` : '';
+  const llmPart = Number.isFinite(contextualScore)
+    ? ` | llm:${Math.max(0, Math.min(5, contextualScore)).toFixed(1)}`
+    : '';
+  const whyClean = cleanPipelineField(contextualRationale, 180);
+  const whyPart = whyClean ? ` | why:${whyClean}` : '';
+  const signalsClean = Array.isArray(contextualSignals)
+    ? contextualSignals.map((signal) => cleanPipelineField(signal, 60)).filter(Boolean).slice(0, 4).join(',')
+    : '';
+  const signalsPart = signalsClean ? ` | signals:${signalsClean}` : '';
+  const newLine = `- [ ] ${url} | ${company} | ${role}${datePart}${locPart}${matchPart}${llmPart}${whyPart}${signalsPart}`;
   lines.splice(insertAt, 0, newLine);
   ws.write('data/pipeline.md', lines.join('\n'));
   return { added: true, duplicate: false };
+}
+
+function removeDiscoveryRole(ws, company, role) {
+  const content = ws.read('data/discover.md');
+  if (content == null) return 0;
+  const targetKey = canonicalCompanyRoleKey(company, role);
+  let removed = 0;
+  const kept = content.split('\n').filter((line) => {
+    const item = parsePipelineIdentity(line);
+    if (!item || item.key !== targetKey) return true;
+    removed++;
+    return false;
+  });
+  if (removed) ws.write('data/discover.md', kept.join('\n'));
+  return removed;
+}
+
+function markDiscoveriesDeleted(ws, removedItems) {
+  if (!removedItems.length) return;
+  const relPath = 'data/scan-history.tsv';
+  const header = 'url\tfirst_seen\tportal\ttitle\tcompany\tstatus';
+  const existing = ws.read(relPath);
+  const lines = existing == null ? [header] : existing.trimEnd().split(/\r?\n/);
+  if (!lines.length || !lines[0].startsWith('url\t')) lines.unshift(header);
+
+  const recordedUrls = new Set();
+  for (let i = 1; i < lines.length; i++) {
+    const fields = lines[i].split('\t');
+    if (fields.length < 5) continue;
+    const historyItem = { url: fields[0], role: fields[3], company: fields[4] };
+    const historyKey = canonicalCompanyRoleKey(historyItem.company, historyItem.role);
+    if (!removedItems.some((item) => canonicalCompanyRoleKey(item.company, item.role) === historyKey || sameJobPosting(historyItem, item))) continue;
+    fields[5] = 'deleted';
+    lines[i] = fields.join('\t');
+    recordedUrls.add(canonicalJobUrlKey(fields[0]));
+  }
+
+  const date = new Date().toISOString().slice(0, 10);
+  for (const item of removedItems) {
+    const urlKey = canonicalJobUrlKey(item.url);
+    if (!urlKey || recordedUrls.has(urlKey)) continue;
+    const clean = (value) => String(value || '').replace(/[\t\r\n]+/g, ' ').trim();
+    lines.push([clean(item.url), date, 'discover', clean(item.role), clean(item.company), 'deleted'].join('\t'));
+    recordedUrls.add(urlKey);
+  }
+  ws.write(relPath, `${lines.join('\n')}\n`);
+}
+
+/** Delete selected Discover roles, canonical mirrors included, and tombstone them for future scans. */
+export function deleteDiscoveryByUrl(root, urls = []) {
+  const requested = new Set(urls.map((url) => String(url || '').trim()).filter(Boolean));
+  if (!requested.size) return 0;
+  const ws = asWorkspace(root);
+  const content = ws.read('data/discover.md');
+  if (content == null) return 0;
+  const selected = parseDiscovery(root).filter((item) => requested.has(item.url));
+  if (!selected.length) return 0;
+
+  const removedItems = [];
+  const kept = content.split('\n').filter((line) => {
+    const item = parsePipelineIdentity(line);
+    if (!item || !selected.some((target) => item.key === canonicalCompanyRoleKey(target.company, target.role) || sameJobPosting(item, target))) return true;
+    removedItems.push(item);
+    return false;
+  });
+  if (removedItems.length) {
+    ws.write('data/discover.md', kept.join('\n'));
+    markDiscoveriesDeleted(ws, removedItems);
+  }
+  return removedItems.length;
+}
+
+/** Promote one discovery into Pipeline and remove every canonical mirror. */
+export function promoteDiscoveryItem(root, url) {
+  const ws = asWorkspace(root);
+  const selected = parseDiscovery(root).find((item) => item.url === url);
+  if (!selected) {
+    const pipeline = parsePipeline(root);
+    const alreadyAdded = [...pipeline.pending, ...pipeline.skipped, ...pipeline.expired]
+      .some((item) => item.url === url);
+    return alreadyAdded
+      ? { success: true, alreadyAdded: true, removed: 0 }
+      : { success: false, error: 'discovery item not found' };
+  }
+
+  const key = canonicalCompanyRoleKey(selected.company, selected.role);
+  const alreadyTracked = parseApplications(root).some((app) =>
+    canonicalCompanyRoleKey(app.company, app.role) === key
+  );
+  const result = alreadyTracked
+    ? { added: false, duplicate: true }
+    : addPendingItem(root, selected);
+  const removed = removeDiscoveryRole(ws, selected.company, selected.role);
+  return {
+    success: result.added || result.duplicate,
+    added: result.added,
+    alreadyAdded: result.duplicate,
+    alreadyTracked,
+    removed,
+  };
 }
 
 /**
@@ -652,9 +790,9 @@ function cleanPipelineField(value, max = 240) {
   return String(value || '').replace(/[\n\r|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
-export function updatePendingContextualScores(root, scores = []) {
+function updateQueueContextualScores(root, relPath, scores = []) {
   const ws = asWorkspace(root);
-  const content = ws.read('data/pipeline.md');
+  const content = ws.read(relPath);
   if (content == null || !Array.isArray(scores) || !scores.length) return { updated: 0 };
 
   const byUrl = new Map(scores
@@ -686,8 +824,16 @@ export function updatePendingContextualScores(root, scores = []) {
     return [`- [ ] ${url}`, match[2].trim(), role, ...extras].filter(Boolean).join(' | ');
   });
 
-  if (updated > 0) ws.write('data/pipeline.md', lines.join('\n'));
+  if (updated > 0) ws.write(relPath, lines.join('\n'));
   return { updated };
+}
+
+export function updatePendingContextualScores(root, scores = []) {
+  return updateQueueContextualScores(root, 'data/pipeline.md', scores);
+}
+
+export function updateDiscoveryContextualScores(root, scores = []) {
+  return updateQueueContextualScores(root, 'data/discover.md', scores);
 }
 
 /** Mark a pending offer in pipeline.md with a status (SKIP or EXPIRED) and date */
@@ -753,23 +899,40 @@ export function markPipelineApplied(root, url, company, role) {
   const existingKey = canonicalCompanyRoleKey(company, role);
   const existing = parseApplications(root).find(app =>
     canonicalCompanyRoleKey(app.company, app.role) === existingKey
+      || sameJobPosting(app, { url, company, role })
   );
   if (existing) {
     updateApplicationStatus(root, existing.reportNumber, existing.num, 'Applied', existing.trackerRowId);
+    if (url && existing.jobUrl !== url) {
+      const appsRelPath = ws.exists('data/applications.md') ? 'data/applications.md' : 'applications.md';
+      const content = ensureJobUrlColumn(ensureApplicationsFile(ws, appsRelPath));
+      const lines = content.split('\n');
+      const dataLines = lines
+        .map((line, index) => ({ line, index }))
+        .filter(({ line }) => line.startsWith('|') && !line.startsWith('| #') && !line.startsWith('|---'));
+      const target = dataLines[existing.num - 1]?.index ?? -1;
+      if (target >= 0) {
+        const parts = lines[target].replace(/^\|/, '').replace(/\|$/, '').split('|').map((field) => field.trim());
+        while (parts.length < 10) parts.push('');
+        parts[9] = url;
+        lines[target] = `| ${parts.join(' | ')} |`;
+        ws.write(appsRelPath, lines.join('\n'));
+      }
+    }
     return;
   }
 
   // Add to applications.md
   const today = new Date().toISOString().slice(0, 10);
   const appsRelPath = ws.exists('data/applications.md') ? 'data/applications.md' : 'applications.md';
-  const appsContent = ensureApplicationsFile(ws, appsRelPath);
+  const appsContent = ensureJobUrlColumn(ensureApplicationsFile(ws, appsRelPath));
   const rows = appsContent.split('\n').filter(l => l.startsWith('|') && !l.startsWith('| #') && !l.startsWith('|---'));
   const nextNum = rows.reduce((max, line) => {
     const rowId = parseInt(line.split('|')[1]?.trim(), 10);
     return Number.isFinite(rowId) ? Math.max(max, rowId) : max;
   }, 0) + 1;
 
-  const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | | Applied | ❌ | | |`;
+  const newRow = `| ${nextNum} | ${today} | ${company} | ${role} | | Applied | ❌ | | | ${url || ''} |`;
   ws.write(appsRelPath, appsContent.trimEnd() + '\n' + newRow + '\n');
   appendApplicationEvent(root, {
     trackerRowId: nextNum,

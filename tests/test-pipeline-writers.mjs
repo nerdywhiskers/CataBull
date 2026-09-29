@@ -100,6 +100,8 @@ const appsPath = join(tmpRoot, 'applications.md');
 const tailoredApps = readFileSync(appsPath, 'utf8');
 assert(tailoredApps.includes('| 1 | '), 'markPipelineTailored bootstraps applications tracker rows');
 assert(tailoredApps.includes('| NewCo | Senior Product Designer | 4.4/5 | Tailored | ✅ | [0007](reports/0007-newco-senior-product-designer.md) |'), 'markPipelineTailored writes Tailored status, PDF state, and report link');
+assert(tailoredApps.includes('| https://example.com/jobs/1 |'), 'markPipelineTailored persists the source job URL in the tracker row');
+assert(parseApplications(tmpRoot)[0].jobUrl === 'https://example.com/jobs/1', 'parseApplications reads the tracker job URL without needing a report');
 let applicationEvents = parseApplicationEvents(tmpRoot);
 assert(applicationEvents.some((event) => event.trackerRowId === 1 && event.event === 'tailored'), 'markPipelineTailored appends a tailored event for new tracked rows');
 
@@ -156,6 +158,8 @@ markPipelineApplied(tmpRoot, 'https://example.com/jobs/new-role', 'NewCo', 'New 
 const nonContiguousApps = readFileSync(appsPath, 'utf8');
 assert(nonContiguousApps.includes('| 4 |') && nonContiguousApps.includes('| NewCo | New Role |'), 'new applied rows allocate max tracker id plus one');
 assert((nonContiguousApps.match(/^\| 3 \|/gm) || []).length === 1, 'new applied rows do not reuse an existing tracker id after gaps');
+const newApplied = parseApplications(tmpRoot).find((app) => app.company === 'NewCo' && app.role === 'New Role');
+assert(newApplied?.jobUrl === 'https://example.com/jobs/new-role', 'markPipelineApplied persists the source job URL for reportless applications');
 
 mkdirSync(join(tmpRoot, 'data'), { recursive: true });
 writeFileSync(join(tmpRoot, 'data', 'pipeline.md'), `# Pipeline\n\n## Pendientes\n- [ ] https://example.com/jobs/duplicate-1 | AMD, Inc. | AI Creative Technologist\n- [ ] https://example.com/jobs/duplicate-2 | AMD | AI Creative Technologist\n- [ ] https://example.com/jobs/unique | OtherCo | Design Engineer\n- [x] https://example.com/jobs/skipped | HiddenCo | Hidden Role | SKIP | 2026-06-06\n- [ ] https://example.com/jobs/skipped-dup | HiddenCo | Hidden Role\n\n## Procesadas\n`);
@@ -193,6 +197,26 @@ const suffixVariantDuplicate = addPendingItem(tmpRoot, {
   role: 'Visualizer',
 });
 assert(suffixVariantDuplicate.added === false, 'pending writer normalizes company suffix variants before duplicate checks');
+
+writeFileSync(join(tmpRoot, 'data', 'pipeline.md'), `# Pipeline\n\n## Pendientes\n- [ ] https://www.linkedin.com/comm/jobs/view/4442838957/?utm_source=feed | Wrong Provider Label | Creative Director\n- [ ] https://provider-a.example/jobs/abc | Acme, Inc. | Head of AI Workflows / Lead Architect\n\n## Procesadas\n`);
+const canonicalUrlDuplicate = addPendingItem(tmpRoot, {
+  url: 'https://linkedin.com/jobs/view/4442838957/',
+  company: 'Correct Company',
+  role: 'Creative Director, Brand',
+});
+assert(canonicalUrlDuplicate.duplicate === true, 'pending writer rejects canonical URL variants despite conflicting provider metadata');
+const crossProviderDuplicate = addPendingItem(tmpRoot, {
+  url: 'https://provider-b.example/roles/xyz',
+  company: 'Acme',
+  role: 'Head of AI Workflows',
+});
+assert(crossProviderDuplicate.duplicate === true, 'pending writer rejects cross-provider mirrors with guarded near-title matching');
+const sameProviderDistinctRole = addPendingItem(tmpRoot, {
+  url: 'https://provider-a.example/jobs/def',
+  company: 'Acme',
+  role: 'AI Technical Artist',
+});
+assert(sameProviderDistinctRole.added === true, 'pending writer keeps distinct roles from the same provider');
 
 writeFileSync(join(tmpRoot, 'data', 'pipeline.md'), `# Pipeline\n\n## Pendientes\n- [ ] https://example.com/jobs/old-1 | Acme | Platform Engineer | posted:2026-06-10 | loc:Remote | match:high\n- [ ] https://example.com/jobs/keep-2 | Beta | Data Scientist\n\n## Procesadas\n`);
 const renamed = updatePendingItem(tmpRoot, {
@@ -245,6 +269,12 @@ assert(missingSourceRename.updated === false, 'updatePendingItem with newUrl sti
 assert(missingSourceRename.error === 'pending item not found', 'newUrl lookup uses the original url');
 const afterFailedRename = readFileSync(join(tmpRoot, 'data', 'pipeline.md'), 'utf8');
 assert(!afterFailedRename.includes('https://example.com/jobs/also-new'), 'failed url rename does not write the new url into the pipeline');
+
+writeFileSync(appsPath, `# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|------|---------|------|-------|--------|-----|--------|-------|\n| 1 | 2026-06-01 | Acme | Product Designer | 4.0/5 | Applied | ❌ | | |\n`);
+writeFileSync(join(tmpRoot, 'data', 'scan-history.tsv'), 'url\tfirst_seen\tportal\ttitle\tcompany\tstatus\nhttps://jobs.test/platform\t2026-06-01\ttest\tPlatform Engineer\tAcme\tadded\n');
+assert(parseApplications(tmpRoot)[0].jobUrl === '', 'scan-history fallback does not guess an unrelated same-company posting URL');
+writeFileSync(join(tmpRoot, 'data', 'scan-history.tsv'), 'url\tfirst_seen\tportal\ttitle\tcompany\tstatus\nhttps://jobs.test/product-designer\t2026-06-01\ttest\tProduct Designer\tAcme\tadded\n');
+assert(parseApplications(tmpRoot)[0].jobUrl === 'https://jobs.test/product-designer', 'scan-history fallback recovers a uniquely matching posting URL');
 
 rmSync(tmpRoot, { recursive: true, force: true });
 

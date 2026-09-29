@@ -23,6 +23,7 @@ let portalsData = null;         // tracked_companies, for industry lookup on pen
 let selected = new Set();       // pending URLs
 let selectedApps = new Set();   // application nums
 let minPendingScore = 0;
+let exactPendingScore = null;
 let currentFilter = 'pending';
 let sortCol = 'score';
 let sortDir = 'desc';
@@ -415,9 +416,10 @@ export function pendingNeedsContextualScore(item, { force = false } = {}) {
   return Boolean(item?.url && (force || item.contextualScoreSource !== 'llm'));
 }
 
-export function pendingPassesScoreFilters(item, { topOnly = false, minScore = 0 } = {}) {
+export function pendingPassesScoreFilters(item, { exactScore = null, minScore = 0 } = {}) {
   const score = Number(item?.relevance ?? 0);
-  return (!topOnly || score >= 4) && score >= minScore;
+  if (Number.isFinite(exactScore) && score.toFixed(1) !== Number(exactScore).toFixed(1)) return false;
+  return score >= minScore;
 }
 
 export function renderPendingScoreButton(item) {
@@ -573,15 +575,12 @@ function tabCount(key) {
 
 export const PIPELINE_FILTERS = [
   { key: 'pending', label: 'Pending' },
-  { key: 'all', label: 'All' },
   { key: 'tailored', label: 'Tailored' },
   { key: 'applied', label: 'Applied' },
-  { key: 'responded', label: 'Responded' },
   { key: 'rejected', label: 'Rejected' },
   { key: 'interview', label: 'Interview' },
   { key: 'offer', label: 'Offer' },
   { key: 'discarded', label: 'Discarded' },
-  { key: 'top', label: 'Top \u22654' },
   { key: 'skip', label: 'Skip' },
 ];
 
@@ -1013,7 +1012,10 @@ export function setPendingSelectionForItems(selectedUrls, items = [], checked = 
 function renderPending(pageItems = null) {
   if (!pending.length) return `<div class="empty-state"><h3>No pending jobs</h3><p>Run a scan to discover new roles, or paste a job description in the chat.</p></div>`;
 
-  const baseFiltered = pending.filter(p => pendingPassesScoreFilters(p, { minScore: minPendingScore }));
+  const baseFiltered = pending.filter(p => pendingPassesScoreFilters(p, {
+    minScore: minPendingScore,
+    exactScore: exactPendingScore,
+  }));
   const fullFiltered = baseFiltered.filter(p => matchesSearch(p)).filter(matchesPendingFilter);
   const filtered = pageItems ?? fullFiltered;
 
@@ -1559,7 +1561,10 @@ function update(container) {
   const fullItems = isPending ? [] : sorted(filtered());
   const fullPending = isPending
     ? pending
-        .filter(p => pendingPassesScoreFilters(p, { minScore: minPendingScore }))
+        .filter(p => pendingPassesScoreFilters(p, {
+          minScore: minPendingScore,
+          exactScore: exactPendingScore,
+        }))
         .filter(matchesSearch)
         .filter(matchesPendingFilter)
     : [];
@@ -1644,6 +1649,10 @@ function update(container) {
             <label class="discover-score-slider pipeline-score-slider">
               <span>Min score: <strong id="pipeline-min-label">${minPendingScore.toFixed(1)}</strong></span>
               <input type="range" min="0" max="5" step="0.5" value="${minPendingScore}" id="pipeline-min-input" />
+            </label>
+            <label class="discover-exact-score pipeline-exact-score">
+              <span>Exact</span>
+              <input class="form-input" type="number" min="0" max="5" step="0.1" inputmode="decimal" placeholder="Any" value="${exactPendingScore == null ? '' : exactPendingScore.toFixed(1)}" id="pipeline-exact-input" aria-label="Exact score" />
             </label>
             <button class="btn btn-sm btn-outline" id="pending-rescore-btn" type="button"${contextualScoringActive ? ' disabled' : ''}>AI Rescore</button>
           ` : ''}
@@ -1817,6 +1826,21 @@ function update(container) {
     currentPage = 1;
     update(container);
   });
+  const exactScoreInput = container.querySelector('#pipeline-exact-input');
+  if (exactScoreInput) {
+    let exactScoreDebounce;
+    exactScoreInput.addEventListener('input', (e) => {
+      clearTimeout(exactScoreDebounce);
+      const rawValue = e.target.value;
+      exactScoreDebounce = setTimeout(() => {
+        const parsed = Number.parseFloat(rawValue);
+        exactPendingScore = Number.isFinite(parsed) && parsed >= 0 && parsed <= 5 ? parsed : null;
+        selected.clear();
+        currentPage = 1;
+        preserveFocus(container, () => update(container));
+      }, 150);
+    });
+  }
 
   container.querySelector('#pending-rescore-btn')?.addEventListener('click', async () => {
     try {

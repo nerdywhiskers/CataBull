@@ -588,8 +588,8 @@ function renderScanStep() {
       <div class="onboarding-step active">
         <h3 class="step-title">Initial Scan</h3>
         <div class="card" style="margin-bottom:16px;border-left:3px solid var(--green)">
-          <p style="font-weight:600;margin-bottom:6px">✓ ${count > 0 ? `${count} new offer${count !== 1 ? 's' : ''} added to your pipeline` : 'Scan complete'}</p>
-          <p style="font-size:13px;color:var(--subtext);margin:0">${count > 0 ? 'They\'re queued under Pending in the Jobs tab.' : 'No new openings matched your filters this time. You can re-run a scan or open a Deep Scan from the Jobs page.'}</p>
+          <p style="font-weight:600;margin-bottom:6px">✓ ${count > 0 ? `${count} new offer${count !== 1 ? 's' : ''} added to Discover` : 'Scan complete'}</p>
+          <p style="font-size:13px;color:var(--subtext);margin:0">${count > 0 ? 'Review them in Discover, then add only the roles you want to Pipeline.' : 'No new openings matched your filters this time. You can re-run a scan or open a Deep Scan from the Jobs page.'}</p>
         </div>
         <div class="step-actions">
           <div></div>

@@ -5,7 +5,7 @@
  *
  * Fetches Greenhouse, Ashby, and Lever APIs directly, applies title
  * filters from portals.yml, deduplicates against existing history,
- * and appends new offers to pipeline.md + scan-history.tsv.
+ * and appends new offers to the Discover inbox + scan-history.tsv.
  *
  * Zero Claude API tokens — pure HTTP + JSON.
  *
@@ -13,7 +13,7 @@
  *   node scan.mjs                  # scan all enabled companies
  *   node scan.mjs --dry-run        # preview without writing files
  *   node scan.mjs --company Cohere # scan a single company
- *   node scan.mjs --limit 25       # cap new offers added to pipeline at 25
+ *   node scan.mjs --limit 25       # cap new offers added to Discover at 25
  */
 
 import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
@@ -26,6 +26,7 @@ import { disposeBrowser as disposeWebfetchBrowser } from '../scan/providers/webf
 import { buildTitleClassifier } from '../lib/title-filter.mjs';
 import { loadEnvFile } from '../lib/load-env.mjs';
 import { encodeScanProgress } from '../lib/scan-progress-stream.mjs';
+import { canonicalCompanyRoleKey, canonicalJobUrlKey, sameJobPosting } from '../lib/role-identity.mjs';
 import {
   DEFAULT_MIN_RELEVANCE,
   hasRelevanceSignals,
@@ -49,6 +50,7 @@ const PORTALS_PATH = join(ROOT, 'portals.yml');
 const PROFILE_PATH = join(ROOT, 'config/profile.yml');
 const SCAN_HISTORY_PATH = join(ROOT, 'data/scan-history.tsv');
 const PIPELINE_PATH = join(ROOT, 'data/pipeline.md');
+const DISCOVER_PATH = join(ROOT, 'data/discover.md');
 const APPLICATIONS_PATH = join(ROOT, 'data/applications.md');
 
 // Ensure required directories exist (fresh setup)
@@ -179,32 +181,10 @@ async function withRetry(fn, { retries = 2, baseDelayMs = 400 } = {}) {
 
 // ── Dedup ───────────────────────────────────────────────────────────
 
-// Tracking parameters that don't affect job identity. Stripped before dedup
-// so the same posting linked from different referrers collapses to one URL.
-const TRACKING_PARAMS = new Set([
-  'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-  'src', 'source', 'ref', 'referrer', 'fbclid', 'gclid', 'mc_cid', 'mc_eid',
-]);
-
-// Canonicalize URLs so that trailing-slash, host case, fragment, query order,
-// and tracking params don't make duplicates look distinct.
+// Canonicalize URLs so that provider aliases, tracking params, fragments, and
+// trailing slashes do not make one posting look distinct.
 function normalizeUrl(raw) {
-  if (!raw) return '';
-  const input = String(raw).trim();
-  if (!input) return '';
-  try {
-    const u = new URL(input);
-    u.hostname = u.hostname.toLowerCase();
-    u.hash = '';
-    const filtered = [...u.searchParams.entries()].filter(([k]) => !TRACKING_PARAMS.has(k.toLowerCase()));
-    filtered.sort(([a], [b]) => a.localeCompare(b));
-    u.search = '';
-    for (const [k, v] of filtered) u.searchParams.append(k, v);
-    if (u.pathname.length > 1) u.pathname = u.pathname.replace(/\/+$/, '');
-    return u.toString();
-  } catch {
-    return input;
-  }
+  return canonicalJobUrlKey(raw);
 }
 
 function loadSeenUrls() {
@@ -218,7 +198,8 @@ function loadSeenUrls() {
   if (existsSync(SCAN_HISTORY_PATH)) {
     const lines = readFileSync(SCAN_HISTORY_PATH, 'utf-8').split('\n');
     for (const line of lines.slice(1)) { // skip header
-      const url = line.split('\t')[0];
+      const fields = line.split('\t');
+      const url = fields[0];
       if (url) add(url);
     }
   }
@@ -226,6 +207,14 @@ function loadSeenUrls() {
   // pipeline.md — extract URLs from checkbox lines
   if (existsSync(PIPELINE_PATH)) {
     const text = readFileSync(PIPELINE_PATH, 'utf-8');
+    for (const match of text.matchAll(/- \[[ x]\] (https?:\/\/\S+)/g)) {
+      add(match[1]);
+    }
+  }
+
+  // Discover inbox — scanned roles wait here for explicit promotion.
+  if (existsSync(DISCOVER_PATH)) {
+    const text = readFileSync(DISCOVER_PATH, 'utf-8');
     for (const match of text.matchAll(/- \[[ x]\] (https?:\/\/\S+)/g)) {
       add(match[1]);
     }
@@ -244,21 +233,67 @@ function loadSeenUrls() {
 
 function loadSeenCompanyRoles() {
   const seen = new Set();
-  if (existsSync(APPLICATIONS_PATH)) {
-    const text = readFileSync(APPLICATIONS_PATH, 'utf-8');
-    // Parse markdown table rows: | # | Date | Company | Role | ...
-    for (const match of text.matchAll(/\|[^|]+\|[^|]+\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|/g)) {
-      const company = match[1].trim().toLowerCase();
-      const role = match[2].trim().toLowerCase();
-      if (company && role && company !== 'company') {
-        seen.add(`${company}::${role}`);
+  if (existsSync(SCAN_HISTORY_PATH)) {
+    for (const line of readFileSync(SCAN_HISTORY_PATH, 'utf-8').split('\n').slice(1)) {
+      const fields = line.split('\t');
+      if (fields[5] === 'deleted' && fields[3] && fields[4]) {
+        seen.add(canonicalCompanyRoleKey(fields[4], fields[3]));
       }
+    }
+  }
+  const collectTable = (path) => {
+    if (!existsSync(path)) return;
+    const text = readFileSync(path, 'utf-8');
+    for (const match of text.matchAll(/\|[^|]+\|[^|]+\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|/g)) {
+      if (match[1].trim().toLowerCase() !== 'company') {
+        seen.add(canonicalCompanyRoleKey(match[1], match[2]));
+      }
+    }
+  };
+  const collectQueue = (path) => {
+    if (!existsSync(path)) return;
+    const text = readFileSync(path, 'utf-8');
+    for (const match of text.matchAll(/^-\s+\[[ x]\]\s+https?:\/\/\S+\s*\|\s*([^|]+)\s*\|\s*([^|\n]+)/gm)) {
+      seen.add(canonicalCompanyRoleKey(match[1], match[2]));
+    }
+  };
+  collectTable(APPLICATIONS_PATH);
+  collectQueue(PIPELINE_PATH);
+  collectQueue(DISCOVER_PATH);
+  return seen;
+}
+
+function loadSeenPostings() {
+  const seen = [];
+  if (existsSync(SCAN_HISTORY_PATH)) {
+    for (const line of readFileSync(SCAN_HISTORY_PATH, 'utf8').split('\n').slice(1)) {
+      const fields = line.split('\t');
+      if (fields[5] === 'deleted' && fields[0] && fields[3] && fields[4]) {
+        seen.push({ url: fields[0], role: fields[3], company: fields[4] });
+      }
+    }
+  }
+  const collectQueue = (path) => {
+    if (!existsSync(path)) return;
+    for (const line of readFileSync(path, 'utf8').split('\n')) {
+      const match = line.match(/^-\s+\[[ x]\]\s+(https?:\/\/\S+)\s*\|\s*([^|]+)\s*\|\s*([^|\n]+)/);
+      if (match) seen.push({ url: match[1], company: match[2].trim(), role: match[3].trim() });
+    }
+  };
+  collectQueue(PIPELINE_PATH);
+  collectQueue(DISCOVER_PATH);
+
+  if (existsSync(APPLICATIONS_PATH)) {
+    for (const line of readFileSync(APPLICATIONS_PATH, 'utf8').split('\n')) {
+      if (!line.startsWith('|') || line.startsWith('| #') || line.startsWith('|---')) continue;
+      const parts = line.replace(/^\|/, '').replace(/\|$/, '').split('|').map((field) => field.trim());
+      if (parts.length >= 4) seen.push({ url: parts[9] || '', company: parts[2], role: parts[3] });
     }
   }
   return seen;
 }
 
-// ── Pipeline writer ─────────────────────────────────────────────────
+// ── Discover writer ─────────────────────────────────────────────────
 
 function readProfile() {
   if (!existsSync(PROFILE_PATH)) return {};
@@ -269,43 +304,16 @@ function readProfile() {
   }
 }
 
-function appendToPipeline(offers) {
+function appendToDiscovery(offers) {
   if (offers.length === 0) return;
-
-  // Create a minimal structure if the file doesn't exist yet (fresh install).
-  if (!existsSync(PIPELINE_PATH)) {
-    writeFileSync(PIPELINE_PATH, '# Pipeline\n\n## Pendientes\n\n## Procesadas\n', 'utf-8');
-  }
-
-  let text = readFileSync(PIPELINE_PATH, 'utf-8');
-
-  // Find "## Pendientes" section and append after it
-  const marker = '## Pendientes';
-  const idx = text.indexOf(marker);
-  if (idx === -1) {
-    // No Pendientes section — append at end before Procesadas
-    const procIdx = text.indexOf('## Procesadas');
-    const insertAt = procIdx === -1 ? text.length : procIdx;
-    const block = `\n${marker}\n\n` + offers.map(o =>
-      formatPipelineLine(o)
-    ).join('\n') + '\n\n';
-    text = text.slice(0, insertAt) + block + text.slice(insertAt);
-  } else {
-    // Find the end of existing Pendientes content (next ## or end)
-    const afterMarker = idx + marker.length;
-    const nextSection = text.indexOf('\n## ', afterMarker);
-    const insertAt = nextSection === -1 ? text.length : nextSection;
-
-    const block = '\n' + offers.map(o =>
-      formatPipelineLine(o)
-    ).join('\n') + '\n';
-    text = text.slice(0, insertAt) + block + text.slice(insertAt);
-  }
-
-  writeFileSync(PIPELINE_PATH, text, 'utf-8');
+  const existing = existsSync(DISCOVER_PATH)
+    ? readFileSync(DISCOVER_PATH, 'utf-8').trimEnd()
+    : '# Discover';
+  const block = offers.map(formatPipelineLine).join('\n');
+  writeFileSync(DISCOVER_PATH, `${existing}\n${block}\n`, 'utf-8');
 }
 
-// Shape a pipeline.md row, including the optional posted-date and location
+// Shape a Discover queue row, including the optional posted-date and location
 // fields. Location is stripped of pipes/newlines defensively so a stray
 // "Remote | US" value can't corrupt the pipe-delimited row.
 function formatPipelineLine(o) {
@@ -425,6 +433,7 @@ async function main() {
   // 3. Load dedup sets
   const seenUrls = loadSeenUrls();
   const seenCompanyRoles = loadSeenCompanyRoles();
+  const seenPostings = loadSeenPostings();
 
   // 4. Fetch all APIs
   const date = new Date().toISOString().slice(0, 10);
@@ -488,8 +497,9 @@ async function main() {
         if (stats) stats.dupes++;
         continue;
       }
-      const key = `${job.company.toLowerCase()}::${job.title.toLowerCase()}`;
-      if (seenCompanyRoles.has(key)) {
+      const key = canonicalCompanyRoleKey(job.company, job.title);
+      const posting = { url: job.url, company: job.company, role: job.title };
+      if (seenCompanyRoles.has(key) || seenPostings.some((existing) => sameJobPosting(existing, posting))) {
         totalDupes++;
         if (stats) stats.dupes++;
         continue;
@@ -497,6 +507,7 @@ async function main() {
       // Mark as seen to avoid intra-scan dupes
       seenUrls.add(normalizedUrl);
       seenCompanyRoles.add(key);
+      seenPostings.push(posting);
       newOffers.push({
         ...job,
         source,
@@ -632,7 +643,7 @@ async function main() {
 
   // 5. Write results
   if (!dryRun && newOffers.length > 0) {
-    appendToPipeline(newOffers);
+    appendToDiscovery(newOffers);
     appendToScanHistory(newOffers, date);
   }
   const persistedRecoveries = !dryRun ? persistRecoveredUrls(config, sniffResults, date) : [];
@@ -771,7 +782,7 @@ async function main() {
     originalConsoleLog(JSON.stringify(summary, null, 2));
   }
 
-  console.log(`\n→ Run /catabull pipeline to evaluate new offers.`);
+  console.log(`\n→ Review Discover and add selected roles to Pipeline.`);
 }
 
 function buildDiagnostics(companyStats, sniffResults) {
